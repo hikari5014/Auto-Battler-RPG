@@ -1,0 +1,17 @@
+{
+  "name": "彈珠勇者",
+  "short_name": "彈珠勇者",
+  "description": "自動戰鬥 × 彈珠倍率 × 三選一技能的 Roguelike 手遊",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#120c24",
+  "theme_color": "#120c24",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
