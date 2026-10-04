@@ -1,11 +1,10 @@
 // 自動戰鬥：英雄站左邊，敵人從右邊走過來，雙方自己打
 import { sfx } from './audio.js';
 import { CHAPTERS, MAX_WAVE, ELITE_SPRITE } from './data.js';
-import { drawSprite, drawTile, spriteReady } from './sprites.js';
+import { drawSprite, drawTile, drawIcon, FONT } from './sprites.js';
 import { fmt } from './board.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
-const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 
 export function createHero(def, save) {
   const maxHp = def.hp * (1 + 0.1 * save.up.hp);
@@ -226,20 +225,7 @@ export class Battle {
   draw(ctx) {
     const { W, battleH, groundY, run } = this.g;
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
-    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
-    sky.addColorStop(0, ch.sky[0]);
-    sky.addColorStop(1, ch.sky[1]);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, groundY);
-    ctx.fillStyle = ch.ground;
-    ctx.fillRect(0, groundY, W, battleH - groundY);
-    ctx.fillStyle = ch.dirt;
-    ctx.fillRect(0, groundY + 10, W, battleH - groundY - 10);
-    if (ch.tile !== null) {
-      drawTile(ctx, ch.tile, 0, groundY + 10, W, battleH - groundY - 10, 24);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(0, groundY + 10, W, battleH - groundY - 10);
-    }
+    this.drawBackground(ctx, ch, W, battleH, groundY);
 
     ctx.save();
     if (this.shake > 0) ctx.translate(rand(-this.shake, this.shake), rand(-this.shake, this.shake) * 0.6);
@@ -260,14 +246,9 @@ export class Battle {
     // 英雄
     const hx = h.x + h.lunge * 10;
     this.shadow(ctx, hx, 44);
-    if (spriteReady()) {
-      drawSprite(ctx, h.def.sprite, hx, groundY + 4, 48, false, h.hurt * 0.6);
-    } else {
-      ctx.font = `44px ${EMOJI_FONT}`;
-      ctx.fillText(h.def.emoji, hx, groundY + 4);
-    }
+    drawSprite(ctx, h.def.sprite, hx, groundY + 4, 48, false, h.hurt * 0.6);
     this.bar(ctx, h.x - 30, groundY - 58, 60, h.hp / h.maxHp, '#4dff7a', true);
-    ctx.font = '800 10px system-ui, sans-serif';
+    ctx.font = `11px ${FONT}`;
     ctx.fillStyle = '#fff';
     ctx.fillText(`${fmt(Math.max(0, h.hp))}/${fmt(h.maxHp)}`, h.x, groundY - 62);
 
@@ -282,22 +263,41 @@ export class Battle {
     }
     ctx.globalAlpha = 1;
     for (const p of this.parts) {
-      ctx.fillStyle = p.color;
       ctx.globalAlpha = Math.min(1, p.life * 2);
-      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+      drawIcon(ctx, 'pp', 151, p.x, p.y, 10);
     }
     ctx.globalAlpha = 1;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     for (const t of this.texts) {
       ctx.globalAlpha = Math.min(1, t.life * 2.5);
-      ctx.font = `900 ${t.size}px system-ui, sans-serif`;
+      ctx.font = `${t.size}px ${FONT}`;
       ctx.strokeText(t.text, t.x, t.y);
       ctx.fillStyle = t.color;
       ctx.fillText(t.text, t.x, t.y);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+  }
+
+  drawBackground(ctx, ch, W, battleH, groundY) {
+    // 背景：天空 → 會慢慢捲動的遠景山丘 → 地面磚
+    const T = 72;
+    const horizonY = groundY - T - 26;
+    drawTile(ctx, ch.bg[0], 0, 0, W, horizonY, T, 'bg');
+    const off = (performance.now() / 1000 * 8) % T;
+    drawTile(ctx, ch.bg[1], -off, horizonY, W + T, T, T, 'bg');
+    drawTile(ctx, ch.bg[2], 0, horizonY + T, W, groundY - horizonY - T, T, 'bg');
+    if (ch.overlay) {
+      ctx.fillStyle = ch.overlay;
+      ctx.fillRect(0, 0, W, groundY);
+    }
+    const [top, fill, key] = ch.ground;
+    const G = 24;
+    drawTile(ctx, top, 0, groundY, W, G, G, key);
+    drawTile(ctx, fill, 0, groundY + G, W, battleH - groundY - G, G, key);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(0, groundY + G, W, battleH - groundY - G);
   }
 
   shadow(ctx, x, size) {

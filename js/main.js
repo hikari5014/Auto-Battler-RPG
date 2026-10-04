@@ -1,9 +1,9 @@
 import { HEROES, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, upgradeCost } from './data.js';
 import { loadSave, writeSave } from './save.js';
-import { initAudio, setMuted, sfx } from './audio.js';
+import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero } from './battle.js';
-import { spriteCss } from './sprites.js';
+import { loadSprites, iconTag, ICON } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -83,8 +83,10 @@ function nextWave() {
   run.phase = 'fight';
   if (run.wave > 1) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
   battle.startWave(run);
-  const tag = run.wave === MAX_WAVE ? ' 👑 魔王' : run.wave % 5 === 0 ? ' ⚠️ 精英' : '';
-  $('hud-wave').textContent = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
+  const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
+  $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
+  playMusic(run.wave === MAX_WAVE ? 'boss' : run.chapter % 2 ? 'stage1' : 'stage2');
+  if (run.wave > 1) sfx('wave');
   banner(run.wave === MAX_WAVE ? '魔王來襲！' : `第 ${run.wave} 波`);
 }
 
@@ -163,23 +165,23 @@ function renderShop() {
   const cards = run.offer.map((o, i) => {
     const cant = !o.bought && run.coins < o.price;
     return `<div class="card star${o.sk.star} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}">
-      <div class="card-icon">${o.sk.icon}</div>
+      <div class="card-icon">${iconTag(o.sk.icon, 44)}</div>
       <div class="card-name">${o.sk.name}</div>
       <div class="card-desc">${o.sk.desc}</div>
       <div class="stars">${'★'.repeat(o.sk.star)}${'☆'.repeat(3 - o.sk.star)}</div>
-      <button class="buy" data-i="${i}" ${o.bought || cant ? 'disabled' : ''}>${o.bought ? '已購買' : '💎 ' + o.price}</button>
+      <button class="buy" data-i="${i}" ${o.bought || cant ? 'disabled' : ''}>${o.bought ? '已購買' : iconTag(ICON.gem, 16) + o.price}</button>
     </div>`;
   }).join('');
   $('shop-body').innerHTML = `
     <h2>選擇新技能</h2>
-    <div class="pill">💎 ${fmt(run.coins)}</div>
+    <div class="pill">${iconTag(ICON.gem, 18)} ${fmt(run.coins)}</div>
     <div class="cards">${cards}</div>
     <div class="row">
-      <button class="btn small" id="btn-reroll" ${run.coins < run.rerollCost ? 'disabled' : ''}>🔄 刷新 💎${run.rerollCost}</button>
-      <button class="btn small gift" id="btn-free" ${run.freeReroll ? '' : 'disabled'}>🎁 免費刷新</button>
+      <button class="btn small" id="btn-reroll" ${run.coins < run.rerollCost ? 'disabled' : ''}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
+      <button class="btn small gift" id="btn-free" ${run.freeReroll ? '' : 'disabled'}>${iconTag(ICON.free, 16)} 免費刷新</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
-    <div class="owned">${run.skills.length ? '已獲得：' + run.skills.map(s => s.icon).join('') : '用接到的球幣購買技能，可以買不只一張'}</div>`;
+    <div class="owned">${run.skills.length ? '已獲得：' + run.skills.map(s => iconTag(s.icon, 18)).join('') : '用接到的球幣購買技能，可以買不只一張'}</div>`;
 }
 
 $('shop-body').addEventListener('click', ev => {
@@ -222,7 +224,7 @@ function onDeath() {
     $('result-body').innerHTML = `
       <h2>英雄倒下了…</h2>
       <p>撐到第 ${run.wave} 波</p>
-      <button class="btn big gift" id="btn-revive">❤️ 復活一次</button>
+      <button class="btn big gift" id="btn-revive">${iconTag(ICON.heart, 20)} 復活一次</button>
       <button class="btn" id="btn-giveup">結算</button>
       <p class="hint">（正式版：看一段激勵廣告即可復活）</p>`;
     showScreen('screen-result');
@@ -245,9 +247,9 @@ function endRun(win) {
   writeSave(save);
   if (win) sfx('win');
   $('result-body').innerHTML = `
-    <h2>${win ? '🏆 章節通關！' : '💀 冒險結束'}</h2>
+    <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${win ? '章節通關！' : '冒險結束'}</h2>
     <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
-    <div class="pill big">🪙 +${fmt(gold)}</div>
+    <div class="pill big">${iconTag(ICON.gold, 28)} +${fmt(gold)}</div>
     ${unlocked}
     <button class="btn big" id="btn-home">回到主畫面</button>`;
   showScreen('screen-result');
@@ -294,6 +296,7 @@ const chapterName = n => CHAPTERS[(n - 1) % CHAPTERS.length].name + (n > CHAPTER
 
 function goHome() {
   game.run = null;
+  playMusic('home');
   $('hud').classList.add('hidden');
   renderHome();
   showScreen('screen-home');
@@ -304,32 +307,32 @@ function renderHome() {
   const heroes = HEROES.map(h => {
     const own = save.owned.includes(h.id);
     return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'}" data-hero="${h.id}">
-      <span class="hero-emoji" style="${spriteCss(h.sprite, 48)}"></span>
+      ${iconTag(['dg', h.sprite], 48, 'hero-emoji')}
       <span class="hero-name">${h.name.split(' ')[1]}</span>
-      ${own ? '' : `<span class="hero-price">🪙 ${h.price}</span>`}
+      ${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
     </button>`;
   }).join('');
   const ups = UPGRADES.map(u => {
     const lv = save.up[u.id];
     const cost = upgradeCost(lv);
     return `<div class="up">
-      <span class="up-icon">${u.icon}</span>
+      <span class="up-icon">${iconTag(u.icon, 28)}</span>
       <span class="up-text"><b>${u.name} Lv.${lv}</b><small>${u.desc}</small></span>
-      <button class="btn small" data-up="${u.id}" ${save.gold < cost ? 'disabled' : ''}>🪙 ${cost}</button>
+      <button class="btn small" data-up="${u.id}" ${save.gold < cost ? 'disabled' : ''}>${iconTag(ICON.gold, 16)}${cost}</button>
     </div>`;
   }).join('');
   $('home-body').innerHTML = `
     <div class="top-row">
-      <div class="pill">🪙 ${fmt(save.gold)}</div>
-      <button class="icon-btn" id="btn-mute">${save.muted ? '🔇' : '🔊'}</button>
+      <div class="pill">${iconTag(ICON.gold, 20)} ${fmt(save.gold)}</div>
+      <button class="icon-btn" id="btn-mute">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
     </div>
     <h1 class="logo">彈珠勇者</h1>
     <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
     <div class="heroes">${heroes}</div>
     <div class="hero-info">
       <b>${hero.name}</b>
-      <small>❤️ ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}　🗡️ ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}　🎯 ${hero.range > 100 ? '遠程' : '近戰'}</small>
-      <small class="passive">✨ ${hero.passive}</small>
+      <small>${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}　${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}　${iconTag(ICON.target, 14)} ${hero.range > 100 ? '遠程' : '近戰'}</small>
+      <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
     </div>
     <div class="ups">${ups}</div>
     <div class="chapter">
@@ -338,7 +341,7 @@ function renderHome() {
       <button class="icon-btn" id="ch-next" ${save.chapter >= save.maxChapter ? 'disabled' : ''}>▶</button>
     </div>
     <button class="btn big" id="btn-start">開始冒險</button>
-    <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">📲 安裝到手機</button>
+    <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
     <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>`;
 }
 
@@ -356,7 +359,7 @@ $('home-body').addEventListener('click', ev => {
       save.selected = h.id;
       sfx('buy');
     } else {
-      toast(`還差 🪙 ${h.price - save.gold} 才能解鎖`);
+      toast(`還差 ${h.price - save.gold} 金幣才能解鎖`);
     }
   } else if (t.dataset.up) {
     const cost = upgradeCost(save.up[t.dataset.up]);
@@ -414,6 +417,7 @@ function frame(now) {
 }
 
 function draw() {
+  ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#120c24';
   ctx.fillRect(0, 0, game.W, game.H);
   if (!game.run) {
@@ -441,8 +445,14 @@ function drawIdle() {
 }
 
 resize();
-goHome();
-requestAnimationFrame(frame);
+Promise.all([
+  loadSprites(),
+  document.fonts ? document.fonts.load('16px "Cubic11"').catch(() => {}) : null,
+]).then(() => {
+  $('hud-gem').innerHTML = iconTag(ICON.gem, 18);
+  goHome();
+  requestAnimationFrame(frame);
+});
 
 // 方便測試用
 window.__game = { game, board, battle, save };

@@ -1,8 +1,10 @@
-// 全部音效用 WebAudio 即時合成，不需要音檔
+// 音效與音樂：Kenney 音效包（CC0）+ Juhani Junkala 晶片音樂（CC0）
+// 音檔還沒載入或載入失敗時，退回用 WebAudio 即時合成的音效
 let ctx = null;
 let master = null;
 let noiseBuf = null;
 let muted = false;
+let musicGain = null;
 const last = {};
 
 export function initAudio() {
@@ -16,9 +18,14 @@ export function initAudio() {
   master = ctx.createGain();
   master.gain.value = muted ? 0 : 0.45;
   master.connect(ctx.destination);
+  musicGain = ctx.createGain();
+  musicGain.gain.value = 0.35;
+  musicGain.connect(master);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  loadSamples();
+  if (wantMusic) playMusic(wantMusic, true);
 }
 
 export function setMuted(m) {
@@ -62,8 +69,7 @@ function noise(dur, vol, freq) {
   s.stop(t + dur);
 }
 
-export function sfx(name) {
-  if (!ctx || muted) return;
+function synthSfx(name) {
   switch (name) {
     case 'clink': { // 小球掉進杯子：金屬叮噹聲（兩個泛音）
       if (!throttle('clink', 28)) return;
@@ -112,4 +118,84 @@ export function sfx(name) {
       tone(900, 'sine', 0.04, 0.05);
       break;
   }
+}
+
+// ---------- 取樣音效 ----------
+// files：隨機挑一個播；rate：隨機音高範圍；gap：最短間隔（毫秒），避免同時太多聲
+const SAMPLES = {
+  clink: { files: ['clink1', 'clink2'], vol: 0.5, rate: [0.95, 1.35], gap: 30 },
+  peg: { files: ['peg'], vol: 0.18, rate: [0.9, 1.4], gap: 45 },
+  gate: { files: ['gate'], vol: 0.35, rate: [0.9, 1.3], gap: 50 },
+  hit: { files: ['hit1', 'hit2'], vol: 0.5, rate: [0.9, 1.15], gap: 40 },
+  crit: { files: ['crit', 'slash'], vol: 0.7, rate: [0.9, 1.1], gap: 60 },
+  kill: { files: ['kill'], vol: 0.4, rate: [0.9, 1.2], gap: 40 },
+  hurt: { files: ['hurt'], vol: 0.6, rate: [0.9, 1.1], gap: 80 },
+  block: { files: ['block'], vol: 0.6, rate: [1, 1.2], gap: 60 },
+  buy: { files: ['buy'], vol: 0.7, rate: [1, 1.1], gap: 50 },
+  tap: { files: ['tap'], vol: 0.5, rate: [1, 1], gap: 30 },
+  win: { files: ['win'], vol: 0.8, rate: [1, 1], gap: 0 },
+  lose: { files: ['lose'], vol: 0.8, rate: [1, 1], gap: 0 },
+  wave: { files: ['wave'], vol: 0.5, rate: [1, 1], gap: 0 },
+};
+const buffers = {};
+
+async function loadBuffer(path) {
+  const res = await fetch(path);
+  const data = await res.arrayBuffer();
+  return await new Promise((ok, fail) => ctx.decodeAudioData(data, ok, fail));
+}
+
+function loadSamples() {
+  const names = new Set(Object.values(SAMPLES).flatMap(s => s.files));
+  for (const n of names) {
+    loadBuffer(`assets/sfx/${n}.mp3`).then(b => { buffers[n] = b; }).catch(() => {});
+  }
+}
+
+export function sfx(name) {
+  if (!ctx || muted) return;
+  const s = SAMPLES[name];
+  const file = s && s.files[Math.floor(Math.random() * s.files.length)];
+  if (!s || !buffers[file]) {
+    synthSfx(name);
+    return;
+  }
+  if (s.gap && !throttle('s_' + name, s.gap)) return;
+  const src = ctx.createBufferSource();
+  src.buffer = buffers[file];
+  src.playbackRate.value = s.rate[0] + Math.random() * (s.rate[1] - s.rate[0]);
+  const g = ctx.createGain();
+  g.gain.value = s.vol;
+  src.connect(g).connect(master);
+  src.start();
+}
+
+// ---------- 背景音樂 ----------
+const musicBuf = {};
+let wantMusic = null;
+let current = null; // { key, src, gain }
+
+export function playMusic(key, force) {
+  if (!force && wantMusic === key) return;
+  wantMusic = key;
+  if (!ctx) return; // 等第一次點擊螢幕、音效啟動後再播
+  const start = buf => {
+    if (wantMusic !== key) return;
+    const t = ctx.currentTime;
+    if (current) {
+      current.gain.gain.setTargetAtTime(0, t, 0.3);
+      current.src.stop(t + 1.5);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.setTargetAtTime(1, t, 0.4);
+    src.connect(gain).connect(musicGain);
+    src.start();
+    current = { key, src, gain };
+  };
+  if (musicBuf[key]) start(musicBuf[key]);
+  else loadBuffer(`assets/music/${key}.mp3`).then(b => { musicBuf[key] = b; start(b); }).catch(() => {});
 }

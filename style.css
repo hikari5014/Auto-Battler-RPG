@@ -1,3 +1,10 @@
+/* 像素中文字型：俐方體11號（Cubic 11，免費授權，見 assets/licenses） */
+@font-face {
+  font-family: "Cubic11";
+  src: url("assets/fonts/Cubic_11.woff2") format("woff2");
+  font-display: swap;
+}
+
 :root {
   --bg: #120c24;
   --panel: #241a42;
@@ -18,7 +25,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  font-family: "Cubic11", system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
   overflow: hidden;
   overscroll-behavior: none;
   user-select: none;
@@ -243,3 +250,74 @@ canvas { display: block; touch-action: none; }
   75% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-20px); }
 }
+
+/* ---------- 像素風外觀（Kenney Pixel UI Pack，CC0）---------- */
+img.px { image-rendering: pixelated; vertical-align: middle; }
+button { font-family: inherit; }
+h1, h2, b, .btn, .pill { font-weight: normal; }
+
+.panel {
+  background: none;
+  border: 12px solid transparent;
+  border-image: url("assets/ui/ancient-brown.png") 6 fill / 12px stretch;
+  image-rendering: pixelated;
+  border-radius: 0;
+  box-shadow: none;
+}
+.home { border: none; border-image: none; }
+
+.hero-info, .up {
+  background: none;
+  border: 10px solid transparent;
+  border-image: url("assets/ui/ancient-tan_inlay.png") 5 fill / 10px stretch;
+  border-radius: 0;
+  color: #3b2a1a;
+}
+.hero-info small, .up-text small { color: #6b4f33; }
+.hero-info .passive { color: #1e5d8a; }
+
+.hero {
+  border: 8px solid transparent;
+  border-image: url("assets/ui/ancient-brown.png") 6 fill / 8px stretch;
+  border-radius: 0;
+  background: none;
+}
+.hero.sel {
+  border-image: url("assets/ui/colored-yellow.png") 6 fill / 8px stretch;
+  background: none;
+  box-shadow: none;
+  color: #3b2a1a;
+}
+
+.btn, .btn.small {
+  border: 10px solid transparent;
+  border-image: url("assets/ui/colored-red.png") 6 fill / 10px stretch;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.btn { padding: 4px; }
+.btn.big { padding: 8px; }
+.btn.small { padding: 0 4px; }
+.btn:active:not(:disabled) { border-image-source: url("assets/ui/colored-red_pressed.png"); transform: translateY(2px); box-shadow: none; }
+.btn.gift, .btn.small.gift { border-image-source: url("assets/ui/colored-green.png"); box-shadow: none; }
+.btn.gift:active:not(:disabled) { border-image-source: url("assets/ui/colored-green_pressed.png"); }
+.btn.ghost { border-image-source: url("assets/ui/colored-grey.png"); color: #333; text-shadow: none; }
+
+.card {
+  background: none;
+  border: 10px solid transparent;
+  border-image: url("assets/ui/ancient-tan_inlay.png") 5 fill / 10px stretch;
+  border-radius: 0;
+  color: #3b2a1a;
+}
+.card-desc { color: #4a3826; }
+.card.star2 { border-image-source: url("assets/ui/colored-blue.png"); color: #fff; }
+.card.star2 .card-desc { color: #eaf6ff; }
+.card.star3 { border-image-source: url("assets/ui/colored-yellow.png"); box-shadow: none; }
+.card .buy { border-radius: 0; background: #b0168a; font-size: 14px; }
+.stars { color: #e08a00; }
+.card.star2 .stars { color: #ffe066; }
+
+.panel.center p, .panel .hint, .owned { color: #fdf3d8; }

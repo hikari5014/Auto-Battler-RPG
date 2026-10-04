@@ -1,5 +1,6 @@
 // 彈珠台：小球從上方的倒球杯落下，穿過倍率門被放大，最後掉進下方接球杯換成球幣
 import { sfx } from './audio.js';
+import { drawIcon, FONT } from './sprites.js';
 
 const G = 950;          // 重力
 const BR = 4.5;         // 小球半徑
@@ -266,35 +267,31 @@ export class Board {
       ctx.strokeStyle = st.color;
       ctx.lineWidth = 2;
       ctx.strokeRect(g.x, y - 9, g.w, 18);
-      ctx.font = `900 ${14 + g.flash * 4}px system-ui, sans-serif`;
+      ctx.font = `${16 + g.flash * 4}px ${FONT}`;
       ctx.fillStyle = '#fff';
       ctx.fillText(g.type, g.x + g.w / 2, y + 1);
     }
 
-    // 小球（一般 / 高價值兩批畫，減少切換顏色次數）
-    ctx.fillStyle = '#ffd84a';
-    ctx.beginPath();
-    for (const b of this.balls) {
-      if (b.v > 1) continue;
-      ctx.moveTo(b.x + BR, b.y);
-      ctx.arc(b.x, b.y, BR, 0, TAU);
+    // 小球：一般球 = 金幣，高價值球 = 寶石（Kenney Pixel Platformer）
+    ctx.imageSmoothingEnabled = false;
+    if (!drawIcon(ctx, 'pp', 151, -99, -99, 1)) {
+      ctx.fillStyle = '#ffd84a';
+      ctx.beginPath();
+      for (const b of this.balls) { ctx.moveTo(b.x + BR, b.y); ctx.arc(b.x, b.y, BR, 0, TAU); }
+      ctx.fill();
+    } else {
+      for (const b of this.balls) {
+        if (b.v > 1) drawIcon(ctx, 'pp', 67, b.x, b.y, 18);
+        else drawIcon(ctx, 'pp', 151, b.x, b.y, 16);
+      }
     }
-    ctx.fill();
-    ctx.fillStyle = '#ff7ad9';
-    ctx.beginPath();
-    for (const b of this.balls) {
-      if (b.v <= 1) continue;
-      ctx.moveTo(b.x + BR + 1.5, b.y);
-      ctx.arc(b.x, b.y, BR + 1.5, 0, TAU);
-    }
-    ctx.fill();
 
     ctx.fillStyle = '#3a2a63';
     ctx.fillRect(0, bottom - 2, W, 40);
     this.drawPourCup(ctx);
     this.drawCatchCup(ctx, coins);
 
-    ctx.font = '900 14px system-ui, sans-serif';
+    ctx.font = `14px ${FONT}`;
     ctx.fillStyle = '#fff';
     for (const p of this.pops) {
       ctx.globalAlpha = Math.min(1, p.life * 2);
@@ -320,14 +317,14 @@ export class Board {
     ctx.fillRect(-17, 10, 34, 5);
     ctx.restore();
     if (this.queue > 0) {
-      ctx.font = '800 12px system-ui, sans-serif';
+      ctx.font = `12px ${FONT}`;
       ctx.fillStyle = '#ffd84a';
       ctx.fillText('x' + this.queue, x + 30, y + 4);
     }
     // 提示可以拖曳
     ctx.globalAlpha = 0.35 + Math.sin(this.t * 3) * 0.15;
     ctx.fillStyle = '#fff';
-    ctx.font = '700 11px system-ui, sans-serif';
+    ctx.font = `12px ${FONT}`;
     ctx.fillText('◀ 左右拖曳瞄準 ▶', this.W / 2, this.top + 42);
     ctx.globalAlpha = 1;
   }
@@ -347,10 +344,13 @@ export class Board {
     ctx.fillRect(cx - w / 2 + 6, y + 8, 6, h - 16);
     ctx.fillStyle = '#fff';
     ctx.fillRect(cx - w / 2 - 3, y - 3, w + 6, 6);
-    ctx.font = '900 15px system-ui, sans-serif';
+    ctx.font = `16px ${FONT}`;
     ctx.fillStyle = '#fff';
-    ctx.fillText('💎 ' + fmt(coins), cx, y + h / 2 + 3);
-    ctx.font = '900 11px system-ui, sans-serif';
+    const label = fmt(coins);
+    const tw = ctx.measureText(label).width;
+    drawIcon(ctx, 'pp', 67, cx - tw / 2 - 8, y + h / 2 + 1, 22);
+    ctx.fillText(label, cx + 8, y + h / 2 + 3);
+    ctx.font = `12px ${FONT}`;
     ctx.fillStyle = '#ffd84a';
     ctx.fillText('接住 x2', cx, y - 12);
   }

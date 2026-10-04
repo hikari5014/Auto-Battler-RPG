@@ -47,8 +47,13 @@ js/data.js            英雄、敵人、技能卡、數值
 js/audio.js           音效
 js/save.js            存檔（localStorage）
 icons/                App 圖示
-assets/               美術素材
-js/sprites.js         畫像素角色
+assets/img/           像素圖集（角色、金幣、背景、圖示）
+assets/ui/            像素面板與按鈕
+assets/sfx/           音效
+assets/music/         背景音樂
+assets/fonts/         像素中文字型
+assets/licenses/      所有素材的授權原文
+js/sprites.js         讀取與繪製像素圖
 ```
 
 ## 之後可以加的
@@ -57,12 +62,20 @@ js/sprites.js         畫像素角色
 - 每週爬塔排行榜、非同步 PVP
 - 奇遇事件房（賭博、用血換卡）
 - 裝備、寵物系統
-- 更多美術：背景、特效、技能卡圖示
+- 彈珠台的杯子、倍率門、釘子目前是程式畫的，可再換成手繪素材
 
 ## 素材來源
 
-| 素材 | 作者 | 授權 |
-|---|---|---|
-| 角色、怪物、地磚（`assets/tiny-dungeon.png`） | [Kenney – Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) | CC0（公有領域，可免費商用，不必標示） |
+全部都是免費、可商用的素材。
 
-授權原文在 `assets/LICENSE-kenney-tiny-dungeon.txt`。
+| 用在哪 | 素材 | 授權 |
+|---|---|---|
+| 英雄、怪物、墓地/火山地磚 | [Kenney – Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) | CC0 |
+| 金幣、寶石、愛心、草地磚、天空背景 | [Kenney – Pixel Platformer](https://kenney.nl/assets/pixel-platformer) | CC0 |
+| 技能卡與介面圖示 | [Kenney – 1-Bit Pack](https://kenney.nl/assets/1-bit-pack) | CC0 |
+| 面板、按鈕 | [Kenney – Pixel UI Pack](https://kenney.nl/assets/pixel-ui-pack) | CC0 |
+| 音效 | Kenney – [Casino](https://kenney.nl/assets/casino-audio)、[Impact](https://kenney.nl/assets/impact-sounds)、[Interface](https://kenney.nl/assets/interface-sounds)、[RPG](https://kenney.nl/assets/rpg-audio)、[Digital](https://kenney.nl/assets/digital-audio) Audio、[Music Jingles](https://kenney.nl/assets/music-jingles) | CC0 |
+| 背景音樂 | Juhani Junkala – [Chiptune Adventures](https://opengameart.org/content/4-chiptunes-adventure) | CC0 |
+| 中文像素字型 | [俐方體11號 Cubic 11](https://github.com/ACh-K/Cubic-11) | 免費、可商用（見授權檔） |
+
+CC0 = 作者放棄所有權利，可以自由使用、修改、商用，不用標示作者。授權原文都在 `assets/licenses/`。
