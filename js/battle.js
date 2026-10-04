@@ -1,6 +1,7 @@
 // 自動戰鬥：英雄站左邊，敵人從右邊走過來，雙方自己打
 import { sfx } from './audio.js';
-import { CHAPTERS, MAX_WAVE } from './data.js';
+import { CHAPTERS, MAX_WAVE, ELITE_SPRITE } from './data.js';
+import { drawSprite, drawTile, spriteReady } from './sprites.js';
 import { fmt } from './board.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -47,13 +48,13 @@ export class Battle {
     const w = run.wave;
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
     const scale = (1 + 0.16 * (w - 1)) * Math.pow(1.8, run.chapter - 1);
-    const mk = (kind, emoji) => {
+    const mk = (kind, sprite) => {
       const m = kind === 'boss' ? { hp: 22, atk: 2.6, size: 64, balls: 12, iv: 1.6 }
         : kind === 'elite' ? { hp: 5, atk: 1.8, size: 50, balls: 4, iv: 1.4 }
         : { hp: 1, atk: 1, size: 34, balls: 1, iv: 1.3 };
       const maxHp = 18 * scale * m.hp;
       return {
-        emoji, kind, maxHp, hp: maxHp, atk: 2.4 * scale * m.atk, interval: m.iv,
+        sprite, kind, maxHp, hp: maxHp, atk: 2.4 * scale * m.atk, interval: m.iv,
         timer: rand(0, 0.6), x: this.g.W + 40, size: m.size, ballMul: m.balls,
         kb: 0, flash: 0, lunge: 0, dead: false,
       };
@@ -61,7 +62,7 @@ export class Battle {
     const q = [];
     const n = w === MAX_WAVE ? 2 : 3 + Math.floor(w * 0.55);
     for (let i = 0; i < n; i++) q.push(mk('normal', ch.enemies[Math.floor(Math.random() * ch.enemies.length)]));
-    if (w % 5 === 0 && w !== MAX_WAVE) q.push(mk('elite', '👹'));
+    if (w % 5 === 0 && w !== MAX_WAVE) q.push(mk('elite', ELITE_SPRITE));
     if (w === MAX_WAVE) q.push(mk('boss', ch.boss));
     this.queue = q;
     this.spawnTimer = 0.4;
@@ -234,6 +235,11 @@ export class Battle {
     ctx.fillRect(0, groundY, W, battleH - groundY);
     ctx.fillStyle = ch.dirt;
     ctx.fillRect(0, groundY + 10, W, battleH - groundY - 10);
+    if (ch.tile !== null) {
+      drawTile(ctx, ch.tile, 0, groundY + 10, W, battleH - groundY - 10, 24);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(0, groundY + 10, W, battleH - groundY - 10);
+    }
 
     ctx.save();
     if (this.shake > 0) ctx.translate(rand(-this.shake, this.shake), rand(-this.shake, this.shake) * 0.6);
@@ -247,20 +253,19 @@ export class Battle {
       const e = this.enemies[i];
       const x = e.x + e.kb - e.lunge * 10;
       this.shadow(ctx, x, e.size);
-      ctx.font = `${e.size}px ${EMOJI_FONT}`;
-      if (e.flash > 0) ctx.globalAlpha = 0.6 + 0.4 * (1 - e.flash);
-      ctx.fillText(e.emoji, x, groundY + 4);
-      ctx.globalAlpha = 1;
+      drawSprite(ctx, e.sprite, x, groundY + 4, e.size + 6, false, e.flash);
       this.bar(ctx, x - 18, groundY - e.size - 8, 36, e.hp / e.maxHp, '#ff4d4d');
     }
 
     // 英雄
     const hx = h.x + h.lunge * 10;
     this.shadow(ctx, hx, 44);
-    ctx.font = `44px ${EMOJI_FONT}`;
-    if (h.hurt > 0) ctx.globalAlpha = 0.5 + 0.5 * (1 - h.hurt);
-    ctx.fillText(h.def.emoji, hx, groundY + 4);
-    ctx.globalAlpha = 1;
+    if (spriteReady()) {
+      drawSprite(ctx, h.def.sprite, hx, groundY + 4, 48, false, h.hurt * 0.6);
+    } else {
+      ctx.font = `44px ${EMOJI_FONT}`;
+      ctx.fillText(h.def.emoji, hx, groundY + 4);
+    }
     this.bar(ctx, h.x - 30, groundY - 58, 60, h.hp / h.maxHp, '#4dff7a', true);
     ctx.font = '800 10px system-ui, sans-serif';
     ctx.fillStyle = '#fff';

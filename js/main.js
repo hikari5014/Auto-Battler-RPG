@@ -3,6 +3,7 @@ import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero } from './battle.js';
+import { spriteCss } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -303,7 +304,7 @@ function renderHome() {
   const heroes = HEROES.map(h => {
     const own = save.owned.includes(h.id);
     return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'}" data-hero="${h.id}">
-      <span class="hero-emoji">${h.emoji}</span>
+      <span class="hero-emoji" style="${spriteCss(h.sprite, 48)}"></span>
       <span class="hero-name">${h.name.split(' ')[1]}</span>
       ${own ? '' : `<span class="hero-price">🪙 ${h.price}</span>`}
     </button>`;

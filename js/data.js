@@ -2,34 +2,38 @@
 
 export const HEROES = [
   {
-    id: 'blade', name: '劍士 艾倫', emoji: '🤺', price: 0,
+    id: 'blade', name: '劍士 艾倫', emoji: '🤺', sprite: 96, price: 0,
     hp: 130, atk: 9, interval: 1.0, range: 60, hits: 1,
     passive: '劍氣：每第 3 次攻擊揮出劍氣，打中所有敵人',
   },
   {
-    id: 'archer', name: '彈射射手 莉亞', emoji: '🧝', price: 300,
+    id: 'archer', name: '彈射射手 莉亞', emoji: '🧝', sprite: 112, price: 300,
     hp: 95, atk: 8, interval: 0.9, range: 240, hits: 1,
     passive: '球雨箭：每接住 20 顆球，自動射出一支強力箭',
   },
   {
-    id: 'mage', name: '重力法師 諾娃', emoji: '🧙', price: 700,
+    id: 'mage', name: '重力法師 諾娃', emoji: '🧙', sprite: 84, price: 700,
     hp: 105, atk: 10, interval: 1.2, range: 200, hits: 1, splash: 0.25,
     passive: '重力井：接球杯會把附近的小球吸進來',
   },
   {
-    id: 'saw', name: '鏈鋸狂戰 巴克', emoji: '🦹', price: 1200,
+    id: 'saw', name: '鏈鋸狂戰 巴克', emoji: '🦹', sprite: 87, price: 1200,
     hp: 160, atk: 9, interval: 1.1, range: 60, hits: 1, life: 0.06,
     passive: '鏈鋸：小球每撞釘子 12 次，就砍前排敵人一刀',
   },
 ];
 
+// 角色圖：Kenney「Tiny Dungeon」（CC0），數字是 assets/tiny-dungeon.png 裡第幾格
+// tile = 地面用的磚塊圖（null 表示純色草地）
 export const CHAPTERS = [
-  { name: '翠綠平原', sky: ['#6fc3ff', '#d4f1ff'], ground: '#5cb85c', dirt: '#3f8a3f', enemies: ['🐌', '🐛', '🐗'], boss: '🦖' },
-  { name: '炙熱沙漠', sky: ['#ff9f5a', '#ffe0a3'], ground: '#d9a35b', dirt: '#a8763a', enemies: ['🦂', '🐍', '🦅'], boss: '🐉' },
-  { name: '幽暗墓地', sky: ['#2e2150', '#6b4f8f'], ground: '#4a3f5c', dirt: '#2f2740', enemies: ['💀', '🧟', '👻'], boss: '🧛' },
-  { name: '熔岩火山', sky: ['#3a0d0d', '#b83a1a'], ground: '#5a2a1a', dirt: '#3a1a10', enemies: ['🦎', '🔥', '😈'], boss: '👿' },
-  { name: '天空神殿', sky: ['#7aa8ff', '#f4f0ff'], ground: '#cfc6e8', dirt: '#9c91c0', enemies: ['🦅', '🗿', '🧚'], boss: '🐲' },
+  { name: '翠綠平原', sky: ['#6fc3ff', '#d4f1ff'], ground: '#5cb85c', dirt: '#3f8a3f', tile: null, enemies: [108, 120, 123], boss: 109 },
+  { name: '炙熱沙漠', sky: ['#ff9f5a', '#ffe0a3'], ground: '#d9a35b', dirt: '#a8763a', tile: 49, enemies: [122, 123, 111], boss: 110 },
+  { name: '幽暗墓地', sky: ['#2e2150', '#6b4f8f'], ground: '#4a3f5c', dirt: '#2f2740', tile: 40, enemies: [121, 124, 120], boss: 111 },
+  { name: '熔岩火山', sky: ['#3a0d0d', '#b83a1a'], ground: '#5a2a1a', dirt: '#3a1a10', tile: 12, enemies: [110, 122, 108], boss: 109 },
+  { name: '天空神殿', sky: ['#7aa8ff', '#f4f0ff'], ground: '#cfc6e8', dirt: '#9c91c0', tile: 57, enemies: [121, 120, 124], boss: 110 },
 ];
+
+export const ELITE_SPRITE = 92; // 寶箱怪
 
 // star = 稀有度（1~3 星），價格與出現機率跟著星數走
 export const SKILLS = [

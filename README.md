@@ -47,6 +47,8 @@ js/data.js            英雄、敵人、技能卡、數值
 js/audio.js           音效
 js/save.js            存檔（localStorage）
 icons/                App 圖示
+assets/               美術素材
+js/sprites.js         畫像素角色
 ```
 
 ## 之後可以加的
@@ -55,4 +57,12 @@ icons/                App 圖示
 - 每週爬塔排行榜、非同步 PVP
 - 奇遇事件房（賭博、用血換卡）
 - 裝備、寵物系統
-- 美術：換掉 emoji，改用精靈圖
+- 更多美術：背景、特效、技能卡圖示
+
+## 素材來源
+
+| 素材 | 作者 | 授權 |
+|---|---|---|
+| 角色、怪物、地磚（`assets/tiny-dungeon.png`） | [Kenney – Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) | CC0（公有領域，可免費商用，不必標示） |
+
+授權原文在 `assets/LICENSE-kenney-tiny-dungeon.txt`。

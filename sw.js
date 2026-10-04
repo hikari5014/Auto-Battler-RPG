@@ -1,5 +1,5 @@
 // 離線快取：改版時把版本號 +1，舊快取就會被清掉
-const CACHE = 'marble-brave-v1';
+const CACHE = 'marble-brave-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -11,6 +11,8 @@ const ASSETS = [
   'js/audio.js',
   'js/board.js',
   'js/battle.js',
+  'js/sprites.js',
+  'assets/tiny-dungeon.png',
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
