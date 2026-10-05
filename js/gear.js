@@ -65,7 +65,7 @@ export function itemIcon(it) {
 // 結算掉落：通過的波數越多、難度越高，掉越多、越稀有
 export function rollDrops(save, cleared, win, diffIndex) {
   const gear = ensureGear(save);
-  let count = Math.floor(cleared / 5) + (win ? 2 : 0) + (diffIndex >= 3 ? 1 : 0);
+  let count = Math.min(6, Math.floor(cleared / 5) + (win ? 2 : 0) + (diffIndex >= 3 ? 1 : 0));
   if (cleared >= 3) count = Math.max(1, count);
   const drops = [];
   for (let i = 0; i < count; i++) {

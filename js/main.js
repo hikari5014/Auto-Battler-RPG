@@ -1,4 +1,5 @@
-import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, upgradeCost } from './data.js';
+import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave, upgradeCost } from './data.js';
+import { shareResult } from './share.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -94,7 +95,7 @@ function startRun(opts = {}) {
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
   game.run = {
-    chapter, wave: 0, daily: !!opts.daily, mods,
+    chapter, wave: 0, daily: !!opts.daily, endless: !!opts.endless, mods,
     coins: save.up.coin * 40 + gearBonus(save).coin,
     hero: createHero(def, save),
     skills: [], levels: {}, phase: 'fight', revived: false,
@@ -127,6 +128,13 @@ function nextWave() {
   const run = game.run;
   run.wave++;
   run.phase = 'fight';
+  // 無盡塔：每打完一個循環（魔王）就進入下一章
+  if (run.endless && run.wave > 1 && (run.wave - 1) % ENDLESS_CYCLE === 0) {
+    run.chapter++;
+    run.rules = boardOf(run.chapter);
+    board.setChapter(run.chapter);
+    toast(`進入${chapterName(run.chapter)}｜${run.rules.rule}`);
+  }
   if (run.wave > 1 && !run.mods.noHeal) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
   if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
   if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
@@ -137,13 +145,14 @@ function nextWave() {
     if (run.ballBuff.fresh) run.ballBuff.fresh = false;
     else if (--run.ballBuff.waves <= 0) run.ballBuff = null;
   }
-  const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
-  $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
-  renderWaveBar(run.wave);
+  const boss = isBossWave(run, run.wave);
+  const tag = boss ? ' ' + iconTag(ICON.crown, 16) + '魔王' : stageWave(run, run.wave) % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
+  $('hud-wave').innerHTML = run.endless ? `無盡塔 第 ${run.wave} 層${tag}` : `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
+  renderWaveBar(run);
   // 每章有自己的音樂；魔王關等魔王登場才切成魔王音樂
   playMusic(CHAPTERS[(run.chapter - 1) % CHAPTERS.length].music);
   if (run.wave > 1) sfx('wave');
-  banner(run.wave === MAX_WAVE ? '魔王來襲！' : `第 ${run.wave} 波`);
+  banner(boss ? '魔王來襲！' : run.endless ? `第 ${run.wave} 層` : `第 ${run.wave} 波`);
 }
 
 function onKill(e) {
@@ -254,8 +263,8 @@ function update(dt) {
       run.phase = 'settle';
     }
   } else if (run.phase === 'settle' && board.isEmpty()) {
-    if (run.wave >= MAX_WAVE) endRun(true);
-    else if (EVENT_WAVES.includes(run.wave)) openEvent();
+    if (!run.endless && run.wave >= MAX_WAVE) endRun(true);
+    else if (EVENT_WAVES.includes(stageWave(run, run.wave))) openEvent();
     else openShop();
   }
 }
@@ -539,8 +548,24 @@ function endRun(win) {
     st.dailyWins++;
     dailyHtml = `<p class="good">每日挑戰完成！額外 +${g} 金幣＋史詩裝備</p>`;
   }
+  // 無盡塔：記錄到本機排行榜（前 10 名）
+  let recordHtml = '';
+  if (run.endless) {
+    save.records = save.records || [];
+    const rec = { hero: run.hero.def.id, diff: run.diff.id, wave: cleared, kills: run.kills, date: todayKey() };
+    save.records.push(rec);
+    save.records.sort((a, b) => b.wave - a.wave || b.kills - a.kills);
+    save.records = save.records.slice(0, 10);
+    const rank = save.records.indexOf(rec) + 1;
+    recordHtml = rank === 1 ? '<p class="good">新紀錄！排行榜第 1 名</p>' : rank ? `<p class="good">排行榜第 ${rank} 名</p>` : '';
+  }
+  // 分享用的資料
+  game.lastResult = {
+    win, endless: run.endless, daily: run.daily, cleared, kills: run.kills, chapter: run.chapter,
+    hero: run.hero.def, diff: run.diff, skills: run.skills.slice(0, 8),
+  };
   let unlocked = '';
-  if (win && run.chapter === save.maxChapter) {
+  if (win && run.chapter === save.maxChapter && !run.endless) {
     save.maxChapter++;
     save.chapter = save.maxChapter;
     unlocked = `<p class="good">解鎖第 ${save.maxChapter} 章：${chapterName(save.maxChapter)}</p>`;
@@ -548,14 +573,16 @@ function endRun(win) {
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
   $('result-body').innerHTML = `
-    <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${win ? '章節通關！' : '冒險結束'}</h2>
-    <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
+    <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${run.endless ? '無盡塔結束' : win ? '章節通關！' : '冒險結束'}</h2>
+    <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
+    ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
     ${unlocked}${dailyHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
-    <button class="btn big" id="btn-home">回到主畫面</button>`;
+    <button class="btn big" id="btn-home">回到主畫面</button>
+    <button class="btn small" id="btn-share">${iconTag(['ic', 1057], 16)} 分享戰績</button>`;
   $('result-body').className = 'panel center ' + (win ? 'win' : 'lose');
   showScreen('screen-result');
   countUp($('gold-count'), gold);
@@ -573,6 +600,8 @@ $('result-body').addEventListener('click', ev => {
     showScreen(null);
   } else if (t.id === 'btn-giveup') {
     endRun(false);
+  } else if (t.id === 'btn-share') {
+    shareResult(game.lastResult).then(msg => msg && toast(msg));
   } else if (t.id === 'btn-home') {
     goHome();
   }
@@ -658,6 +687,7 @@ function renderHome() {
       <div class="meta-row">
         <button class="meta-btn" id="btn-ach">${iconTag(ICON.trophy, 20)} 成就${achClaimable(save).length ? `<b class="badge">${achClaimable(save).length}</b>` : ''}</button>
         <button class="meta-btn ${dailyDone(save) ? 'done' : 'fresh'}" id="btn-daily">${iconTag(['ic', 630, '#ffd84a'], 20)} 每日挑戰<small>${dailyDone(save) ? '今日完成 ✓' : '尚未挑戰'}</small></button>
+        <button class="meta-btn" id="btn-endless" ${offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔')}>${iconTag(['ic', 1023, '#d06bff'], 20)} 無盡塔<small>${save.records && save.records.length ? `最高 ${save.records[0].wave} 層` : save.maxChapter < 2 ? '通關第 1 章開放' : '尚無紀錄'}</small></button>
       </div>
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
@@ -726,6 +756,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-ach') { openAch(); return; }
   else if (t.id === 'btn-daily') { openDaily(); return; }
+  else if (t.id === 'btn-endless') { openEndless(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
@@ -808,6 +839,29 @@ $('ach-body').addEventListener('click', ev => {
     renderHome();
     showScreen('screen-home');
   }
+});
+
+// ---------- 無盡塔 ----------
+function openEndless() {
+  const recs = save.records || [];
+  const rows = recs.map((r, i) => {
+    const h = HEROES.find(x => x.id === r.hero) || HEROES[0];
+    return `<div class="rec ${i === 0 ? 'top' : ''}"><b>${i + 1}</b>${iconTag(['dg', h.sprite], 24)}<span>${h.name.split(' ')[1]}・${difficultyOf(r.diff).name}</span><em>${r.wave} 層</em><small>${r.date.slice(5)}</small></div>`;
+  }).join('');
+  $('endless-body').innerHTML = `
+    <h2>無盡塔</h2>
+    <p class="hint">波數沒有上限。每 10 層出現魔王，打倒後進入下一章，敵人越來越強。使用目前的英雄與難度（${difficultyOf(save.difficulty).name}）。</p>
+    <div class="recs">${rows || '<p class="hint">還沒有紀錄，挑戰看看！</p>'}</div>
+    <button class="btn big gift" id="btn-endless-go">開始挑戰</button>
+    <button class="btn ghost" id="btn-endless-close">關閉</button>`;
+  showScreen('screen-endless', 'screen-home');
+}
+$('endless-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  sfx('tap');
+  if (t.id === 'btn-endless-go') { writeSave(save); startRun({ endless: true, chapter: 1 }); }
+  else if (t.id === 'btn-endless-close') showScreen('screen-home');
 });
 
 // ---------- 每日挑戰 ----------
@@ -1034,10 +1088,13 @@ function showScreen(id, keep) {
   }
 }
 // 波次進度條：15 格，打過的填滿、目前這格閃爍、精英／魔王格有標記
-function renderWaveBar(wave) {
+function renderWaveBar(run) {
+  // 無盡塔顯示目前這 10 層的進度
+  const len = run.endless ? ENDLESS_CYCLE : MAX_WAVE;
+  const wave = stageWave(run, run.wave);
   let html = '';
-  for (let i = 1; i <= MAX_WAVE; i++) {
-    const kind = i === MAX_WAVE ? 'boss' : i % 5 === 0 ? 'elite' : '';
+  for (let i = 1; i <= len; i++) {
+    const kind = i === len ? 'boss' : i % 5 === 0 ? 'elite' : '';
     const st = i < wave ? 'done' : i === wave ? 'now' : '';
     html += `<i class="${kind} ${st}"></i>`;
   }

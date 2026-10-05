@@ -1,7 +1,7 @@
 // 自動戰鬥（2.5D）：角色是平面紙片人，站在有深度的 3D 地面上
 // 英雄站在左前方，敵人從右後方的霧裡走出來，排成一斜排往前逼近
 import { sfx } from './audio.js';
-import { CHAPTERS, MAX_WAVE, MONSTERS, TIERS } from './data.js';
+import { CHAPTERS, MONSTERS, TIERS, isBossWave, stageWave } from './data.js';
 import { drawSprite, drawIcon, FONT } from './sprites.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
@@ -70,7 +70,8 @@ export class Battle {
   layout(W, top, bottom) { this.scene.layout(W, top, bottom); }
 
   startWave(run) {
-    const w = run.wave;
+    const boss = isBossWave(run, run.wave);
+    const w = stageWave(run, run.wave); // 無盡塔用循環內的波數
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
     const diff = run.diff;
     const scale = (1 + 0.16 * (w - 1)) * Math.pow(1.8, run.chapter - 1);
@@ -91,13 +92,14 @@ export class Battle {
     };
     const randomMon = () => ch.enemies[Math.floor(Math.random() * ch.enemies.length)];
     const q = [];
-    if (w === MAX_WAVE) {
+    if (boss) {
       // 魔王關：兩隻隊長護衛＋魔王
       q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), mk(ch.boss, 'boss'));
     } else {
       const n = 3 + Math.floor(w * 0.55) + diff.count;
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
-      const eliteChance = Math.min(0.2, 0.06 + w * 0.01) * ((run.mods || {}).elites ? 3 : 1);
+      // 第 3 波起才會有菁英（前兩波讓玩家先熟悉）
+      const eliteChance = w < 3 ? 0 : Math.min(0.2, 0.02 + w * 0.012) * ((run.mods || {}).elites ? 3 : 1);
       for (let i = 0; i < n; i++) q.push(mk(randomMon(), Math.random() < eliteChance ? 'elite' : 'normal'));
       // 第 3 波起有隊長，第 8 波起兩隻
       const captains = w >= 8 ? 2 : w >= 3 ? 1 : 0;

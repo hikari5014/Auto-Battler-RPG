@@ -458,7 +458,23 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 @keyframes legend-glow { 50% { box-shadow: 0 0 14px #ffb820, inset 0 0 10px rgba(255, 184, 32, 0.5); } }
 
 /* ---------- 成就、每日挑戰 ---------- */
-.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.meta-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+.meta-btn[aria-disabled="true"] { opacity: 0.5; }
+.recs { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; max-height: 40vh; overflow-y: auto; }
+.rec {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fdf3d8;
+  font-size: 13px;
+  text-align: left;
+}
+.rec b { width: 20px; color: var(--muted); }
+.rec span { flex: 1; }
+.rec em { font-style: normal; font-size: 16px; color: var(--gold); }
+.rec small { font-size: 10px; color: var(--muted); }
+.rec.top { box-shadow: inset 0 0 0 2px var(--gold), 0 0 10px rgba(255, 216, 74, 0.4); }
 .meta-btn {
   position: relative;
   display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;

@@ -10,7 +10,7 @@ export const HEROES = [
   },
   {
     id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300, role: '高速・遠程',
-    hp: 95, atk: 5, interval: 0.5, range: 240, hits: 1, crit: 0.15,
+    hp: 110, atk: 5, interval: 0.5, range: 240, hits: 1, crit: 0.15,
     passive: '球雨箭：每接住 20 顆球自動射出強力箭；攻速極快、天生 15% 暴擊，但很脆',
   },
   {
@@ -159,3 +159,8 @@ export const UPGRADES = [
 export const upgradeCost = lv => Math.round(60 * Math.pow(1.55, lv));
 
 export const MAX_WAVE = 15;
+// 無盡塔：每 10 層一個循環（第 10、20、30… 層是魔王），打完魔王進入下一章
+export const ENDLESS_CYCLE = 10;
+export const isBossWave = (run, w) => run.endless ? w % ENDLESS_CYCLE === 0 : w === MAX_WAVE;
+// 這一層在目前循環裡是第幾波（用來決定怪物數量與強度）
+export const stageWave = (run, w) => run.endless ? ((w - 1) % ENDLESS_CYCLE) + 1 : w;
