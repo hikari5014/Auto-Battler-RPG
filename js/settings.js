@@ -8,6 +8,7 @@ export const settings = {
   vibrate: true,     // 手機震動
   lowFx: false,      // 低特效模式：減少粒子與光暈，舊手機比較順
   dmgNumbers: true,  // 顯示傷害數字
+  liveStats: true,   // 戰鬥中左上角顯示即時數值
 };
 
 export function loadSettings(save) {
@@ -39,6 +40,7 @@ export function settingsHtml() {
       ${slider('sfx', '音效音量')}
       ${toggle('vibrate', '手機震動', '按按鈕、暴擊、魔王登場時震動')}
       ${toggle('dmgNumbers', '傷害數字', '關掉畫面會比較乾淨')}
+      ${toggle('liveStats', '戰鬥即時數值', '戰鬥畫面左上角顯示攻擊、每秒傷害等')}
       ${toggle('lowFx', '低特效模式', '減少粒子和光暈，舊手機比較順')}
     </div>
     <div class="row">

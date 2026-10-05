@@ -981,3 +981,52 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .mcard.riding::after { content: '騎'; position: absolute; top: -6px; right: -4px; font-size: 9px; padding: 0 3px; border-radius: 3px; background: #4dde7a; color: #000; }
 .ride-exp { font-size: 13px; color: #ffe2a8 !important; }
 .m-train .btn { flex: 1; display: flex; flex-direction: column; align-items: center; white-space: nowrap; margin: 0; }
+
+/* ---------- 上方狀態列：改成會自動縮的格子，再窄都不會把按鈕擠出去 ---------- */
+#hud { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; left: 6px; right: 6px; }
+#hud .hud-wave { min-width: 0; overflow: hidden; }
+#hud-wave { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+#hud-wave img { vertical-align: middle; }
+#hud .wavebar { overflow: hidden; }
+#hud .wavebar i { flex: 1 1 5px; min-width: 2px; width: auto; max-width: 7px; }
+#hud .wavebar i.boss { flex-grow: 1.6; max-width: 10px; }
+#hud .pill.coins { max-width: 34vw; overflow: hidden; }
+#hud .pill.coins b { min-width: 0; font-size: 15px; }
+#hud .hud-btns { margin-left: 0; }
+#hud .icon-btn { min-width: 36px; height: 38px; padding: 0 4px; }
+@media (max-width: 360px) {
+  #hud-wave { font-size: 11px; }
+  #hud .pill.coins b { font-size: 13px; }
+  #hud .icon-btn { min-width: 32px; }
+  #hud .skills-btn #skills-ic { display: none; }
+}
+
+/* ---------- 數值 ---------- */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0 6px; }
+.st { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 4px; padding: 3px 7px; border-radius: 6px; background: rgba(0, 0, 0, 0.38); text-align: left; flex-wrap: wrap; }
+.st small { font-size: 11px; color: var(--muted); }
+.st b { font-size: 13px; color: #fff; font-weight: normal; }
+.st em { width: 100%; text-align: right; font-style: normal; font-size: 10px; color: #4dff7a; margin-top: -2px; }
+.st:not(.main) { background: rgba(0, 0, 0, 0.22); }
+.st.hot b { color: var(--gold); }
+.st.flash, .shop-stats.flash { animation: st-flash 0.6s ease-out; }
+@keyframes st-flash { 0% { background: rgba(77, 255, 122, 0.55); } 100% { background: rgba(0, 0, 0, 0.38); } }
+.sub-h { margin: 6px 0 2px; font-size: 15px; color: #fdf3d8; text-align: left; }
+.st-head { margin: 2px 0; color: #fdf3d8; }
+#skills-body .gtabs, #info-body .gtabs { margin-bottom: 2px; }
+.stats { flex-wrap: wrap; row-gap: 2px; }
+.stats .hot { color: #b4370f; }
+.stats-link { color: #1e5d8a; font-size: 12px; }
+.shop-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 8px; margin: 6px 0 0; padding: 4px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); font-size: 11px; color: #fdf3d8; }
+.shop-stats span { display: inline-flex; align-items: center; gap: 2px; }
+#live-stats {
+  position: absolute; left: 6px; top: calc(var(--safe-top) + 58px);
+  display: grid; grid-template-columns: auto auto; gap: 1px 8px;
+  padding: 3px 7px; border-radius: 8px;
+  background: rgba(10, 6, 24, 0.55); border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 10px; color: var(--muted); cursor: pointer;
+}
+#live-stats span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+#live-stats b { color: #fff; font-weight: normal; }
+#live-stats .hot b { color: var(--gold); }
+#live-stats.hidden { display: none; }

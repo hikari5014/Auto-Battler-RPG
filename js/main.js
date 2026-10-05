@@ -1,11 +1,12 @@
 import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, heroCls, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
 import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
 import { shareResult } from './share.js';
+import { statsHtml, refreshStats, dps } from './stats.js';
 import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText } from './mount.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
-import { Battle, createHero, BENCH_POS } from './battle.js';
+import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
 import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 import { VERSION, CHANGELOG, compareVersion } from './version.js';
 import { DIFFICULTIES, difficultyOf, boardOf } from './levels.js';
@@ -100,6 +101,7 @@ function startRun(opts = {}) {
   const def2 = save.second && save.second !== def.id && save.owned.includes(save.second) ? HEROES.find(h => h.id === save.second) : null;
   const defs = def2 ? [def, def2] : [def];
   const heroes = defs.map(d => createHero(d, save));
+  heroes.forEach(h => { h.duo = defs.length > 1; });
   const chapter = opts.chapter || save.chapter;
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
@@ -107,7 +109,7 @@ function startRun(opts = {}) {
   game.run = {
     chapter, wave: 0, daily: !!opts.daily, endless: !!opts.endless, mods,
     coins: tb.coin + gearBonus(save).coin, tb,
-    hero: heroes[0], heroes, switchCd: 0,
+    hero: heroes[0], heroes, switchCd: 0, bare: defs.map(bareHero),
     heroIds: defs.map(d => d.id), heroCls: [...new Set(defs.flatMap(heroCls))],
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
@@ -198,6 +200,48 @@ function onKill(e) {
   if (run.hero.stealCoins) run.coins += run.hero.stealCoins * (run.hero.stealBig && e.kind !== 'normal' ? 10 : 1);
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
+}
+
+// ---------- 完整數值 ----------
+// 沒有任何加成的英雄（用來顯示「多了多少」）
+const BARE = { talents: {}, gear: { items: [], equip: {}, nextId: 1 }, mounts: { owned: {}, ride: null } };
+const bareHero = def => createHero(def, BARE);
+
+// 戰鬥中左上角的即時數值（每 0.25 秒更新）
+let liveT = 0;
+function updateLive(dt) {
+  const el = $('live-stats');
+  const run = game.run;
+  const show = settings.liveStats && run && ['fight', 'settle'].includes(run.phase);
+  el.classList.toggle('hidden', !show);
+  if (!show) return;
+  liveT -= dt;
+  if (liveT > 0) return;
+  liveT = 0.25;
+  const h = run.hero;
+  const html = `<span>${iconTag(ICON.sword, 12)}<b>${fmtNum(heroAtkOf(h))}</b></span><span class="hot">秒傷 <b>${fmtNum(dps(h))}</b></span>
+    <span>攻速 <b>${(h.spdMul / h.interval).toFixed(2)}</b></span><span>暴擊 <b>${Math.round(Math.min(1, h.crit) * 100)}%</b></span>
+    <span>次數 <b>x${h.hits}</b></span>${h.shield > 0 ? `<span>護盾 <b>${fmt(h.shield)}</b></span>` : ''}`;
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+const fmtNum = v => (v >= 100 ? fmt(v) : v.toFixed(1));
+$('live-stats').addEventListener('click', () => openSkillPanel());
+
+// 首頁：完整數值（天賦、裝備、坐騎都算進去）
+let statsTab = 0;
+function openStats() {
+  const defs = [save.selected, save.second].filter(Boolean).map(id => HEROES.find(h => h.id === id)).filter(Boolean);
+  if (statsTab >= defs.length) statsTab = 0;
+  const def = defs[statsTab];
+  const h = createHero(def, save);
+  $('info-body').innerHTML = `
+    <h2>完整數值</h2>
+    ${defs.length > 1 ? `<div class="gtabs">${defs.map((d, i) => `<button class="gtab ${i === statsTab ? 'sel' : ''}" data-stab="${i}">${i ? '副' : '主'}・${d.name.split(' ')[1]}</button>`).join('')}</div>` : ''}
+    <p class="st-head">${iconTag(['dg', def.sprite], 28)} <b>${def.name}</b></p>
+    <div id="stats-box">${statsHtml(h, bareHero(def))}</div>
+    <p class="hint">綠色 = 天賦、裝備、坐騎額外加的。戰鬥中買到的技能還會再往上加，可以在戰鬥畫面左上角或「技能」裡看到。</p>
+    <button class="btn" id="btn-info-close">關閉</button>`;
+  showScreen('screen-info', 'screen-home');
 }
 
 // ---------- 雙職業：切換 ----------
@@ -321,8 +365,9 @@ function bump(el) {
 
 function update(dt) {
   const run = game.run;
-  if (!run) { battle.scene.update(dt); return; }
+  if (!run) { battle.scene.update(dt); $('live-stats').classList.add('hidden'); return; }
   const live = !game.paused && (run.phase === 'fight' || run.phase === 'settle');
+  updateLive(dt);
   battle.update(game.paused ? 0 : dt, live && run.phase === 'fight');
   if (!live) return;
   if (run.switchCd > 0 && !game.paused) { run.switchCd = Math.max(0, run.switchCd - dt); updateSwitchCd(); }
@@ -404,8 +449,12 @@ function openSkillPanel() {
       <span class="sk-lv">${isMaxed(sk) ? '<b class="max">MAX</b>' : sk.max ? `Lv.${lv}/${sk.max}` : 'x' + lv}<span class="pips">${pips}</span></span>
     </div>`;
   }).join('');
+  const hi = run.heroes.indexOf(statHero(run));
   $('skills-body').innerHTML = `
-    <h2>我的技能</h2>
+    <h2>角色與技能</h2>
+    ${run.heroes.length > 1 ? `<div class="gtabs">${run.heroes.map((x, i) => `<button class="gtab ${i === hi ? 'sel' : ''}" data-shero="${i}">${x === run.hero ? '上場' : '待命'}・${x.def.name.split(' ')[1]}</button>`).join('')}</div>` : ''}
+    <div id="skill-stats">${statsHtml(run.heroes[hi], run.bare[hi])}</div>
+    <h3 class="sub-h">技能</h3>
     ${run.heroes.map(x => `<p class="hero-pass ${x === h ? '' : 'bench'}">${iconTag(['dg', x.def.sprite], 24)} ${x.def.passive}</p>`).join('')}
     <div class="sk-list">${rows || '<p class="hint">還沒有技能，打完一波就能在商店購買</p>'}</div>
     <button class="btn big" id="btn-skills-close">${wasLive ? '繼續戰鬥' : '關閉'}</button>`;
@@ -413,8 +462,21 @@ function openSkillPanel() {
   showScreen('screen-skills', run.phase === 'shop' ? 'screen-shop' : null);
 }
 $('btn-skills').addEventListener('click', openSkillPanel);
+// 技能面板看的是哪一位（雙職業可以切換分頁）
+let statPick = null;
+const statHero = run => (statPick && run.heroes.includes(statPick) ? statPick : run.hero);
+// 面板開著時數值即時更新
+setInterval(() => {
+  const run = game.run;
+  if (!run || $('screen-skills').classList.contains('hidden')) return;
+  const h = statHero(run);
+  refreshStats($('skill-stats'), h, run.bare[run.heroes.indexOf(h)]);
+}, 300);
 $('skills-body').addEventListener('click', ev => {
+  const tab = ev.target.closest('[data-shero]');
+  if (tab) { statPick = game.run.heroes[+tab.dataset.shero]; sfx('tap'); openSkillPanel(); return; }
   if (!ev.target.closest('#btn-skills-close')) return;
+  statPick = null;
   sfx('tap');
   const resume = $('skills-body').dataset.resume;
   if (resume) game.paused = false;
@@ -536,6 +598,16 @@ function updateShop() {
   });
   setOff($('btn-reroll'), run.coins < run.rerollCost, '球幣不足，無法刷新');
   $('shop-owned').innerHTML = '已獲得：' + ownedSummary();
+  // 買完技能，數值立刻更新並閃一下
+  const st = $('shop-stats');
+  const html = shopStats();
+  if (st.innerHTML !== html) { st.innerHTML = html; st.classList.remove('flash'); void st.offsetWidth; st.classList.add('flash'); }
+}
+
+// 商店下方：目前上場角色的主要數值
+function shopStats() {
+  const h = game.run.hero;
+  return `<span>${iconTag(ICON.heart, 12)}${fmt(Math.max(0, h.hp))}/${fmt(h.maxHp)}</span><span>${iconTag(ICON.sword, 12)}${fmtNum(heroAtkOf(h))}</span><span>秒傷 ${fmtNum(dps(h))}</span><span>攻速 ${(h.spdMul / h.interval).toFixed(2)}</span><span>暴擊 ${Math.round(Math.min(1, h.crit) * 100)}%</span><span>次數 x${h.hits}</span>`;
 }
 
 // 卡片上的等級：Lv.2 → 3 / 5，加上一排小格子（已有的實心、這次會加的閃爍）
@@ -574,6 +646,7 @@ function renderShop() {
       <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新${run.freeReroll > 1 ? ' x' + run.freeReroll : ''}</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
+    <div class="shop-stats" id="shop-stats">${shopStats()}</div>
     <div class="owned" id="shop-owned">${run.skills.length ? '已獲得：' + ownedSummary() : '用接到的球幣購買技能，可以買不只一張'}</div>`;
 }
 
@@ -804,7 +877,7 @@ function renderHome() {
     </button>`;
   }).join('');
   const heroScroll = document.querySelector('.heroes') ? document.querySelector('.heroes').scrollLeft : null;
-  const tb = talentBonus(save);
+  const full = createHero(hero, save); // 算上天賦、裝備、坐騎
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   $('home-body').innerHTML = `
     <div class="home-stage">
@@ -840,10 +913,12 @@ function renderHome() {
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
         <div class="stats">
-          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + tb.hp))}</span>
-          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + tb.atk)).toFixed(1)}</span>
-          <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)} 下/秒</span>
+          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(full.maxHp)}</span>
+          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${fmtNum(heroAtkOf(full))}</span>
+          <span>${iconTag(ICON.target, 14)} ${(full.spdMul / full.interval).toFixed(2)} 下/秒</span>
+          <span class="hot">秒傷 ${fmtNum(dps(full))}</span>
         </div>
+        <button class="link stats-link" id="btn-stats">${iconTag(ICON.target, 12)} 查看完整數值（含天賦、裝備、坐騎）▶</button>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
         <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
         <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
@@ -912,6 +987,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-talent') { openTalent(); return; }
   else if (t.id === 'btn-mount') { openMount(); return; }
+  else if (t.id === 'btn-stats') { statsTab = 0; openStats(); return; }
   else if (t.id === 'duo-main') duoPick = 'main';
   else if (t.id === 'duo-second') { duoPick = 'second'; toast('點一位英雄當副職業'); }
   else if (t.id === 'duo-clear') { save.second = null; duoPick = 'main'; }
@@ -1466,6 +1542,7 @@ $('info-body').addEventListener('click', async ev => {
   const t = ev.target.closest('button');
   if (!t) return;
   sfx('tap');
+  if (t.dataset.stab) { statsTab = +t.dataset.stab; openStats(); return; }
   if (t.id === 'btn-info-close') {
     showScreen('screen-home');
   } else if (t.id === 'btn-do-update') {
