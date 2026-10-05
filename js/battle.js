@@ -115,8 +115,9 @@ export class Battle {
     });
 
     // 英雄攻擊：最前面的敵人進入射程就開打
+    // 射程要加上敵人的身體半徑：魔王體型大、站得比較遠，近戰也要打得到
     const front = this.enemies[0];
-    if (front && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2) {
+    if (front && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2 + front.size * 0.4) {
       h.timer += dt * h.spdMul;
       if (h.timer >= h.interval && h.hitQueue <= 0) {
         h.timer = 0;

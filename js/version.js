@@ -1,10 +1,14 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '1.5.0';
+export const VERSION = '1.5.1';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '1.5.1', date: '2026-10-05',
+    notes: ['修正：魔王關時劍士、鏈鋸狂戰等近戰英雄打不到魔王的問題'],
+  },
   {
     version: '1.5.0', date: '2026-10-05',
     notes: [
