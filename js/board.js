@@ -229,48 +229,80 @@ export class Board {
     }
   }
 
+  // 背景只在尺寸改變時重畫一次（漸層＋格線＋兩側石牆），每格直接貼上
+  bgCanvas(ctx) {
+    const key = `${this.W}x${this.h}`;
+    if (this._bg && this._bgKey === key) return this._bg;
+    const sc = ctx.getTransform().a; // 畫布實際放大倍率，讓預先畫好的圖夠清楚
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(this.W * sc);
+    c.height = Math.ceil((this.h + 40) * sc);
+    const g = c.getContext('2d');
+    g.scale(sc, sc);
+    const grad = g.createLinearGradient(0, 0, 0, this.h);
+    grad.addColorStop(0, '#2d1f52');
+    grad.addColorStop(0.6, '#1b1236');
+    grad.addColorStop(1, '#0f0a1f');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, this.W, this.h + 40);
+    // 細格線，增加「機台」的質感
+    g.strokeStyle = 'rgba(255,255,255,0.035)';
+    g.lineWidth = 1;
+    for (let x = 0; x <= this.W; x += 20) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, this.h + 40); g.stroke(); }
+    for (let y = 0; y <= this.h + 40; y += 20) { g.beginPath(); g.moveTo(0, y); g.lineTo(this.W, y); g.stroke(); }
+    // 兩側的光暈邊框
+    for (const [x0, x1] of [[0, 10], [this.W, this.W - 10]]) {
+      const side = g.createLinearGradient(x0, 0, x1, 0);
+      side.addColorStop(0, 'rgba(140,110,255,0.35)');
+      side.addColorStop(1, 'rgba(140,110,255,0)');
+      g.fillStyle = side;
+      g.fillRect(Math.min(x0, x1), 0, 10, this.h + 40);
+    }
+    this._bg = c;
+    this._bgKey = key;
+    return c;
+  }
+
+  // 釘子：預先畫好一顆有光澤的小球
+  pegSprite(ctx) {
+    if (this._peg) return this._peg;
+    const sc = ctx.getTransform().a;
+    const r = PR + 2;
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.ceil(r * 2 * sc);
+    const g = c.getContext('2d');
+    g.scale(sc, sc);
+    const rg = g.createRadialGradient(r - 1.5, r - 1.5, 0.5, r, r, PR);
+    rg.addColorStop(0, '#f2ecff');
+    rg.addColorStop(0.45, '#9d8ae6');
+    rg.addColorStop(1, '#4a3a8c');
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath(); g.arc(r + 0.8, r + 1.2, PR, 0, TAU); g.fill();
+    g.fillStyle = rg;
+    g.beginPath(); g.arc(r, r, PR, 0, TAU); g.fill();
+    this._peg = c;
+    return c;
+  }
+
   draw(ctx, coins) {
     const { top, bottom, W } = this;
-    const bg = ctx.createLinearGradient(0, top, 0, bottom);
-    bg.addColorStop(0, '#2a1d4a');
-    bg.addColorStop(1, '#120c24');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, top, W, bottom - top + 40);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(0, top, W, 4);
+    ctx.drawImage(this.bgCanvas(ctx), 0, top, W, this.h + 40);
 
-    // 釘子
-    ctx.fillStyle = '#8a76d4';
-    ctx.beginPath();
-    for (const p of this.pegs) { ctx.moveTo(p.x + PR, p.y); ctx.arc(p.x, p.y, PR, 0, TAU); }
-    ctx.fill();
-    ctx.fillStyle = '#fff';
+    // 釘子：被撞到時發光
+    const peg = this.pegSprite(ctx);
+    const pr = PR + 2;
+    for (const p of this.pegs) ctx.drawImage(peg, p.x - pr, p.y - pr, pr * 2, pr * 2);
+    ctx.fillStyle = '#fff6c8';
     for (const p of this.pegs) {
       if (p.lit <= 0) continue;
-      ctx.globalAlpha = p.lit;
+      ctx.globalAlpha = p.lit * 0.9;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, PR + 1, 0, TAU);
+      ctx.arc(p.x, p.y, PR + 2 * p.lit, 0, TAU);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // 倍率門
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (const g of this.gates) {
-      const st = GATE_STYLE[g.type];
-      const y = this.gateY(g.row);
-      ctx.globalAlpha = 0.28 + g.flash * 0.5;
-      ctx.fillStyle = st.color;
-      ctx.fillRect(g.x, y - 9, g.w, 18);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = st.color;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(g.x, y - 9, g.w, 18);
-      ctx.font = `${16 + g.flash * 4}px ${FONT}`;
-      ctx.fillStyle = '#fff';
-      ctx.fillText(g.type, g.x + g.w / 2, y + 1);
-    }
+    this.drawGates(ctx);
 
     // 小球：一般球 = 金幣，高價值球 = 寶石（Kenney Pixel Platformer）
     ctx.imageSmoothingEnabled = false;
@@ -286,74 +318,171 @@ export class Board {
       }
     }
 
-    ctx.fillStyle = '#3a2a63';
-    ctx.fillRect(0, bottom - 2, W, 40);
     this.drawPourCup(ctx);
     this.drawCatchCup(ctx, coins);
 
     ctx.font = `14px ${FONT}`;
-    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     for (const p of this.pops) {
       ctx.globalAlpha = Math.min(1, p.life * 2);
+      ctx.strokeText(p.text, p.x, p.y);
+      ctx.fillStyle = '#ffe680';
       ctx.fillText(p.text, p.x, p.y);
     }
     ctx.globalAlpha = 1;
   }
 
+  // 倍率門：發光的能量門，裡面有往下流動的箭頭
+  drawGates(ctx) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const g of this.gates) {
+      const st = GATE_STYLE[g.type];
+      const y = this.gateY(g.row);
+      const pulse = 0.5 + Math.sin(this.t * 4 + g.id) * 0.5;
+      ctx.save();
+      // 外光暈
+      ctx.shadowColor = st.color;
+      ctx.shadowBlur = 10 + g.flash * 14;
+      ctx.fillStyle = st.color;
+      ctx.globalAlpha = 0.22 + g.flash * 0.45 + pulse * 0.08;
+      roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+      ctx.fill();
+      ctx.restore();
+      // 流動的箭頭
+      ctx.save();
+      roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+      ctx.lineWidth = 2;
+      const off = (this.t * 30) % 12;
+      for (let x = g.x - 12 + off; x < g.x + g.w + 12; x += 12) {
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y - 4);
+        ctx.lineTo(x, y + 2);
+        ctx.lineTo(x + 4, y - 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // 邊框
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = 2;
+      roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(g.x + 6, y - 10, g.w - 12, 1.5);
+      // 文字
+      ctx.font = `${17 + g.flash * 5}px ${FONT}`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeText(g.type, g.x + g.w / 2, y + 1);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(g.type, g.x + g.w / 2, y + 1);
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+
   drawPourCup(ctx) {
-    const x = this.px, y = this.top + 8;
+    const x = this.px, y = this.top + 12;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.PI + Math.sin(this.t * 6) * (this.queue > 0 ? 0.08 : 0));
-    ctx.fillStyle = '#e8423f';
-    ctx.beginPath();
-    ctx.moveTo(-16, -14);
-    ctx.lineTo(16, -14);
-    ctx.lineTo(12, 14);
-    ctx.lineTo(-12, 14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(-17, 10, 34, 5);
+    cupShape(ctx, 34, 26, 1);
     ctx.restore();
+    ctx.textAlign = 'center';
     if (this.queue > 0) {
       ctx.font = `12px ${FONT}`;
       ctx.fillStyle = '#ffd84a';
-      ctx.fillText('x' + this.queue, x + 30, y + 4);
+      ctx.fillText('x' + this.queue, x + 32, y + 4);
     }
     // 提示可以拖曳
-    ctx.globalAlpha = 0.35 + Math.sin(this.t * 3) * 0.15;
-    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 0.3 + Math.sin(this.t * 3) * 0.12;
+    ctx.fillStyle = '#e6dcff';
     ctx.font = `12px ${FONT}`;
-    ctx.fillText('◀ 左右拖曳瞄準 ▶', this.W / 2, this.top + 42);
+    ctx.fillText('◀ 左右拖曳瞄準 ▶', this.W / 2, this.top + 46);
     ctx.globalAlpha = 1;
   }
 
   drawCatchCup(ctx, coins) {
     const cx = this.cupX, y = this.cupY, h = this.cupH;
     const w = this.cupW * (1 + this.cupPulse * 0.05);
-    ctx.fillStyle = '#c92f2c';
-    ctx.beginPath();
-    ctx.moveTo(cx - w / 2, y);
-    ctx.lineTo(cx + w / 2, y);
-    ctx.lineTo(cx + w * 0.38, y + h);
-    ctx.lineTo(cx - w * 0.38, y + h);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#ff5c58';
-    ctx.fillRect(cx - w / 2 + 6, y + 8, 6, h - 16);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(cx - w / 2 - 3, y - 3, w + 6, 6);
+    // 杯子底下的光圈
+    const glow = ctx.createRadialGradient(cx, y + h, 4, cx, y + h, w * 0.7);
+    glow.addColorStop(0, 'rgba(255,90,80,0.35)');
+    glow.addColorStop(1, 'rgba(255,90,80,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - w, y - 10, w * 2, h + 30);
+    ctx.save();
+    ctx.translate(cx, y);
+    cupShape(ctx, w, h, 0.76);
+    ctx.restore();
+    ctx.textAlign = 'center';
     ctx.font = `16px ${FONT}`;
-    ctx.fillStyle = '#fff';
     const label = fmt(coins);
     const tw = ctx.measureText(label).width;
-    drawIcon(ctx, 'pp', 67, cx - tw / 2 - 8, y + h / 2 + 1, 22);
-    ctx.fillText(label, cx + 8, y + h / 2 + 3);
+    drawIcon(ctx, 'pp', 67, cx - tw / 2 - 8, y + h / 2 + 2, 22);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.strokeText(label, cx + 8, y + h / 2 + 4);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, cx + 8, y + h / 2 + 4);
     ctx.font = `12px ${FONT}`;
     ctx.fillStyle = '#ffd84a';
     ctx.fillText('接住 x2', cx, y - 12);
   }
+}
+
+// 紅色派對杯：漸層杯身＋白色杯口＋左側反光
+function cupShape(ctx, w, h, bottomRatio) {
+  const bw = w * bottomRatio;
+  const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  body.addColorStop(0, '#ff6b5e');
+  body.addColorStop(0.35, '#e8392f');
+  body.addColorStop(1, '#9e1f1a');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, 0);
+  ctx.lineTo(w / 2, 0);
+  ctx.lineTo(bw / 2, h);
+  ctx.lineTo(-bw / 2, h);
+  ctx.closePath();
+  ctx.fill();
+  // 杯身的橫紋
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 2;
+  for (const f of [0.35, 0.7]) {
+    const ww = w + (bw - w) * f;
+    ctx.beginPath();
+    ctx.moveTo(-ww / 2 + 2, h * f);
+    ctx.lineTo(ww / 2 - 2, h * f);
+    ctx.stroke();
+  }
+  // 反光
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 6, 6);
+  ctx.lineTo(-w / 2 + 11, 6);
+  ctx.lineTo(-bw / 2 + 9, h - 5);
+  ctx.lineTo(-bw / 2 + 5, h - 5);
+  ctx.closePath();
+  ctx.fill();
+  // 杯口
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(-w / 2 - 3, -3, w + 6, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(-w / 2 - 3, 2, w + 6, 1);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 export function fmt(n) {

@@ -3,7 +3,7 @@ import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero } from './battle.js';
-import { loadSprites, iconTag, ICON } from './sprites.js';
+import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -12,7 +12,7 @@ const save = loadSave();
 setMuted(save.muted);
 
 const game = {
-  W: 360, H: 640, battleH: 260, groundY: 230,
+  W: 360, H: 640, battleH: 260,
   run: null, speed: 1, paused: false,
   onKill: e => onKill(e),
 };
@@ -27,13 +27,14 @@ function resize() {
   scale = r.width / game.W;
   game.H = r.height / scale;
   game.battleH = Math.round(Math.max(220, Math.min(290, game.H * 0.36)));
-  game.groundY = game.battleH - 34;
   canvas.width = Math.round(r.width * dpr);
   canvas.height = Math.round(r.height * dpr);
   canvas.style.width = r.width + 'px';
   canvas.style.height = r.height + 'px';
   ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
   board.layout(game.battleH, game.H - 6, game.W);
+  battle.layout(game.W, 0, game.battleH);
+  document.documentElement.style.setProperty('--stage-h', game.battleH * scale + 'px');
 }
 window.addEventListener('resize', resize);
 
@@ -85,6 +86,7 @@ function nextWave() {
   battle.startWave(run);
   const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
   $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
+  renderWaveBar(run.wave);
   playMusic(run.wave === MAX_WAVE ? 'boss' : run.chapter % 2 ? 'stage1' : 'stage2');
   if (run.wave > 1) sfx('wave');
   banner(run.wave === MAX_WAVE ? '魔王來襲！' : `第 ${run.wave} 波`);
@@ -111,14 +113,30 @@ board.onPeg = () => {
   if (run.pegHits % 12 === 0) battle.strikeFront(0.6, '鏈鋸!', '#ff9f43');
 };
 
+let lastCoinText = '', lastCoins = 0, lastBump = 0;
+function bump(el) {
+  const now = performance.now();
+  if (now - lastBump < 120) return;
+  lastBump = now;
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+}
+
 function update(dt) {
   const run = game.run;
-  if (!run) return;
+  if (!run) { battle.scene.update(dt); return; }
   const live = !game.paused && (run.phase === 'fight' || run.phase === 'settle');
   battle.update(game.paused ? 0 : dt, live && run.phase === 'fight');
   if (!live) return;
   board.update(dt);
-  $('hud-coins').textContent = fmt(run.coins);
+  const shown = fmt(run.coins);
+  if (shown !== lastCoinText) {
+    $('hud-coins').textContent = shown;
+    if (run.coins > lastCoins) bump($('hud-coin-pill'));
+    lastCoinText = shown;
+    lastCoins = run.coins;
+  }
 
   if (run.phase === 'fight') {
     if (run.hero.hp <= 0) {
@@ -134,6 +152,13 @@ function update(dt) {
 }
 
 // ---------- 商店（三選一技能卡）----------
+// 已獲得的技能：同一種合併顯示，例如「劍 x3」
+function ownedSummary(skills) {
+  const count = new Map();
+  for (const sk of skills) count.set(sk, (count.get(sk) || 0) + 1);
+  return [...count].map(([sk, n]) => `<span>${iconTag(sk.icon, 18)}${n > 1 ? 'x' + n : ''}</span>`).join('');
+}
+
 function rollOffer() {
   const run = game.run;
   const picks = [];
@@ -181,7 +206,7 @@ function renderShop() {
       <button class="btn small gift" id="btn-free" ${run.freeReroll ? '' : 'disabled'}>${iconTag(ICON.free, 16)} 免費刷新</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
-    <div class="owned">${run.skills.length ? '已獲得：' + run.skills.map(s => iconTag(s.icon, 18)).join('') : '用接到的球幣購買技能，可以買不只一張'}</div>`;
+    <div class="owned">${run.skills.length ? '已獲得：' + ownedSummary(run.skills) : '用接到的球幣購買技能，可以買不只一張'}</div>`;
 }
 
 $('shop-body').addEventListener('click', ev => {
@@ -227,6 +252,7 @@ function onDeath() {
       <button class="btn big gift" id="btn-revive">${iconTag(ICON.heart, 20)} 復活一次</button>
       <button class="btn" id="btn-giveup">結算</button>
       <p class="hint">（正式版：看一段激勵廣告即可復活）</p>`;
+    $('result-body').className = 'panel center lose';
     showScreen('screen-result');
   } else endRun(false);
 }
@@ -249,10 +275,12 @@ function endRun(win) {
   $('result-body').innerHTML = `
     <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${win ? '章節通關！' : '冒險結束'}</h2>
     <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
-    <div class="pill big">${iconTag(ICON.gold, 28)} +${fmt(gold)}</div>
+    <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
     ${unlocked}
     <button class="btn big" id="btn-home">回到主畫面</button>`;
+  $('result-body').className = 'panel center ' + (win ? 'win' : 'lose');
   showScreen('screen-result');
+  countUp($('gold-count'), gold);
 }
 
 $('result-body').addEventListener('click', ev => {
@@ -317,32 +345,41 @@ function renderHome() {
     const cost = upgradeCost(lv);
     return `<div class="up">
       <span class="up-icon">${iconTag(u.icon, 28)}</span>
-      <span class="up-text"><b>${u.name} Lv.${lv}</b><small>${u.desc}</small></span>
+      <span class="up-text"><b>${u.name} <em>Lv.${lv}</em></b><small>${u.desc}</small></span>
       <button class="btn small" data-up="${u.id}" ${save.gold < cost ? 'disabled' : ''}>${iconTag(ICON.gold, 16)}${cost}</button>
     </div>`;
   }).join('');
+  const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   $('home-body').innerHTML = `
-    <div class="top-row">
-      <div class="pill">${iconTag(ICON.gold, 20)} ${fmt(save.gold)}</div>
-      <button class="icon-btn" id="btn-mute">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
+    <div class="home-stage">
+      <div class="top-row">
+        <div class="pill">${iconTag(ICON.gold, 20)} ${fmt(save.gold)}</div>
+        <button class="icon-btn" id="btn-mute">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
+      </div>
+      <h1 class="logo">彈珠勇者</h1>
+      <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
+      <div class="chapter">
+        <button class="icon-btn" id="ch-prev" ${save.chapter <= 1 ? 'disabled' : ''}>◀</button>
+        <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b></div>
+        <button class="icon-btn" id="ch-next" ${save.chapter >= save.maxChapter ? 'disabled' : ''}>▶</button>
+      </div>
     </div>
-    <h1 class="logo">彈珠勇者</h1>
-    <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
-    <div class="heroes">${heroes}</div>
-    <div class="hero-info">
-      <b>${hero.name}</b>
-      <small>${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}　${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}　${iconTag(ICON.target, 14)} ${hero.range > 100 ? '遠程' : '近戰'}</small>
-      <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
-    </div>
-    <div class="ups">${ups}</div>
-    <div class="chapter">
-      <button class="icon-btn" id="ch-prev" ${save.chapter <= 1 ? 'disabled' : ''}>◀</button>
-      <div><b>第 ${save.chapter} 章</b><small>${chapterName(save.chapter)}</small></div>
-      <button class="icon-btn" id="ch-next" ${save.chapter >= save.maxChapter ? 'disabled' : ''}>▶</button>
-    </div>
-    <button class="btn big" id="btn-start">開始冒險</button>
-    <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
-    <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>`;
+    <div class="home-bottom">
+      <div class="heroes">${heroes}</div>
+      <div class="hero-info">
+        <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.range > 100 ? '遠程' : '近戰'}</span></div>
+        <div class="stats">
+          <span>${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}</span>
+          <span>${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}</span>
+          <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)}/秒</span>
+        </div>
+        <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
+      </div>
+      <div class="ups">${ups}</div>
+      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}</small></button>
+      <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
+      <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
+    </div>`;
 }
 
 $('home-body').addEventListener('click', ev => {
@@ -377,6 +414,17 @@ $('home-body').addEventListener('click', ev => {
 function showScreen(id) {
   for (const el of document.querySelectorAll('.screen')) el.classList.toggle('hidden', el.id !== id);
 }
+// 波次進度條：15 格，打過的填滿、目前這格閃爍、精英／魔王格有標記
+function renderWaveBar(wave) {
+  let html = '';
+  for (let i = 1; i <= MAX_WAVE; i++) {
+    const kind = i === MAX_WAVE ? 'boss' : i % 5 === 0 ? 'elite' : '';
+    const st = i < wave ? 'done' : i === wave ? 'now' : '';
+    html += `<i class="${kind} ${st}"></i>`;
+  }
+  $('wavebar').innerHTML = html;
+}
+
 function banner(text) {
   const b = $('banner');
   b.textContent = text;
@@ -384,6 +432,17 @@ function banner(text) {
   void b.offsetWidth;
   b.classList.add('show');
 }
+// 數字從 0 跑到目標值
+function countUp(el, target) {
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / 900);
+    el.textContent = '+' + fmt(Math.round(target * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 function toast(text) {
   const b = $('toast');
   b.textContent = text;
@@ -421,26 +480,31 @@ function draw() {
   ctx.fillStyle = '#120c24';
   ctx.fillRect(0, 0, game.W, game.H);
   if (!game.run) {
-    drawIdle();
+    drawHome();
     return;
   }
   battle.draw(ctx);
   board.draw(ctx, game.run.coins);
 }
 
-// 主畫面背景：小球持續落下
-const idle = Array.from({ length: 40 }, () => ({ x: Math.random() * 360, y: Math.random() * 800, v: 40 + Math.random() * 80 }));
-function drawIdle() {
-  ctx.fillStyle = '#ffd84a';
-  ctx.globalAlpha = 0.25;
-  ctx.beginPath();
+// 主畫面：上方是 2.5D 展示台（選中的英雄＋遠方霧中的魔王），下方金幣慢慢落下
+const idle = Array.from({ length: 36 }, () => ({ x: Math.random() * 360, y: Math.random() * 800, v: 30 + Math.random() * 60 }));
+function drawHome() {
+  const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
+  const hero = { def, x: 0, z: 5.6, scale: 1.35, hurt: 0, lunge: 0, showcase: true };
+  const teaser = [
+    { sprite: ch.boss, x: 2.7, z: 12, size: 1.55, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
+    { sprite: ch.enemies[0], x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
+    { sprite: ch.enemies[1], x: 2.4, z: 7.5, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 3, teaser: true },
+  ];
+  battle.drawWorld(ctx, save.chapter, hero, teaser);
+  ctx.globalAlpha = 0.18;
   for (const b of idle) {
     b.y += b.v / 60;
-    if (b.y > game.H + 10) { b.y = -10; b.x = Math.random() * game.W; }
-    ctx.moveTo(b.x + 5, b.y);
-    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+    if (b.y > game.H + 10) { b.y = game.battleH; b.x = Math.random() * game.W; }
+    if (b.y > game.battleH) drawIcon(ctx, 'pp', 151, b.x, b.y, 16);
   }
-  ctx.fill();
   ctx.globalAlpha = 1;
 }
 

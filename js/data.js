@@ -29,11 +29,11 @@ export const HEROES = [
 // overlay = 蓋在背景上的顏色（做出夜晚、火山的氣氛）
 // ground = [地表磚, 地底磚, 圖集]
 export const CHAPTERS = [
-  { name: '翠綠平原', bg: [6, 15, 22], overlay: null, ground: [2, 24, 'pp'], enemies: [108, 120, 123], boss: 109 },
-  { name: '炙熱沙漠', bg: [4, 13, 20], overlay: null, ground: [42, 4, 'pp'], enemies: [122, 123, 111], boss: 110 },
-  { name: '幽暗墓地', bg: [0, 11, 16], overlay: 'rgba(40,20,80,0.6)', ground: [40, 40, 'dg'], enemies: [121, 124, 120], boss: 111 },
-  { name: '熔岩火山', bg: [5, 12, 21], overlay: 'rgba(150,20,0,0.45)', ground: [12, 12, 'dg'], enemies: [110, 122, 108], boss: 109 },
-  { name: '天空神殿', bg: [1, 9, 17], overlay: null, ground: [82, 4, 'pp'], enemies: [121, 120, 124], boss: 110 },
+  { name: '翠綠平原', fog: 'rgba(214,246,222,0.95)', bg: [6, 15, 22], overlay: null, ground: [24, 38, 'pp'], enemies: [108, 120, 123], boss: 109 },
+  { name: '炙熱沙漠', fog: 'rgba(255,214,160,0.95)', bg: [4, 13, 20], overlay: null, ground: [25, 4, 'pp'], enemies: [122, 123, 111], boss: 110 },
+  { name: '幽暗墓地', fog: 'rgba(64,50,104,0.95)', bg: [0, 11, 16], overlay: 'rgba(40,20,80,0.6)', ground: [40, 40, 'dg'], enemies: [121, 124, 120], boss: 111 },
+  { name: '熔岩火山', fog: 'rgba(120,38,22,0.95)', bg: [5, 12, 21], overlay: 'rgba(150,20,0,0.45)', ground: [12, 12, 'dg'], enemies: [110, 122, 108], boss: 109 },
+  { name: '天空神殿', fog: 'rgba(236,240,255,0.95)', bg: [1, 9, 17], overlay: null, ground: [58, 57, 'dg'], enemies: [121, 120, 124], boss: 110 },
 ];
 
 export const ELITE_SPRITE = 92; // 寶箱怪

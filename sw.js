@@ -1,5 +1,5 @@
 // 離線快取：改版時把版本號 +1，舊快取就會被清掉
-const CACHE = 'marble-brave-v3';
+const CACHE = 'marble-brave-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   'js/data.js',
   'js/main.js',
   'js/save.js',
+  'js/scene.js',
   'js/sprites.js',
   'assets/img/icons-1bit.png',
   'assets/img/pixel-platformer-bg.png',

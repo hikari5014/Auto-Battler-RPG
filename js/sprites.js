@@ -3,7 +3,7 @@
 // pp = Pixel Platformer（金幣、寶石、愛心、草地磚）
 // bg = Pixel Platformer 背景（天空、山丘）
 // ic = 1-Bit Pack（技能卡與介面圖示）
-const SHEETS = {
+export const SHEETS = {
   dg: { src: 'assets/img/tiny-dungeon.png', tile: 16, cols: 12 },
   pp: { src: 'assets/img/pixel-platformer.png', tile: 18, cols: 20 },
   bg: { src: 'assets/img/pixel-platformer-bg.png', tile: 24, cols: 8 },
@@ -54,17 +54,18 @@ function src(key, idx) {
 }
 
 // 角色：以「腳底中心」為基準畫
-export function drawSprite(ctx, idx, cx, footY, size, flip = false, flash = 0, key = 'dg') {
+// sizeY 可以跟 size 不同，用來做「呼吸」般的伸縮動畫
+export function drawSprite(ctx, idx, cx, footY, size, flip = false, flash = 0, key = 'dg', sizeY = size) {
   if (!ready(key)) return;
   const [img, sx, sy, t] = src(key, idx);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.translate(cx, footY - size);
+  ctx.translate(cx, footY - sizeY);
   if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(img, sx, sy, t, t, -size / 2, 0, size, size);
+  ctx.drawImage(img, sx, sy, t, t, -size / 2, 0, size, sizeY);
   if (flash > 0 && white[key]) {
-    ctx.globalAlpha = flash * 0.85;
-    ctx.drawImage(white[key], sx, sy, t, t, -size / 2, 0, size, size);
+    ctx.globalAlpha *= flash * 0.85;
+    ctx.drawImage(white[key], sx, sy, t, t, -size / 2, 0, size, sizeY);
   }
   ctx.restore();
 }
