@@ -1,4 +1,4 @@
-import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
+import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, heroCls, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
 import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
 import { shareResult } from './share.js';
 import { loadSave, writeSave } from './save.js';
@@ -175,6 +175,8 @@ function onKill(e) {
   save.stats.kills++;
   if (e.kind === 'boss') save.stats.bosses++;
   else if (e.kind !== 'normal') save.stats.elites++;
+  // 盜賊王：擊敗直接拿球幣
+  if (run.hero.stealCoins) run.coins += run.hero.stealCoins * (run.hero.stealBig && e.kind !== 'normal' ? 10 : 1);
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
@@ -233,6 +235,10 @@ board.onCatch = (b, mult) => {
   const h = run.hero;
   if (h.def.id === 'archer' && run.caught % h.arrowNeed === 0 && run.phase === 'fight') {
     for (let k = 0; k < h.arrowCount; k++) battle.strikeFront(2.5, '球雨箭!', '#b6ff6d');
+  }
+  // 星辰賢者：星落
+  if (h.def.id === 'sage' && run.caught % h.starNeed === 0 && run.phase === 'fight') {
+    for (let k = 0; k < h.starCount; k++) setTimeout(() => game.run && game.run.phase === 'fight' && battle.blast(h.starMul, k ? '' : '星落!', '#c8b6ff', { crit: h.starCrit }), k * 200);
   }
 };
 board.onPeg = () => {
@@ -555,7 +561,7 @@ function endRun(win) {
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
-  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold)); // 黃金戒指＋天賦
+  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + run.hero.goldBonus)); // 黃金戒指＋天賦＋盜賊王
   save.gold += gold;
   const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
   const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex);
@@ -670,16 +676,35 @@ function goHome() {
   showScreen('screen-home');
 }
 
+// 隱藏職業：達成對應成就就自動加入
+function unlockHidden() {
+  const got = [];
+  for (const h of HEROES) {
+    if (!h.hidden || save.owned.includes(h.id)) continue;
+    const a = ACHIEVEMENTS.find(x => x.id === h.unlock);
+    if (a && achDone(save, a)) { save.owned.push(h.id); got.push(h); }
+  }
+  if (!got.length) return;
+  writeSave(save);
+  // 一次解鎖好幾個時一個一個輪流顯示
+  got.forEach((h, i) => setTimeout(() => { banner(`隱藏職業解鎖：${h.name.split(' ')[1]}！`); sfx('win'); }, 600 + i * 1800));
+}
+const unlockAch = h => ACHIEVEMENTS.find(x => x.id === h.unlock);
+const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>`).join(' ');
+
 function renderHome() {
+  unlockHidden();
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const heroes = HEROES.map(h => {
     const own = save.owned.includes(h.id);
-    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'}" data-hero="${h.id}" data-fx="tilt">
+    const secret = h.hidden && !own;
+    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
       ${iconTag(['dg', h.sprite], 48, 'hero-emoji')}
-      <span class="hero-name">${h.name.split(' ')[1]}</span>
-      ${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
+      <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
+      ${secret ? '<span class="hero-price secret">隱藏職業</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
     </button>`;
   }).join('');
+  const heroScroll = document.querySelector('.heroes') ? document.querySelector('.heroes').scrollLeft : null;
   const tb = talentBonus(save);
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   $('home-body').innerHTML = `
@@ -721,7 +746,7 @@ function renderHome() {
         </div>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
         <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
-        <small class="cls-line">技能類型：<span class="cat-tag" style="--cc:${CATS[hero.cls].color}">${CATS[hero.cls].name}</span> ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
+        <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
       </div>
       <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}</small></button>
@@ -732,6 +757,10 @@ function renderHome() {
         <button class="link" id="btn-changelog">更新日誌</button>
       </div>
     </div>`;
+  // 英雄列表可以左右滑：重畫後保持原本位置；第一次打開時捲到選中的英雄
+  const list = $('home-body').querySelector('.heroes');
+  if (heroScroll !== null) list.scrollLeft = heroScroll;
+  else { const sel = list.querySelector('.sel'); if (sel) list.scrollLeft = sel.offsetLeft - list.clientWidth / 2 + sel.offsetWidth / 2; }
 }
 
 $('home-body').addEventListener('click', ev => {
@@ -744,6 +773,12 @@ $('home-body').addEventListener('click', ev => {
     if (save.owned.includes(h.id)) {
       if (save.selected !== h.id) heroHop = performance.now();
       save.selected = h.id;
+    } else if (h.hidden) {
+      const a = unlockAch(h);
+      toast(`隱藏職業：達成成就「${a.name}」（${a.desc}）就會解鎖`);
+      t.classList.add('fx-deny');
+      t.addEventListener('animationend', () => t.classList.remove('fx-deny'), { once: true });
+      return;
     } else if (save.gold >= h.price) {
       save.gold -= h.price;
       save.owned.push(h.id);
@@ -927,7 +962,7 @@ function renderAch() {
     const done = achDone(save, a);
     const claimed = save.claimed.includes(a.id);
     return `<div class="ach ${claimed ? 'claimed' : done ? 'ready' : ''}">
-      <span class="ach-info"><b>${a.name}</b><small>${a.desc}</small>
+      <span class="ach-info"><b>${a.name}${HEROES.some(h => h.unlock === a.id) ? ' <i class="ach-hero">＋隱藏職業</i>' : ''}</b><small>${a.desc}</small>
         <span class="ach-bar"><i style="width:${cur / a.goal * 100}%"></i><em>${fmt(cur)} / ${fmt(a.goal)}</em></span></span>
       ${claimed ? '<span class="ach-ok">已領取</span>' : `<button class="btn small ${done ? 'gift' : ''}" data-claim="${a.id}" ${offAttr(!done, '還沒達成')}>${iconTag(ICON.gold, 14)}${a.gold}</button>`}
     </div>`;

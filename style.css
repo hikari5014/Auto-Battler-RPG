@@ -222,7 +222,9 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 
 .home-bottom { padding: 10px 14px calc(var(--safe-bottom) + 14px); }
 
-.heroes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.heroes { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 6px 2px 4px; margin: -6px 0 0; touch-action: pan-x; scrollbar-width: none; scroll-snap-type: x proximity; }
+.heroes::-webkit-scrollbar { display: none; }
+.heroes .hero { flex: 0 0 calc((100% - 24px) / 4.4); scroll-snap-align: start; }
 .hero {
   position: relative;
   display: flex; flex-direction: column; align-items: center;
@@ -909,3 +911,9 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .gd-info .cmp.worse { color: #ff8a8a; }
 .gd-btns { display: flex; flex-direction: column; gap: 4px; }
 .gd-btns .btn { margin: 0; }
+
+/* 隱藏職業 */
+.hero.secret img { filter: brightness(0) drop-shadow(0 0 3px #d06bff); }
+.hero-price.secret { color: #d06bff; font-size: 10px; }
+.hero.hidden-cls:not(.secret)::before { content: '隱藏'; position: absolute; top: -6px; left: -6px; z-index: 1; font-size: 9px; padding: 0 3px; border-radius: 3px; background: #7a2fbf; color: #fff; }
+.ach-hero { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #7a2fbf; color: #fff; }

@@ -23,6 +23,42 @@ export const HEROES = [
     hp: 200, atk: 8, interval: 1.2, range: 60, hits: 1, life: 0.08, thorns: 0.2,
     passive: '鏈鋸：小球每撞釘子 12 次就砍一刀；血超厚、天生吸血 8%、反傷 20%',
   },
+  {
+    id: 'paladin', name: '聖騎士 雷恩', sprite: 98, price: 1800, role: '續戰・近戰', cls: 'melee',
+    hp: 170, atk: 9, interval: 1.1, range: 60, hits: 1, block: 0.15,
+    passive: '聖光：每第 5 次攻擊放出聖光，回復 8% 血量並打中所有敵人（80%）；天生 15% 格擋',
+  },
+  {
+    id: 'rogue', name: '暗影刺客 夜', sprite: 88, price: 2400, role: '爆發・近戰', cls: 'melee',
+    hp: 95, atk: 7, interval: 0.6, range: 60, hits: 1, crit: 0.25, critDmg: 2.2, dodge: 0.15,
+    passive: '背刺：天生 25% 暴擊、暴擊傷害 220%；15% 機率閃避敵人攻擊',
+  },
+  {
+    id: 'gunner', name: '火槍手 布雷', sprite: 85, price: 3000, role: '轟炸・遠程', cls: 'ranged',
+    hp: 115, atk: 14, interval: 1.3, range: 260, hits: 1,
+    passive: '榴彈：每第 5 次攻擊丟出榴彈，炸所有敵人（150%）；射程最遠',
+  },
+  {
+    id: 'elem', name: '元素使 艾拉', sprite: 99, price: 3600, role: '元素・法術', cls: 'spell',
+    hp: 95, atk: 12, interval: 1.0, range: 200, hits: 1,
+    passive: '三元素：每次攻擊隨機附加火（燃燒）、冰（減速）、雷（跳 2 隻敵人）',
+  },
+  // ---------- 隱藏職業：不能用金幣買，達成指定成就自動解鎖 ----------
+  {
+    id: 'dragoon', name: '龍騎士 席格', sprite: 97, price: 0, hidden: true, unlock: 'hard', role: '龍族・近戰＋法術', cls: ['melee', 'spell'],
+    hp: 180, atk: 14, interval: 1.0, range: 60, hits: 1, block: 0.1,
+    passive: '龍息：每第 4 次攻擊噴出龍火，燒所有敵人（150%＋燃燒）；近戰與法術技能都能用',
+  },
+  {
+    id: 'sage', name: '星辰賢者 奧', sprite: 111, price: 0, hidden: true, unlock: 'tower20', role: '星辰・遠程＋法術', cls: ['ranged', 'spell'],
+    hp: 105, atk: 11, interval: 0.9, range: 240, hits: 1, crit: 0.1, magnet: 0.5,
+    passive: '星落：每接住 15 顆球，流星打中所有敵人（200%）；杯子會輕輕吸球；遠程與法術技能都能用',
+  },
+  {
+    id: 'thief', name: '盜賊王 金手指', sprite: 86, price: 0, hidden: true, unlock: 'rich', role: '致富・近戰', cls: 'melee',
+    hp: 150, atk: 11, interval: 0.65, range: 60, hits: 1, crit: 0.15, dodge: 0.08,
+    passive: '搶奪：每擊敗一隻敵人直接拿 3 球幣；結算金幣 +30%；8% 閃避',
+  },
 ];
 
 // 角色圖：Kenney「Tiny Dungeon」（CC0），數字是 assets/tiny-dungeon.png 裡第幾格
@@ -177,6 +213,55 @@ export const SKILLS = [
     maxDesc: '狂暴時攻擊速度 +50%', maxApply: h => { h.rageSpd = 0.5; } },
   { id: 's_feast', hero: 'saw', icon: ['ic', 532, '#ff5a5a'], star: 2, max: 3, name: '嗜血', desc: '每擊殺一隻敵人回復 6% 血量', apply: h => { h.killHeal += 0.06; },
     maxDesc: '擊殺時最大血量永久 +3%', maxApply: h => { h.killGrow = 0.03; } },
+  // 聖騎士
+  { id: 'p_holy', hero: 'paladin', icon: ['ic', 1023, '#fff2a8'], star: 2, max: 2, name: '聖光頻繁', desc: '聖光需要的攻擊次數 -1', apply: h => { h.holyEvery = Math.max(2, h.holyEvery - 1); },
+    maxDesc: '聖光同時給 10% 血量的護盾', maxApply: h => { h.holyShield = 0.1; } },
+  { id: 'p_aura', hero: 'paladin', icon: ['ic', 532, '#fff2a8'], star: 1, max: 3, name: '神聖光環', desc: '每秒回復 1% 血量', apply: h => { h.regenPs += 0.01; },
+    maxDesc: '每秒再回復 2% 血量', maxApply: h => { h.regenPs += 0.02; } },
+  { id: 'p_judge', hero: 'paladin', icon: ['ic', 426, '#fff2a8'], star: 2, max: 3, name: '審判', desc: '聖光傷害 +100%', apply: h => { h.holyMul += 1; },
+    maxDesc: '聖光會擊暈所有敵人 1 秒', maxApply: h => { h.holyStun = true; } },
+  // 刺客
+  { id: 'k_shadow', hero: 'rogue', icon: ['ic', 1021, '#9a8cff'], star: 1, max: 3, name: '暗影步', desc: '閃避率 +10%', apply: h => { h.dodge = Math.min(0.6, h.dodge + 0.1); },
+    maxDesc: '閃避後下一擊必定暴擊', maxApply: h => { h.dodgeCrit = true; } },
+  { id: 'k_exec', hero: 'rogue', icon: ['ic', 576, '#9a8cff'], star: 2, max: 3, name: '處決', desc: '對血量 30% 以下的敵人傷害 +50%', apply: h => { h.exec += 0.5; },
+    maxDesc: '處決門檻提高到 50% 血量', maxApply: h => { h.execAt = 0.5; } },
+  { id: 'k_blade', hero: 'rogue', icon: ['ic', 289, '#9a8cff'], star: 2, max: 2, name: '毒刃', desc: '暴擊時讓敵人中毒（每秒 40% 攻擊力，3 秒）', apply: h => { h.critDot += 0.4; },
+    maxDesc: '毒刃傷害加倍', maxApply: h => { h.critDot *= 2; } },
+  // 火槍手
+  { id: 'q_grenade', hero: 'gunner', icon: ['ic', 616, '#ffb347'], star: 2, max: 2, name: '快速裝填', desc: '榴彈需要的攻擊次數 -1', apply: h => { h.grenadeEvery = Math.max(2, h.grenadeEvery - 1); },
+    maxDesc: '榴彈會擊暈所有敵人 1 秒', maxApply: h => { h.grenadeStun = true; } },
+  { id: 'q_ap', hero: 'gunner', icon: ['ic', 289, '#ffb347'], star: 1, max: 3, name: '穿甲彈', desc: '攻擊力 +20%，無視敵人減傷', apply: h => { h.atkMul += 0.2; h.ignoreArmor = true; },
+    maxDesc: '榴彈傷害 +150%', maxApply: h => { h.grenadeMul += 1.5; } },
+  { id: 'q_spread', hero: 'gunner', icon: ['ic', 1018, '#ffb347'], star: 2, max: 3, name: '散彈', desc: '攻擊時也打到第 2、3 隻敵人（40% 傷害）', apply: h => { h.spread += 0.4; },
+    maxDesc: '散彈傷害變成 100%', maxApply: h => { h.spread = 1; } },
+  // 元素使
+  { id: 'e_fire', hero: 'elem', icon: ['ic', 616, '#ff7a3d'], star: 1, max: 3, name: '烈焰', desc: '火元素的燃燒傷害 +30%', apply: h => { h.fireDot += 0.3; },
+    maxDesc: '燃燒時間變成 6 秒', maxApply: h => { h.dotTime = 6; } },
+  { id: 'e_ice', hero: 'elem', icon: ['ic', 669, '#9fe3ff'], star: 1, max: 3, name: '寒冰', desc: '冰元素減速 +15%', apply: h => { h.iceSlow = Math.min(0.8, h.iceSlow + 0.15); },
+    maxDesc: '冰元素有 30% 機率凍住敵人 1.5 秒', maxApply: h => { h.iceFreeze = 0.3; } },
+  { id: 'e_storm', hero: 'elem', icon: ['ic', 616, '#ffe066'], star: 2, max: 2, name: '雷暴', desc: '雷元素多跳 2 隻敵人', apply: h => { h.boltJumps += 2; },
+    maxDesc: '雷元素傷害加倍', maxApply: h => { h.boltMul *= 2; } },
+  // 龍騎士（隱藏）
+  { id: 'd_breath', hero: 'dragoon', icon: ['ic', 616, '#ff5a3d'], star: 2, max: 2, name: '龍之怒', desc: '龍息需要的攻擊次數 -1', apply: h => { h.breathEvery = Math.max(2, h.breathEvery - 1); },
+    maxDesc: '龍息連噴兩次', maxApply: h => { h.breathTwice = true; } },
+  { id: 'd_scale', hero: 'dragoon', icon: ['ic', 233, '#ff5a3d'], star: 1, max: 3, name: '龍鱗', desc: '受到傷害 -10%', apply: h => { h.dr = Math.min(0.6, h.dr + 0.1); },
+    maxDesc: '被打時反彈 150% 傷害', maxApply: h => { h.thorns += 1.5; } },
+  { id: 'd_wing', hero: 'dragoon', icon: ['ic', 1058, '#ff5a3d'], star: 2, max: 3, name: '龍翼', desc: '攻擊速度 +20%', apply: h => { h.spdMul += 0.2; },
+    maxDesc: '龍息傷害 +200%', maxApply: h => { h.breathMul += 2; } },
+  // 星辰賢者（隱藏）
+  { id: 't_star', hero: 'sage', icon: ['ic', 237, '#c8b6ff'], star: 1, max: 3, name: '星辰牽引', desc: '星落需要的接球數 -3', apply: h => { h.starNeed = Math.max(5, h.starNeed - 3); },
+    maxDesc: '星落一次落下 3 顆', maxApply: h => { h.starCount = 3; } },
+  { id: 't_nova', hero: 'sage', icon: ['ic', 1023, '#c8b6ff'], star: 2, max: 3, name: '超新星', desc: '星落傷害 +100%', apply: h => { h.starMul += 1; },
+    maxDesc: '星落必定暴擊', maxApply: h => { h.starCrit = true; } },
+  { id: 't_grav', hero: 'sage', icon: ['ic', 1018, '#c8b6ff'], star: 1, max: 2, name: '引力', desc: '接球杯吸力 +60%', apply: h => { h.magnet += 0.6; },
+    maxDesc: '接球杯變寬 30%', maxApply: (h, run, board) => { board.cupW = Math.min(220, board.cupW * 1.3); } },
+  // 盜賊王（隱藏）
+  { id: 'z_steal', hero: 'thief', icon: ['ic', 1057, '#ffd84a'], star: 1, max: 3, name: '順手牽羊', desc: '每擊敗一隻多拿 4 球幣', apply: h => { h.stealCoins += 4; },
+    maxDesc: '菁英、魔王被擊敗時拿 10 倍', maxApply: h => { h.stealBig = true; } },
+  { id: 'z_lucky', hero: 'thief', icon: ['ic', 569, '#ffd84a'], star: 2, max: 2, name: '賊運亨通', desc: '菁英、寶箱怪掉技能機率 +20%', apply: h => { h.skillDropBonus += 0.2; },
+    maxDesc: '寶箱怪每波都會出現', maxApply: h => { h.chestEvery = true; } },
+  { id: 'z_gold', hero: 'thief', icon: ['pp', 67], star: 2, max: 2, name: '金庫', desc: '結算金幣再 +30%', apply: h => { h.goldBonus += 0.3; },
+    maxDesc: '每波結束拿 10% 球幣利息', maxApply: h => { h.interest += 0.1; } },
 ];
 
 // 技能分類：通用（大家都有）、近戰、遠程、法術（看英雄的職業類型）
@@ -188,9 +273,10 @@ export const CATS = {
 };
 export const skillCat = sk => sk.hero ? null : (sk.cat || 'any');
 // 這個技能能不能出現：專屬技能看英雄，分類技能看職業類型（雙職業時兩邊都算）
+export const heroCls = def => [].concat(def.cls);
 export function skillAllowed(sk, run) {
   const ids = run.heroIds || [run.hero.def.id];
-  const cls = run.heroCls || [run.hero.def.cls];
+  const cls = run.heroCls || heroCls(run.hero.def);
   if (sk.hero) return ids.includes(sk.hero);
   return !sk.cat || cls.includes(sk.cat);
 }

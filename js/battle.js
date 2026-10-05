@@ -24,7 +24,7 @@ export function createHero(def, save) {
     baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk),
     atkMul: 1, spdMul: 1 + tb.spd,
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit, critDmg: 1.5 + tb.critDmg,
+    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit, critDmg: (def.critDmg || 1.5) + tb.critDmg,
     block: (def.block || 0) + tb.block, dbl: 0, life: (def.life || 0) + tb.life, splash: def.splash || 0, thorns: (def.thorns || 0) + tb.thorns,
     bossDmg: tb.bossDmg, skillDropBonus: tb.skillDrop, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen,
     magnet: def.magnet || 0,
@@ -39,6 +39,14 @@ export function createHero(def, save) {
     snipe: 0, snipeCrit: false, dot: 0, dotColor: '#7dff5a', dotTime: 3, critEvery: 0, hitCount: 0, slowWalk: 0, slowAtk: 0,
     chainEvery: 0, chainMul: 0, chainJumps: 3, shieldPct: 0, shield: 0, shieldBurst: 0, killBlast: 0,
     interest: 0, interestCap: 1,
+    // 新職業的被動與專屬技能
+    holyEvery: 5, holyMul: 0.8, holyShield: 0, holyStun: false, regenPs: 0,
+    dodge: def.dodge || 0, dodgeCrit: false, nextCrit: false, exec: 0, execAt: 0.3, critDot: 0,
+    grenadeEvery: 5, grenadeMul: 1.5, grenadeStun: false, ignoreArmor: false, spread: 0,
+    fireDot: 0.3, iceSlow: 0.3, iceFreeze: 0, boltJumps: 2, boltMul: 0.6,
+    breathEvery: 4, breathTwice: false, breathMul: 1.5,
+    starNeed: 15, starCount: 1, starMul: 2, starCrit: false,
+    stealCoins: def.id === 'thief' ? 3 : 0, stealBig: false, goldBonus: def.id === 'thief' ? 0.3 : 0, chestEvery: false,
     ballsPerKill: 5 + gb.ball + tb.ball,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
@@ -112,7 +120,7 @@ export class Battle {
       // 第 3 波起有隊長，第 8 波起兩隻
       const captains = w >= 8 ? 2 : w >= 3 ? 1 : 0;
       for (let i = 0; i < captains; i++) q.splice(Math.floor(q.length / 2) + i, 0, mk(randomMon(), 'captain'));
-      if (w % 5 === 0) q.push(mk('mimic', 'chest'));
+      if (w % 5 === 0 || run.hero.chestEvery) q.push(mk('mimic', 'chest'));
     }
     this.queue = q;
     this.spawnTimer = 0.4;
@@ -135,6 +143,7 @@ export class Battle {
     this.updateFx(dt);
     this.updateBoss(dt);
     if (!fighting) return;
+    if (h.regenPs && h.hp > 0) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.regenPs * dt); // 神聖光環
 
     if (this.queue.length) {
       this.spawnTimer -= dt;
@@ -198,6 +207,13 @@ export class Battle {
         }
         if (h.meteorEvery && h.swings % h.meteorEvery === 0) this.meteor();
         if (h.chainEvery && h.swings % h.chainEvery === 0) this.chain();
+        const id = h.def.id;
+        if (id === 'paladin' && h.swings % h.holyEvery === 0) this.holy();
+        if (id === 'gunner' && h.swings % h.grenadeEvery === 0) this.blast(h.grenadeMul, '榴彈!', '#ffb347', { stun: h.grenadeStun ? 1 : 0, fromHero: true });
+        if (id === 'dragoon' && h.swings % h.breathEvery === 0) {
+          this.breath();
+          if (h.breathTwice) setTimeout(() => this.g.run && this.breath(), 220);
+        }
       }
     }
     if (h.hitQueue > 0) {
@@ -223,8 +239,13 @@ export class Battle {
       return;
     }
     h.hitCount++;
-    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0);
+    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0) || h.nextCrit;
+    h.nextCrit = false;
     let dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
+    // 處決：血少的敵人受到更多傷害
+    if (h.exec && t.hp < t.maxHp * h.execAt) dmg *= 1 + h.exec;
+    if (crit && h.critDot) { t.dotDps = heroAtk(h) * h.critDot; t.dotT = 3; t.dotColor = '#9a8cff'; }
+    if (h.def.id === 'elem') this.element(t);
     // 開場衝鋒：每波第一下
     if (h.opener && !h.openerUsed) {
       h.openerUsed = true;
@@ -263,6 +284,10 @@ export class Battle {
       const rest = this.enemies.filter(e => !e.dead && e !== t);
       for (const e of h.cleaveAll ? rest : rest.slice(0, 1)) this.damage(e, dmg * h.cleave, false, true);
     }
+    // 散彈：第 2、3 隻
+    if (h.spread > 0) {
+      for (const e of this.enemies.filter(o => !o.dead && o !== t).slice(0, 2)) { this.streak(h, e, '#ffb347', 0.1); this.damage(e, dmg * h.spread, false, true); }
+    }
     // 狙擊：最後面那隻
     if (h.snipe > 0) {
       const alive = this.enemies.filter(e => !e.dead && e !== t);
@@ -275,6 +300,62 @@ export class Battle {
       this.shake = Math.max(this.shake, 5);
       this.scene.cam.punch = 1;
       vibrate(15);
+    }
+  }
+
+  // 打中所有敵人的範圍攻擊（聖光、榴彈、龍息、星落、切換攻擊共用）
+  blast(mul, label, color, o = {}) {
+    const h = this.g.run.hero;
+    const dmg = heroAtk(h) * mul * (o.crit ? h.critDmg : 1);
+    if (label) this.text(h.x + 0.5, h.z, 1.4, label, color, 16);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      if (o.fromHero) this.streaks.push({ x1: h.x + 0.2, z1: h.z, h1: 0.6, x2: e.x, z2: e.z, h2: e.size * 0.4, life: 0.25, color, wide: true });
+      else this.streaks.push({ x1: e.x + 0.8, z1: e.z, h1: 4, x2: e.x, z2: e.z, h2: 0.2, life: 0.3, color, wide: true });
+      if (o.stun) e.stun = Math.max(e.stun || 0, o.stun);
+      if (o.dot) { e.dotDps = heroAtk(h) * o.dot; e.dotT = h.dotTime; e.dotColor = color; }
+      this.shocks.push({ x: e.x, z: e.z, t: 0, big: false });
+      this.damage(e, dmg, !!o.crit, !o.crit, color);
+    }
+    this.shake = Math.max(this.shake, 6);
+    this.scene.cam.punch = 1;
+    sfx('crit');
+    this.enemies = this.enemies.filter(e => !e.dead);
+  }
+
+  // 聖騎士：聖光回血＋打全體
+  holy() {
+    const h = this.g.run.hero;
+    h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.08);
+    if (h.holyShield) h.shield = (h.shield || 0) + h.maxHp * h.holyShield;
+    this.blast(h.holyMul, '聖光!', '#fff2a8', { stun: h.holyStun ? 1 : 0 });
+  }
+
+  // 龍騎士：龍息
+  breath() {
+    const h = this.g.run.hero;
+    this.blast(h.breathMul, '龍息!', '#ff5a3d', { dot: 0.3, fromHero: true });
+  }
+
+  // 元素使：每下隨機一種元素
+  element(t) {
+    const h = this.g.run.hero;
+    const k = Math.floor(Math.random() * 3);
+    if (k === 0) {
+      t.dotDps = heroAtk(h) * h.fireDot; t.dotT = h.dotTime; t.dotColor = '#ff7a3d';
+      this.text(t.x, t.z, t.size + 0.5, '火', '#ff7a3d', 12);
+    } else if (k === 1) {
+      t.slow = Math.max(t.slow, h.iceSlow);
+      if (h.iceFreeze && Math.random() < h.iceFreeze) { t.stun = 1.5; this.text(t.x, t.z, t.size + 0.6, '凍結', '#9fe3ff', 13); }
+      else this.text(t.x, t.z, t.size + 0.5, '冰', '#9fe3ff', 12);
+    } else {
+      let from = t;
+      for (const e of this.enemies.filter(o => !o.dead && o !== t).slice(0, h.boltJumps)) {
+        this.streaks.push({ x1: from.x, z1: from.z, h1: from.size * 0.5, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.2, color: '#ffe066', wide: true });
+        this.damage(e, heroAtk(h) * h.boltMul, false, true, '#ffe066');
+        from = e;
+      }
+      this.text(t.x, t.z, t.size + 0.5, '雷', '#ffe066', 12);
     }
   }
 
@@ -402,7 +483,7 @@ export class Battle {
 
   damage(e, dmg, crit, small, color) {
     if (e.dead) return;
-    dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷
+    if (!this.g.run.hero.ignoreArmor) dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷（穿甲彈無視）
     if (e.stun > 0) dmg *= 1 + (this.g.run.hero.stunAmp || 0); // 重擊滿級
     if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
     e.hp -= dmg;
@@ -440,6 +521,12 @@ export class Battle {
 
   enemyHit(e) {
     const h = this.g.run.hero;
+    // 閃避（刺客）
+    if (h.dodge && Math.random() < h.dodge) {
+      this.text(h.x, h.z, 1.2, '閃避', '#9a8cff', 14);
+      if (h.dodgeCrit) h.nextCrit = true;
+      return;
+    }
     if (Math.random() < h.block) {
       this.text(h.x, h.z, 1.2, '格擋', '#9fe3ff', 14);
       sfx('block');

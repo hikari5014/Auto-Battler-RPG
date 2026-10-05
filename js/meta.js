@@ -31,7 +31,9 @@ export const ACHIEVEMENTS = [
   { id: 'rich', name: '球幣大亨', desc: '累計接到 100,000 球幣', get: s => s.stats.coins, goal: 100000, gold: 400 },
   { id: 'event20', name: '冒險家', desc: '經歷 20 次奇遇事件', get: s => s.stats.events, goal: 20, gold: 300 },
   { id: 'legend', name: '傳說鍛造師', desc: '合成出一件傳說裝備', get: s => s.stats.legendMerged, goal: 1, gold: 1000 },
-  { id: 'heroes', name: '全員集合', desc: '解鎖全部 4 位英雄', get: s => s.owned.length, goal: 4, gold: 500 },
+  { id: 'heroes', name: '全員集合', desc: '解鎖 4 位英雄', get: s => s.owned.length, goal: 4, gold: 500 },
+  { id: 'heroes8', name: '英雄大會', desc: '解鎖 8 位英雄', get: s => s.owned.length, goal: 8, gold: 2000 },
+  { id: 'tower20', name: '登塔者', desc: '無盡塔到達第 20 層', get: s => (s.records && s.records[0] ? s.records[0].wave : 0), goal: 20, gold: 800 },
   { id: 'daily3', name: '每日之星', desc: '完成 3 次每日挑戰', get: s => s.stats.dailyWins, goal: 3, gold: 600 },
 ];
 
