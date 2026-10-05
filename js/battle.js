@@ -2,7 +2,8 @@
 // 英雄站在左前方，敵人從右後方的霧裡走出來，排成一斜排往前逼近
 import { sfx } from './audio.js';
 import { CHAPTERS, MONSTERS, TIERS, isBossWave, stageWave } from './data.js';
-import { drawSprite, drawIcon, FONT } from './sprites.js';
+import { drawSprite, drawIcon, drawTinted, FONT } from './sprites.js';
+import { riding } from './mount.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
 import { diffScale } from './levels.js';
@@ -19,13 +20,15 @@ const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
 export function createHero(def, save) {
   const gb = gearBonus(save); // 身上裝備的加成
   const tb = talentBonus(save); // 天賦網的加成
-  const maxHp = def.hp * (1 + tb.hp) * (1 + gb.hp);
+  const mt = riding(save);       // 騎著的坐騎
+  const mb = k => (mt && mt.stat === k ? mt.bonus : 0);
+  const maxHp = def.hp * (1 + tb.hp) * (1 + gb.hp) * (1 + mb('hp'));
   return {
     def, maxHp, hp: maxHp,
-    baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk),
-    atkMul: 1, spdMul: 1 + tb.spd,
+    baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk) * (1 + mb('atk')),
+    atkMul: 1, spdMul: 1 + tb.spd + mb('spd'),
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit, critDmg: (def.critDmg || 1.5) + tb.critDmg,
+    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit + mb('crit'), critDmg: (def.critDmg || 1.5) + tb.critDmg,
     block: (def.block || 0) + tb.block, dbl: 0, life: (def.life || 0) + tb.life, splash: def.splash || 0, thorns: (def.thorns || 0) + tb.thorns,
     bossDmg: tb.bossDmg, skillDropBonus: tb.skillDrop, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen,
     magnet: def.magnet || 0,
@@ -49,7 +52,7 @@ export function createHero(def, save) {
     starNeed: 15, starCount: 1, starMul: 2, starCrit: false,
     switchMul: 2, switchCd: 6, switchHeal: 0, switchStun: 0, // 雙職業：換手斬
     stealCoins: def.id === 'thief' ? 3 : 0, stealBig: false, goldBonus: def.id === 'thief' ? 0.3 : 0, chestEvery: false,
-    ballsPerKill: 5 + gb.ball + tb.ball,
+    ballsPerKill: 5 + gb.ball + tb.ball + mb('ball'), mount: mt, critCharges: 0,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
@@ -149,6 +152,11 @@ export class Battle {
     h.z += (HERO_POS.z - h.z) * Math.min(1, dt * 9);
     if (!fighting) return;
     if (h.regenPs && h.hp > 0) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.regenPs * dt); // 神聖光環
+    // 坐騎技能：有敵人在場時每隔幾秒自動施放
+    if (h.mount && this.enemies.some(e => !e.dead)) {
+      run.mountT = (run.mountT || 0) + dt;
+      if (run.mountT >= h.mount.cdNow) { run.mountT = 0; this.mountSkill(h); }
+    }
 
     if (this.queue.length) {
       this.spawnTimer -= dt;
@@ -244,8 +252,9 @@ export class Battle {
       return;
     }
     h.hitCount++;
-    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0) || h.nextCrit;
+    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0) || h.nextCrit || h.critCharges > 0;
     h.nextCrit = false;
+    if (h.critCharges > 0) h.critCharges--; // 戰狼「狼嚎」
     let dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
     // 處決：血少的敵人受到更多傷害
     if (h.exec && t.hp < t.maxHp * h.execAt) dmg *= 1 + h.exec;
@@ -352,6 +361,39 @@ export class Battle {
     this.scene.cam.punch = 1.4;
     sfx('crit');
     vibrate(30);
+    this.enemies = this.enemies.filter(e => !e.dead);
+  }
+
+  // 坐騎技能
+  mountSkill(h) {
+    const m = h.mount, s = m.star;
+    const front = this.enemies.find(e => !e.dead);
+    if (!front) return;
+    if (m.id === 'horse') {
+      h.lunge = 2;
+      this.streak(h, front, m.color, 0.2);
+      front.kb = 1.5;
+      this.text(h.x + 0.5, h.z, 1.5, '衝刺!', m.color, 16);
+      this.damage(front, heroAtk(h) * (2.5 + s), true);
+      this.shake = Math.max(this.shake, 6);
+      sfx('crit');
+    } else if (m.id === 'wolf') {
+      h.critCharges = 2 + s;
+      this.text(h.x + 0.5, h.z, 1.5, '狼嚎!', m.color, 16);
+      sfx('wave');
+    } else if (m.id === 'bear') {
+      for (const e of this.enemies) if (!e.dead) e.stun = Math.max(e.stun || 0, 0.5 + s * 0.5);
+      h.shield = (h.shield || 0) + h.maxHp * (0.05 + s * 0.05);
+      this.text(h.x + 0.5, h.z, 1.5, '熊吼!', m.color, 16);
+      this.shake = Math.max(this.shake, 8);
+      sfx('hurt');
+    } else if (m.id === 'bird') {
+      this.text(h.x + 0.5, h.z, 1.5, '金羽!', m.color, 16);
+      this.g.onMountBalls && this.g.onMountBalls(4 + s * 4);
+      sfx('buy');
+    } else if (m.id === 'drake') {
+      this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, fromHero: true });
+    }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
@@ -730,7 +772,20 @@ export class Battle {
   drawHero(ctx, h) {
     const x = h.x + h.lunge * 0.25;
     if (h.maxed > 0) this.drawAura(ctx, h, x);
-    const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, h.lift || 0);
+    // 騎著坐騎：先畫坐騎，英雄坐在上面（跑動時上下顛）
+    let lift = h.lift || 0;
+    if (h.mount) {
+      const sc = this.scene;
+      const size = HERO_HEIGHT * 1.35 * (h.scale || 1);
+      const bob = Math.abs(Math.sin(sc.t * 9)) * 0.05;
+      const mp = sc.project(x + 0.12, h.z, lift + bob);
+      sc.shadow(ctx, x, h.z, size * 0.8);
+      ctx.globalAlpha = 1 - sc.fogAt(h.z) * 0.85;
+      drawTinted(ctx, h.mount.icon, h.mount.color, mp.x, mp.y + 1, size * mp.s);
+      ctx.globalAlpha = 1;
+      lift += size * 0.36 + bob;
+    }
+    const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
     // 魔力護盾：血條上蓋一條紫色

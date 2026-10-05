@@ -33,6 +33,8 @@ export const ACHIEVEMENTS = [
   { id: 'legend', name: '傳說鍛造師', desc: '合成出一件傳說裝備', get: s => s.stats.legendMerged, goal: 1, gold: 1000 },
   { id: 'heroes', name: '全員集合', desc: '解鎖 4 位英雄', get: s => s.owned.length, goal: 4, gold: 500 },
   { id: 'heroes8', name: '英雄大會', desc: '解鎖 8 位英雄', get: s => s.owned.length, goal: 8, gold: 2000 },
+  { id: 'mount3', name: '馴獸師', desc: '擁有 3 隻坐騎', get: s => Object.keys((s.mounts && s.mounts.owned) || {}).length, goal: 3, gold: 1000 },
+  { id: 'mountstar', name: '坐騎大師', desc: '讓一隻坐騎突破到 3 星', get: s => Math.max(0, ...Object.values((s.mounts && s.mounts.owned) || {}).map(m => m.star)), goal: 3, gold: 2000 },
   { id: 'tower20', name: '登塔者', desc: '無盡塔到達第 20 層', get: s => (s.records && s.records[0] ? s.records[0].wave : 0), goal: 20, gold: 800 },
   { id: 'daily3', name: '每日之星', desc: '完成 3 次每日挑戰', get: s => s.stats.dailyWins, goal: 3, gold: 600 },
 ];

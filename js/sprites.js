@@ -95,6 +95,38 @@ export function drawIcon(ctx, key, idx, cx, cy, size) {
   return true;
 }
 
+// 上色的 1-bit 圖示（坐騎用）：先畫黑色外框，再畫顏色；做好的小圖存起來重複用
+const tinted = {};
+function tintedIcon(idx, color) {
+  const k = idx + color;
+  if (tinted[k]) return tinted[k];
+  const [img, sx, sy, t] = src('ic', idx);
+  const one = document.createElement('canvas');
+  one.width = one.height = t;
+  const g1 = one.getContext('2d');
+  g1.drawImage(img, sx, sy, t, t, 0, 0, t, t);
+  g1.globalCompositeOperation = 'source-in';
+  const c = document.createElement('canvas');
+  c.width = c.height = t + 2;
+  const g = c.getContext('2d');
+  g1.fillStyle = '#1a1020';
+  g1.fillRect(0, 0, t, t);
+  for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) g.drawImage(one, dx, dy);
+  g1.fillStyle = color;
+  g1.fillRect(0, 0, t, t);
+  g.drawImage(one, 1, 1);
+  tinted[k] = c;
+  return c;
+}
+// 以腳底中心為基準畫
+export function drawTinted(ctx, idx, color, cx, footY, size) {
+  if (!ready('ic')) return;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tintedIcon(idx, color), cx - size / 2, footY - size, size, size);
+  ctx.restore();
+}
+
 // 用一格圖磚鋪滿長方形
 export function drawTile(ctx, idx, x, y, w, h, size, key = 'dg') {
   if (!ready(key)) return;

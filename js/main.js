@@ -1,6 +1,7 @@
 import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, heroCls, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
 import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
 import { shareResult } from './share.js';
+import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText } from './mount.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -23,6 +24,7 @@ const save = loadSave();
 loadSettings(save);
 ensureMeta(save);
 ensureTalents(save);
+ensureMounts(save);
 // 已經玩過的老玩家不用再看教學
 if (save.tutorialDone === undefined) save.tutorialDone = save.gold > 0 || save.maxChapter > 1 || save.owned.length > 1;
 setMuted(save.muted);
@@ -38,6 +40,7 @@ const game = {
     vibrate([60, 80, 60, 80, 120]);
   },
   onBossEnrage: e => banner(`${e.name} 狂暴化！`),
+  onMountBalls: n => board.pour(n), // 金翼鳥「金羽」
 };
 const board = new Board();
 const battle = new Battle(game);
@@ -677,6 +680,9 @@ function endRun(win) {
     win, endless: run.endless, daily: run.daily, cleared, kills: run.kills, chapter: run.chapter,
     hero: run.heroes[0].def, hero2: run.heroes[1] && run.heroes[1].def, diff: run.diff, skills: run.skills.slice(0, 8),
   };
+  // 坐騎：騎著冒險累積經驗
+  const ride = rideExp(save, cleared);
+  const rideHtml = ride ? `<p class="ride-exp">${iconTag(['ic', ride.m.icon, ride.m.color], 18)} ${ride.m.name} +${ride.exp} 經驗${ride.ups ? `，升到 Lv.${ride.st.lv}！` : ''}</p>` : '';
   let unlocked = '';
   if (win && run.chapter === save.maxChapter && !run.endless) {
     save.maxChapter++;
@@ -690,7 +696,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${unlocked}${dailyHtml}
+    ${unlocked}${dailyHtml}${rideHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
@@ -842,6 +848,7 @@ function renderHome() {
         <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
         <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
       </div>
+      ${mountBtn()}
       <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button>
       <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
@@ -904,6 +911,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-talent') { openTalent(); return; }
+  else if (t.id === 'btn-mount') { openMount(); return; }
   else if (t.id === 'duo-main') duoPick = 'main';
   else if (t.id === 'duo-second') { duoPick = 'second'; toast('點一位英雄當副職業'); }
   else if (t.id === 'duo-clear') { save.second = null; duoPick = 'main'; }
@@ -1051,6 +1059,97 @@ $('talent-body').addEventListener('click', ev => {
     showScreen('screen-home');
   }
 });
+
+// ---------- 坐騎 ----------
+function mountBtn() {
+  const r = riding(save);
+  const own = Object.keys(ensureMounts(save).owned).length;
+  return `<button class="talent-btn mount-btn" id="btn-mount">${r ? iconTag(['ic', r.icon, r.color], 26) : iconTag(['ic', 371, '#8a7a9a'], 26)}<span><b>坐騎</b><small>${r ? `騎乘中：${r.name} Lv.${r.lv} ${'★'.repeat(r.star)}` : own ? '目前沒有騎乘' : '買一隻坐騎，一起去冒險'}</small></span><em>▶</em></button>`;
+}
+let mountSel = null;
+function openMount() {
+  mountSel = ensureMounts(save).ride || MOUNTS[0].id;
+  renderMount();
+  showScreen('screen-mount', 'screen-home');
+}
+function renderMount() {
+  const ms = ensureMounts(save);
+  const m = mountById(mountSel);
+  const st = mountState(save, m.id);
+  const riding_ = ms.ride === m.id;
+  const list = MOUNTS.map(x => {
+    const o = mountState(save, x.id);
+    return `<button class="mcard ${x.id === mountSel ? 'sel' : ''} ${o ? '' : 'locked'} ${ms.ride === x.id ? 'riding' : ''}" data-mount="${x.id}" data-fx="tilt">
+      ${iconTag(['ic', x.icon, o ? x.color : '#6a5a7a'], 34)}<small>${x.name}</small>
+      ${o ? `<i>Lv.${o.lv} ${'★'.repeat(o.star)}</i>` : `<i class="price">${iconTag(ICON.gold, 12)}${x.price}</i>`}</button>`;
+  }).join('');
+  let body;
+  if (!st) {
+    body = `<div class="m-stats"><p>${statText(m, 1)}（Lv.1，之後每級成長）</p><p>坐騎技能「${m.skill}」：${m.skillDesc(1)}（每 ${m.cd} 秒）</p></div>
+      <button class="btn big gift" id="btn-mbuy" ${offAttr(save.gold < m.price, `金幣不足，還差 ${m.price - save.gold}`)}>${iconTag(ICON.gold, 18)} ${m.price} 購買</button>`;
+  } else {
+    const cap = atCap(st);
+    const need = expNeed(st.lv);
+    body = `<div class="m-lv"><b>Lv.${st.lv}</b><small>/ ${lvCap(st.star)}</small><span class="stars">${'★'.repeat(st.star)}${'☆'.repeat(MAX_STAR - st.star)}</span></div>
+      <div class="m-exp"><i style="width:${cap ? 100 : st.exp / need * 100}%"></i><span>${cap ? (st.star >= MAX_STAR ? '已經完全長大了！' : '等級到上限了，需要突破') : `經驗 ${st.exp} / ${need}`}</span></div>
+      <div class="m-stats">
+        <p>被動：<b>${statText(m, st.lv)}</b></p>
+        <p>坐騎技能「${m.skill}」：${m.skillDesc(st.star)}（每 ${Math.max(4, m.cd - (st.star - 1))} 秒）</p>
+        ${st.star < MAX_STAR ? `<p class="next">升到 ${st.star + 1} 星：${m.skillDesc(st.star + 1)}，冷卻 -1 秒</p>` : ''}
+      </div>
+      <div class="m-train">
+        ${cap ? (st.star < MAX_STAR ? `<button class="btn gift" id="btn-mbreak" ${offAttr(save.gold < breakCost(st.star), `金幣不足，還差 ${breakCost(st.star) - save.gold}`)}>突破升星 ${iconTag(ICON.gold, 16)}${breakCost(st.star)}</button>` : '')
+          : FEEDS.map(f => `<button class="btn small" data-feed="${f.id}" data-repeat ${offAttr(save.gold < f.gold, `金幣不足，還差 ${f.gold - save.gold}`)}>${f.name}<small>+${f.exp} 經驗・${iconTag(ICON.gold, 12)}${f.gold}</small></button>`).join('')}
+      </div>
+      <button class="btn ${riding_ ? 'ghost' : 'big'}" id="btn-mride">${riding_ ? '下來（不騎乘）' : '騎上牠出發'}</button>`;
+  }
+  $('mount-body').innerHTML = `
+    <h2>坐騎</h2>
+    <div class="pill" id="mount-gold">${iconTag(ICON.gold, 18)} <b>${fmt(save.gold)}</b></div>
+    <div class="m-hero" style="--mc:${m.color}">${iconTag(['ic', m.icon, st ? m.color : '#6a5a7a'], 72)}<b>${m.name}${riding_ ? ' <i class="tag">騎乘中</i>' : ''}</b></div>
+    ${body}
+    <div class="mcards">${list}</div>
+    <p class="hint">騎著坐騎去冒險，每完成一波 +6 經驗；也可以用飼料餵牠（按住連續餵）。</p>
+    <button class="btn small ghost" id="btn-mount-close">關閉</button>`;
+}
+$('mount-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  const ms = ensureMounts(save);
+  if (t.dataset.mount) { mountSel = t.dataset.mount; sfx('tap'); }
+  else if (t.id === 'btn-mbuy') {
+    if (buyMount(save, mountSel)) { sfx('buy'); celebrate(t, mountById(mountSel).color); banner(`獲得坐騎：${mountById(mountSel).name}！`); }
+  } else if (t.dataset.feed) {
+    const ups = feed(save, FEEDS.find(f => f.id === t.dataset.feed));
+    if (ups < 0) return;
+    sfx(ups ? 'wave' : 'buy');
+    writeSave(save);
+    // 按住連續餵：只更新數字，不整頁重畫（按鈕要留著）
+    if (!ups && !atCap(mountState(save, ms.ride))) { updateMountNums(); return; }
+    if (ups) toast(`${mountById(ms.ride).name} 升到 Lv.${mountState(save, ms.ride).lv}！`);
+  } else if (t.id === 'btn-mbreak') {
+    if (breakthrough(save)) { sfx('win'); celebrate(t, '#ffd84a'); banner(`突破成功：${'★'.repeat(mountState(save, ms.ride).star)}`); }
+  } else if (t.id === 'btn-mride') {
+    ms.ride = ms.ride === mountSel ? null : mountSel;
+    sfx('tap');
+  } else if (t.id === 'btn-mount-close') {
+    sfx('tap'); writeSave(save); renderHome(); showScreen('screen-home'); return;
+  }
+  writeSave(save);
+  renderMount();
+});
+function updateMountNums() {
+  const st = mountState(save, ensureMounts(save).ride);
+  $('mount-gold').querySelector('b').textContent = fmt(save.gold);
+  const need = expNeed(st.lv);
+  const bar = document.querySelector('.m-exp');
+  bar.querySelector('i').style.width = st.exp / need * 100 + '%';
+  bar.querySelector('span').textContent = `經驗 ${st.exp} / ${need}`;
+  document.querySelectorAll('[data-feed]').forEach(b => {
+    const f = FEEDS.find(x => x.id === b.dataset.feed);
+    setOff(b, save.gold < f.gold, `金幣不足，還差 ${f.gold - save.gold}`);
+  });
+}
 
 // ---------- 成就與統計 ----------
 function openAch() {
@@ -1479,7 +1578,7 @@ function drawHome() {
   // 換英雄時跳一下
   const k = Math.min(1, (performance.now() - heroHop) / 450);
   const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
-  const hero = { def, x: 0, z: 5.6, scale: 1.35 + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
+  const hero = { def, mount: riding(save), x: 0, z: 5.6, scale: 1.35 + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
   const teaser = [
     { sprite: MONSTERS[ch.boss].sprite, x: 2.7, z: 12, size: 1.85, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
     { sprite: MONSTERS[ch.enemies[0]].sprite, x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
