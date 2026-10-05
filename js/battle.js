@@ -6,6 +6,8 @@ import { drawSprite, drawIcon, FONT } from './sprites.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
 import { diffScale } from './levels.js';
+import { settings } from './settings.js';
+import { vibrate } from './feedback.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const HERO_POS = { x: -1.35, z: 4 };
@@ -224,7 +226,7 @@ export class Battle {
     if (crit) {
       this.shake = Math.max(this.shake, 5);
       this.scene.cam.punch = 1;
-      if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) { /* ignore */ }
+      vibrate(15);
     }
   }
 
@@ -295,7 +297,7 @@ export class Battle {
     }
     // 魔王周圍持續冒火星
     const b = this.boss;
-    if (b && !b.dead && this.embers.length < 40 && Math.random() < dt * 30) {
+    if (b && !b.dead && this.embers.length < (settings.lowFx ? 10 : 40) && Math.random() < dt * 30) {
       this.embers.push({ x: b.x + rand(-0.6, 0.6) * b.size, z: b.z + rand(-0.2, 0.2), h: rand(0, 0.3), vh: rand(0.6, 1.4), life: rand(0.8, 1.4), max: 1.4 });
     }
     for (let i = this.embers.length - 1; i >= 0; i--) {
@@ -349,7 +351,7 @@ export class Battle {
       if (h.killHeal) { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.killHeal); }
       sfx('kill');
       // 金幣在 3D 空間裡噴出、落地彈跳
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < (settings.lowFx ? 4 : 10); i++) {
         this.parts.push({ x: e.x, z: e.z, h: e.size * 0.5, vx: rand(-1.6, 1.6), vz: rand(-1.2, 1.6), vh: rand(2, 4.5), life: rand(0.6, 0.9) });
       }
       if (e.kind !== 'normal') { this.shake = 10; this.scene.cam.punch = 1.5; }
@@ -385,6 +387,8 @@ export class Battle {
 
   // 傷害數字：記住世界座標，畫的時候再換算到畫面上
   text(x, z, hgt, text, color, size) {
+    // 設定關掉傷害數字時，只略過純數字（「暴擊」「閃避」等文字照常顯示）
+    if (!settings.dmgNumbers && /^-?[\d.]+[KMB]?$/.test(text)) return;
     if (this.texts.length > 60) this.texts.shift();
     this.texts.push({ x, z, h: hgt, rise: 0, text, color, size, life: 0.8 });
   }

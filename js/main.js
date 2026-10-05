@@ -7,12 +7,17 @@ import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 import { VERSION, CHANGELOG, compareVersion } from './version.js';
 import { DIFFICULTIES, difficultyOf, boardOf } from './levels.js';
 import { fetchLatest, applyUpdate } from './update.js';
-import { initFeedback, isOff, celebrate, pop } from './feedback.js';
+import { initFeedback, isOff, celebrate, pop, vibrate } from './feedback.js';
+import { settings, loadSettings, applySettings, settingsHtml } from './settings.js';
+import { Tutorial } from './tutorial.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
 const ctx = canvas.getContext('2d');
 const save = loadSave();
+loadSettings(save);
+// 已經玩過的老玩家不用再看教學
+if (save.tutorialDone === undefined) save.tutorialDone = save.gold > 0 || save.maxChapter > 1 || save.owned.length > 1;
 setMuted(save.muted);
 
 const game = {
@@ -23,12 +28,15 @@ const game = {
   // 魔王登場：換魔王音樂、手機震動
   onBossIntro: () => {
     playMusic('boss');
-    try { navigator.vibrate && navigator.vibrate([60, 80, 60, 80, 120]); } catch (err) { /* ignore */ }
+    vibrate([60, 80, 60, 80, 120]);
   },
   onBossEnrage: e => banner(`${e.name} 狂暴化！`),
 };
 const board = new Board();
 const battle = new Battle(game);
+// 遊戲座標 → 畫面（CSS 像素）座標，給教學光圈定位用
+const toCss = (x, y) => ({ x: x * scale, y: y * scale });
+const tutorial = new Tutorial({ save, writeSave, game, board, toCss });
 
 // ---------- 畫面尺寸 ----------
 let scale = 1;
@@ -61,6 +69,7 @@ canvas.addEventListener('pointerdown', ev => {
   if (game.run && p.y > game.battleH - 20) {
     dragging = true;
     board.touchStart(p.x, p.y);
+    tutorial.onDrag();
   }
 });
 window.addEventListener('pointermove', ev => {
@@ -92,6 +101,7 @@ function startRun() {
   showScreen(null);
   $('hud').classList.remove('hidden');
   nextWave();
+  tutorial.onRunStart();
   // 開場提示這一章的特殊規則
   setTimeout(() => game.run && game.run.wave === 1 && toast(`${CHAPTERS[(save.chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`), 1500);
 }
@@ -295,6 +305,7 @@ function openShop() {
   rollOffer();
   renderShop();
   showScreen('screen-shop');
+  tutorial.onShop();
 }
 
 // 「不能按」的標記：用 aria-disabled（iPhone 上 disabled 按鈕收不到觸控，就沒辦法搖晃提示）
@@ -520,6 +531,7 @@ function renderHome() {
         <div class="pill" id="home-gold">${iconTag(ICON.gold, 20)} <b>${fmt(save.gold)}</b></div>
         <span class="top-btns">
           <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
+          <button class="icon-btn" id="btn-settings" aria-label="設定">${iconTag(['ic', 829], 22)}</button>
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
         </span>
       </div>
@@ -600,6 +612,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
+  else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
@@ -636,6 +649,52 @@ function replayRelease(old) {
   el.classList.add('fx-release');
   el.addEventListener('animationend', () => el.classList.remove('fx-release'), { once: true });
 }
+
+// ---------- 設定 ----------
+let resetArmed = false;
+function openSettings() {
+  resetArmed = false;
+  $('settings-body').innerHTML = settingsHtml();
+  showScreen('screen-settings', 'screen-home');
+}
+// 拖動音量：即時套用，放開才存檔
+$('settings-body').addEventListener('input', ev => {
+  const key = ev.target.dataset.slider;
+  if (!key) return;
+  settings[key] = +ev.target.value / 100;
+  $('val-' + key).textContent = ev.target.value + '%';
+  applySettings();
+});
+$('settings-body').addEventListener('change', () => writeSave(save));
+$('settings-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  sfx('tap');
+  if (t.dataset.toggle) {
+    const key = t.dataset.toggle;
+    settings[key] = !settings[key];
+    t.classList.toggle('on', settings[key]);
+    t.setAttribute('aria-checked', settings[key]);
+    if (key === 'vibrate' && settings.vibrate) vibrate(30);
+    writeSave(save);
+  } else if (t.id === 'btn-replay-tutorial') {
+    tutorial.reset();
+    toast('下次開始冒險時會重新播放教學');
+  } else if (t.id === 'btn-reset-save') {
+    // 清除存檔要按兩次，避免手滑
+    if (!resetArmed) {
+      resetArmed = true;
+      t.textContent = '再按一次確認清除';
+      t.classList.remove('ghost');
+      return;
+    }
+    localStorage.clear();
+    location.reload();
+  } else if (t.id === 'btn-settings-close') {
+    writeSave(save);
+    showScreen('screen-home');
+  }
+});
 
 // ---------- 版本與更新 ----------
 let updateInfo = null;      // 最近一次檢查到的網路版本資訊

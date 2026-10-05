@@ -5,6 +5,7 @@
 // 世界座標：x = 左右（公尺），z = 離鏡頭多遠，h = 離地高度
 import { CHAPTERS } from './data.js';
 import { SHEETS, drawTile } from './sprites.js';
+import { settings } from './settings.js';
 
 const TEX_TILES = 8;        // 地面貼圖一邊有幾格
 const TILE_WORLD = 0.55;    // 一格地磚在世界裡多大
@@ -93,7 +94,8 @@ export class Scene {
     const texPerWorld = 16 / TILE_WORLD;
     if (tex) {
       ctx.imageSmoothingEnabled = false;
-      for (let y = Math.ceil(horizon + 1); y < bottom; y++) {
+      const step = settings.lowFx ? 2 : 1; // 低特效：地面隔一列畫一次
+      for (let y = Math.ceil(horizon + 1); y < bottom; y += step) {
         const z = this.cam.h * f / (y - horizon);
         if (z > FOG_Z) continue;
         const xl = camX - (W / 2) * z / f;
@@ -102,7 +104,7 @@ export class Scene {
         if (u < 0) u += tex.n;
         let v = (z * texPerWorld) % tex.n;
         if (v < 0) v += tex.n;
-        ctx.drawImage(tex.c, u, Math.floor(v), Math.min(span, tex.c.width - u), 1, 0, y, W, 1.2);
+        ctx.drawImage(tex.c, u, Math.floor(v), Math.min(span, tex.c.width - u), 1, 0, y, W, step + 0.2);
       }
     }
 

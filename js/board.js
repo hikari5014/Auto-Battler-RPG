@@ -2,6 +2,7 @@
 import { sfx } from './audio.js';
 import { drawIcon, FONT } from './sprites.js';
 import { boardOf } from './levels.js';
+import { settings } from './settings.js';
 
 const BR = 4.5;         // 小球半徑
 const PR = 4;           // 釘子半徑
@@ -570,7 +571,7 @@ export class Board {
       ctx.save();
       // 外光暈
       ctx.shadowColor = st.color;
-      ctx.shadowBlur = 10 + g.flash * 14;
+      ctx.shadowBlur = settings.lowFx ? 0 : 10 + g.flash * 14;
       ctx.fillStyle = st.color;
       ctx.globalAlpha = (0.22 + g.flash * 0.45 + pulse * 0.08) * g.vis;
       roundRect(ctx, g.x, y - 11, g.w, 22, 6);

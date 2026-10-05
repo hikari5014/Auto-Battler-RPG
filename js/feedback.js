@@ -8,6 +8,8 @@
 // 「不能用」的按鈕用 aria-disabled="true" 標記（不用 disabled），
 // 因為 iPhone 上被 disabled 的按鈕完全收不到觸控，就沒辦法給回饋。
 
+import { settings } from './settings.js';
+
 const PRESSABLE = 'button, [data-fx]';
 const HOLD_MS = 380;      // 按多久算「按住」
 const DRAG_PX = 8;        // 移動超過幾像素算「拖曳」
@@ -164,6 +166,7 @@ function burst(x, y, color, n, ring) {
     layer.appendChild(r);
     setTimeout(() => r.remove(), 450);
   }
+  if (settings.lowFx) n = Math.ceil(n / 3);
   for (let i = 0; i < n; i++) {
     const p = document.createElement('i');
     p.className = 'fx-spark';
@@ -184,6 +187,8 @@ function colorOf(el) {
   return '#ffd84a';
 }
 
-function vibrate(p) {
+// 震動（設定裡可以關掉）
+export function vibrate(p) {
+  if (!settings.vibrate) return;
   try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 不支援就算了 */ }
 }

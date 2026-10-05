@@ -5,6 +5,8 @@ let master = null;
 let noiseBuf = null;
 let muted = false;
 let musicGain = null;
+let sfxGain = null;
+let musicVol = 0.7, sfxVol = 1; // 設定頁的音量（0~1）
 const last = {};
 
 export function initAudio() {
@@ -19,13 +21,25 @@ export function initAudio() {
   master.gain.value = muted ? 0 : 0.45;
   master.connect(ctx.destination);
   musicGain = ctx.createGain();
-  musicGain.gain.value = 0.35;
+  musicGain.gain.value = 0.5 * musicVol;
   musicGain.connect(master);
+  sfxGain = ctx.createGain();
+  sfxGain.gain.value = sfxVol;
+  sfxGain.connect(master);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   loadSamples();
   if (wantMusic) playMusic(wantMusic, true);
+}
+
+export function setMusicVolume(v) {
+  musicVol = v;
+  if (musicGain) musicGain.gain.value = 0.5 * v;
+}
+export function setSfxVolume(v) {
+  sfxVol = v;
+  if (sfxGain) sfxGain.gain.value = v;
 }
 
 export function setMuted(m) {
@@ -49,7 +63,7 @@ function tone(freq, type, dur, vol, sweep = 1, delay = 0) {
   if (sweep !== 1) o.frequency.exponentialRampToValueAtTime(freq * sweep, t + dur);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(master);
+  o.connect(g).connect(sfxGain);
   o.start(t);
   o.stop(t + dur + 0.02);
 }
@@ -64,7 +78,7 @@ function noise(dur, vol, freq) {
   const g = ctx.createGain();
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(f).connect(g).connect(master);
+  s.connect(f).connect(g).connect(sfxGain);
   s.start(t);
   s.stop(t + dur);
 }
@@ -171,7 +185,7 @@ export function sfx(name) {
   src.playbackRate.value = s.rate[0] + Math.random() * (s.rate[1] - s.rate[0]);
   const g = ctx.createGain();
   g.gain.value = s.vol;
-  src.connect(g).connect(master);
+  src.connect(g).connect(sfxGain);
   src.start();
 }
 
