@@ -11,6 +11,7 @@ import { initFeedback, isOff, celebrate, pop, vibrate } from './feedback.js';
 import { settings, loadSettings, applySettings, settingsHtml } from './settings.js';
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
+import { ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -88,7 +89,7 @@ function startRun() {
   const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
   game.run = {
     chapter: save.chapter, wave: 0,
-    coins: save.up.coin * 40,
+    coins: save.up.coin * 40 + gearBonus(save).coin,
     hero: createHero(def, save),
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
@@ -133,7 +134,9 @@ function nextWave() {
 function onKill(e) {
   const run = game.run;
   run.kills++;
-  board.pour((run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul);
+  // 裝備可能給小數的掉球數：小數部分用機率決定多不多掉一顆
+  const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul;
+  board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
 
 // ---------- 奇遇事件 ----------
@@ -489,7 +492,9 @@ function endRun(win) {
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
+  gold = Math.round(gold * (1 + gearBonus(save).gold)); // 黃金戒指
   save.gold += gold;
+  const { drops, salvaged } = rollDrops(save, cleared, win, DIFFICULTIES.findIndex(d => d.id === run.diff.id));
   let unlocked = '';
   if (win && run.chapter === save.maxChapter) {
     save.maxChapter++;
@@ -503,6 +508,9 @@ function endRun(win) {
     <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
     ${unlocked}
+    ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
+      <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
+    ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
     <button class="btn big" id="btn-home">回到主畫面</button>`;
   $('result-body').className = 'panel center ' + (win ? 'win' : 'lose');
   showScreen('screen-result');
@@ -602,6 +610,7 @@ function renderHome() {
           <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
       </div>
       <div class="heroes">${heroes}</div>
+      <button class="gear-btn" id="btn-gear">${gearSummary()}</button>
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
         <div class="stats">
@@ -666,6 +675,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
+  else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
@@ -702,6 +712,72 @@ function replayRelease(old) {
   el.classList.add('fx-release');
   el.addEventListener('animationend', () => el.classList.remove('fx-release'), { once: true });
 }
+
+// ---------- 裝備 ----------
+function gearSummary() {
+  const gear = ensureGear(save);
+  const slots = Object.keys(SLOTS).map(slot => {
+    const it = gear.items.find(x => x.id === gear.equip[slot]);
+    return it ? `<span class="gs r${it.rarity}" style="--rc:${RARITIES[it.rarity].color}">${iconTag(itemIcon(it), 22)}</span>` : `<span class="gs empty">${SLOTS[slot].name}</span>`;
+  }).join('');
+  const m = mergeableCount(save);
+  return `<b>裝備</b>${slots}<small>${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>`;
+}
+
+let gearSel = null; // 目前點選的裝備 id
+function openGear() {
+  renderGear();
+  showScreen('screen-gear', 'screen-home');
+}
+function renderGear() {
+  const gear = ensureGear(save);
+  const worn = new Set(Object.values(gear.equip));
+  const b = gearBonus(save);
+  const slots = Object.entries(SLOTS).map(([slot, info]) => {
+    const it = gear.items.find(x => x.id === gear.equip[slot]);
+    return `<button class="slot ${it ? 'r' + it.rarity : 'empty'}" data-slot="${slot}" style="--rc:${it ? RARITIES[it.rarity].color : '#555'}">
+      ${it ? iconTag(itemIcon(it), 34) : `<i>${info.name}</i>`}<small>${it ? itemDesc(it) : '空'}</small></button>`;
+  }).join('');
+  const list = gear.items.slice().sort((a, c) => c.rarity - a.rarity || a.slot.localeCompare(c.slot));
+  const items = list.map(it => `
+    <button class="item r${it.rarity} ${worn.has(it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
+      ${iconTag(itemIcon(it), 28)}${worn.has(it.id) ? '<em>E</em>' : ''}</button>`).join('');
+  const sel = gear.items.find(x => x.id === gearSel);
+  const m = mergeableCount(save);
+  $('gear-body').innerHTML = `
+    <h2>裝備</h2>
+    <div class="slots">${slots}</div>
+    <p class="gear-total">目前加成：攻擊 +${Math.round(b.atk * 100)}%・血量 +${Math.round(b.hp * 100)}%${b.crit ? `・暴擊 +${Math.round(b.crit * 100)}%` : ''}${b.ball ? `・掉球 +${b.ball}` : ''}${b.coin ? `・開局球幣 +${b.coin}` : ''}${b.gold ? `・金幣 +${Math.round(b.gold * 100)}%` : ''}</p>
+    <div class="items">${items || '<p class="hint">還沒有裝備，打完一局就會掉落</p>'}</div>
+    <div class="item-detail">${sel ? `
+      <b style="color:${RARITIES[sel.rarity].color}">${RARITIES[sel.rarity].name}・${itemName(sel)}</b><small>${SLOTS[sel.slot].name}：${itemDesc(sel)}</small>
+      <span class="row">
+        ${worn.has(sel.id) ? `<button class="btn small" id="btn-unequip" data-slot="${sel.slot}">卸下</button>` : `<button class="btn small gift" id="btn-equip">裝備</button>`}
+        <button class="btn small ghost" id="btn-salvage" ${offAttr(worn.has(sel.id), '穿在身上的不能分解')}>分解 +${RARITIES[sel.rarity].salvage}</button>
+      </span>` : '<small>點一件裝備看詳細</small>'}</div>
+    <div class="row">
+      <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同欄位、同稀有度的裝備')}>一鍵合成${m ? `（${m}）` : ''}</button>
+      <button class="btn small ghost" id="btn-gear-close">關閉</button>
+    </div>`;
+}
+$('gear-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.dataset.item) gearSel = +t.dataset.item;
+  else if (t.dataset.slot && t.classList.contains('slot')) {
+    const id = ensureGear(save).equip[t.dataset.slot];
+    if (id) gearSel = id;
+  } else if (t.id === 'btn-equip') { equip(save, gearSel); sfx('buy'); }
+  else if (t.id === 'btn-unequip') unequip(save, t.dataset.slot);
+  else if (t.id === 'btn-salvage') { const g = salvage(save, gearSel); toast(`分解獲得 ${g} 金幣`); gearSel = null; }
+  else if (t.id === 'btn-merge') {
+    const made = mergeAll(save);
+    if (made.length) { sfx('wave'); banner(`合成 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
+  } else if (t.id === 'btn-gear-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
+  writeSave(save);
+  renderGear();
+});
 
 // ---------- 設定 ----------
 let resetArmed = false;

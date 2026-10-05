@@ -406,6 +406,57 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .ev-card.bad small { font-size: 14px; }
 .discount { margin: -6px 0 4px; color: #8dff9f; font-size: 13px; }
 
+/* ---------- 裝備 ---------- */
+.gear-btn {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 2px solid #000;
+  background: var(--glass);
+  box-shadow: inset 0 0 0 2px var(--glass-line);
+  color: #fff;
+}
+.gear-btn b { font-size: 15px; margin-right: 4px; }
+.gear-btn small { margin-left: auto; font-size: 11px; color: var(--muted); }
+.gs { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 2px solid var(--rc, #444); background: rgba(0, 0, 0, 0.35); font-size: 9px; color: var(--muted); }
+.gs.empty { border-style: dashed; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.slot, .item {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 8px;
+  border: 3px solid var(--rc);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--rc) 40%, transparent);
+  color: #fff;
+}
+.slot { padding: 6px 2px; min-height: 70px; }
+.slot.empty { border-style: dashed; }
+.slot i { font-style: normal; color: var(--muted); }
+.slot small { font-size: 10px; color: #fdf3d8; margin-top: 2px; }
+.gear-total { font-size: 11px; color: #fdf3d8; margin: 6px 0; }
+.items { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; max-height: 32vh; overflow-y: auto; touch-action: pan-y; padding: 2px; }
+.item { aspect-ratio: 1; }
+.item.sel { outline: 3px solid #fff; outline-offset: 1px; }
+.item em { position: absolute; top: -4px; right: -4px; font-style: normal; font-size: 10px; padding: 0 3px; border-radius: 3px; background: #2e9e4f; }
+.r3 { animation: legend-glow 1.4s ease-in-out infinite; }
+.item-detail { min-height: 64px; margin: 8px 0 2px; display: flex; flex-direction: column; gap: 3px; align-items: center; color: #fdf3d8; }
+.item-detail small { font-size: 12px; }
+.drops { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
+.drop {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 3px solid var(--rc);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--rc);
+  font-size: 10px;
+  animation: stamp 0.4s cubic-bezier(.2, 1.6, .4, 1) backwards;
+}
+@keyframes legend-glow { 50% { box-shadow: 0 0 14px #ffb820, inset 0 0 10px rgba(255, 184, 32, 0.5); } }
+
 /* ---------- 技能卡 ---------- */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; perspective: 600px; }
 .card {

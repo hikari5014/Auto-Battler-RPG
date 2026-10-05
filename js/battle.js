@@ -8,19 +8,21 @@ import { Scene } from './scene.js';
 import { diffScale } from './levels.js';
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
+import { gearBonus } from './gear.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const HERO_POS = { x: -1.35, z: 4 };
 const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
 
 export function createHero(def, save) {
-  const maxHp = def.hp * (1 + 0.1 * save.up.hp);
+  const gb = gearBonus(save); // 身上裝備的加成
+  const maxHp = def.hp * (1 + 0.1 * save.up.hp) * (1 + gb.hp);
   return {
     def, maxHp, hp: maxHp,
-    baseAtk: def.atk * (1 + 0.1 * save.up.atk),
+    baseAtk: def.atk * (1 + 0.1 * save.up.atk) * (1 + gb.atk),
     atkMul: 1, spdMul: 1,
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits, crit: def.crit || 0.05, critDmg: 1.5,
+    hits: def.hits, crit: (def.crit || 0.05) + gb.crit, critDmg: 1.5,
     block: def.block || 0, dbl: 0, life: def.life || 0, splash: def.splash || 0, thorns: def.thorns || 0,
     magnet: def.magnet || 0,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
@@ -29,7 +31,7 @@ export function createHero(def, save) {
     multiShot: 0, multiMul: 1, pierce: 0, arrowNeed: 20, arrowCount: 1,
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
-    ballsPerKill: 5,
+    ballsPerKill: 5 + gb.ball,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
