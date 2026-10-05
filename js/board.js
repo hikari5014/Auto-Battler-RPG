@@ -6,14 +6,15 @@ const G = 950;          // 重力
 const BR = 4.5;         // 小球半徑
 const PR = 4;           // 釘子半徑
 const CAP = 450;        // 畫面上最多幾顆球；超過就改成「一顆球代表更多球幣」
-const MAX_GATES = 6;
+const MAX_GATES = 8;      // 起始 2 道 + 技能最多再加 6 道
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
 
 const GATE_STYLE = {
   x2: { w: 104, copies: 1, color: '#36d6ff' },
-  x3: { w: 80, copies: 2, color: '#ff5ce1' },
+  x3: { w: 80, copies: 2, color: '#ffd84a', gold: true }, // 金色 x3 門
   '+3': { w: 88, copies: 3, color: '#6dff8a' },
+  '+5': { w: 88, copies: 5, color: '#4dffc3' },
 };
 
 export class Board {
@@ -64,18 +65,14 @@ export class Board {
     this.pops.length = 0;
     this.queue = 0;
     this.cupW = 130;
+    this.cupMult = 2;   // 接住的球乘幾倍（大肚杯滿級變 3）
     this.gates = [];
     this.addGate('x2', 0);
     this.addGate('+3', 1);
   }
 
   addGate(type, row) {
-    if (this.gates.length >= MAX_GATES) {
-      // 門滿了：把一道 x2 升級成 x3
-      const g = this.gates.find(g => g.type === 'x2');
-      if (g) { g.type = 'x3'; g.w = GATE_STYLE.x3.w; }
-      return;
-    }
+    if (this.gates.length >= MAX_GATES) return;
     if (row === undefined) {
       const r0 = this.gates.filter(g => g.row === 0).length;
       const r1 = this.gates.length - r0;
@@ -88,6 +85,20 @@ export class Board {
       vx: (Math.random() < 0.5 ? -1 : 1) * rand(25, 50),
       flash: 0,
     });
+  }
+
+  // 滿級獎勵用：某種門全部變寬（slow = 移動速度倍率）
+  widenGates(type, k, slow = 1) {
+    for (const g of this.gates) {
+      if (g.type !== type) continue;
+      g.w = Math.min(this.W * 0.6, g.w * k);
+      g.x = Math.min(g.x, this.W - g.w - 4);
+      g.vx *= slow;
+      g.flash = 1;
+    }
+  }
+  upgradeGates(from, to) {
+    for (const g of this.gates) if (g.type === from) { g.type = to; g.flash = 1; }
   }
 
   pour(n) { this.queue += n; }
@@ -256,11 +267,11 @@ export class Board {
   }
 
   collect(b) {
-    this.onCatch(b, 2);
+    this.onCatch(b, this.cupMult);
     sfx('clink');
     this.cupPulse = 1;
     if (b.v > 1 || Math.random() < 0.2) {
-      this.pops.push({ x: this.cupX + rand(-20, 20), y: this.cupY - 6, text: '+' + fmt(b.v * 2), life: 0.6 });
+      this.pops.push({ x: this.cupX + rand(-20, 20), y: this.cupY - 6, text: '+' + fmt(b.v * this.cupMult), life: 0.6 });
     }
   }
 
@@ -386,6 +397,7 @@ export class Board {
       roundRect(ctx, g.x, y - 11, g.w, 22, 6);
       ctx.fill();
       ctx.restore();
+      if (st.gold) this.drawGoldShine(ctx, g, y);
       // 流動的箭頭
       ctx.save();
       roundRect(ctx, g.x, y - 11, g.w, 22, 6);
@@ -417,6 +429,38 @@ export class Board {
       ctx.fillText(g.type, g.x + g.w / 2, y + 1);
     }
     ctx.textBaseline = 'alphabetic';
+  }
+
+  // 金色門：金屬漸層＋一道光掃過＋兩顆閃爍的小星星
+  drawGoldShine(ctx, g, y) {
+    ctx.save();
+    roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+    ctx.clip();
+    const metal = ctx.createLinearGradient(0, y - 11, 0, y + 11);
+    metal.addColorStop(0, 'rgba(255,245,180,0.55)');
+    metal.addColorStop(0.5, 'rgba(255,190,40,0.35)');
+    metal.addColorStop(1, 'rgba(180,110,0,0.5)');
+    ctx.fillStyle = metal;
+    ctx.fillRect(g.x, y - 11, g.w, 22);
+    const sx = g.x + ((this.t * 90 + g.id * 40) % (g.w + 60)) - 30;
+    const sweep = ctx.createLinearGradient(sx - 14, 0, sx + 14, 0);
+    sweep.addColorStop(0, 'rgba(255,255,255,0)');
+    sweep.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+    sweep.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sweep;
+    ctx.fillRect(sx - 14, y - 11, 28, 22);
+    ctx.restore();
+    ctx.fillStyle = '#fffbe0';
+    for (let i = 0; i < 2; i++) {
+      const tw = Math.max(0, Math.sin(this.t * 5 + i * 2.1 + g.id));
+      const px = g.x + g.w * (i ? 0.85 : 0.12);
+      const py = y - 11 + (i ? 4 : 18);
+      const r = 1 + tw * 2.5;
+      ctx.globalAlpha = tw;
+      ctx.fillRect(px - r, py - 0.6, r * 2, 1.2);
+      ctx.fillRect(px - 0.6, py - r, 1.2, r * 2);
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawPourCup(ctx) {
@@ -526,7 +570,7 @@ export class Board {
     ctx.fillText(label, cx + 8, y + h / 2 + 4);
     ctx.font = `12px ${FONT}`;
     ctx.fillStyle = '#ffd84a';
-    ctx.fillText('接住 x2', cx, y - 12);
+    ctx.fillText('接住 x' + this.cupMult, cx, y - 12);
   }
 }
 

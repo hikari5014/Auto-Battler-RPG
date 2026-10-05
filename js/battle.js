@@ -19,6 +19,7 @@ export function createHero(def, save) {
     interval: def.interval, range: def.range / 48, // 換算成世界距離
     hits: def.hits, crit: 0.05, critDmg: 1.5,
     block: 0, dbl: 0, life: def.life || 0, splash: def.splash || 0, thorns: 0,
+    critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
     ballsPerKill: 5,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
@@ -153,6 +154,10 @@ export class Battle {
     if (h.splash > 0) {
       for (const e of this.enemies) if (e !== t && !e.dead) this.damage(e, dmg * h.splash, false, true);
     }
+    // 致命一擊滿級：暴擊時震波打中所有敵人
+    if (crit && h.critSplash > 0) {
+      for (const e of this.enemies) if (e !== t && !e.dead) this.damage(e, dmg * h.critSplash, false, true);
+    }
     if (h.life > 0) h.hp = Math.min(h.maxHp, h.hp + dmg * h.life);
     sfx(crit ? 'crit' : 'hit');
     if (crit) {
@@ -207,6 +212,12 @@ export class Battle {
     if (Math.random() < h.block) {
       this.text(h.x, h.z, 1.2, '格擋', '#9fe3ff', 14);
       sfx('block');
+      // 鐵壁滿級：格擋後立刻反擊
+      if (h.counter > 0) {
+        this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit: true });
+        this.damage(e, heroAtk(h) * h.counter, true);
+        this.text(h.x + 0.4, h.z, 1.4, '反擊!', '#9fe3ff', 15);
+      }
       return;
     }
     h.hp -= e.atk;
@@ -305,6 +316,7 @@ export class Battle {
 
   drawHero(ctx, h) {
     const x = h.x + h.lunge * 0.25;
+    if (h.maxed > 0) this.drawAura(ctx, h, x);
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, h.lift || 0);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
@@ -316,6 +328,30 @@ export class Battle {
     ctx.strokeText(label, p.x, top - 13);
     ctx.fillStyle = '#fff';
     ctx.fillText(label, p.x, top - 13);
+  }
+
+  // 有技能滿級時，英雄腳下出現金色光環，滿級越多、繞圈的光點越多
+  drawAura(ctx, h, x) {
+    const sc = this.scene;
+    const p = sc.project(x, h.z);
+    const t = sc.t;
+    const rx = 0.55 * p.s, ry = 0.16 * p.s;
+    ctx.save();
+    ctx.globalAlpha = 0.35 + Math.sin(t * 3) * 0.12;
+    ctx.strokeStyle = '#ffd84a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const n = Math.min(8, 2 + h.maxed * 2);
+    ctx.fillStyle = '#fff3a0';
+    for (let i = 0; i < n; i++) {
+      const a = t * 1.6 + (i / n) * Math.PI * 2;
+      const rise = ((t * 0.6 + i / n) % 1) * HERO_HEIGHT * p.s;
+      ctx.globalAlpha = 0.8 * (1 - rise / (HERO_HEIGHT * p.s));
+      ctx.fillRect(p.x + Math.cos(a) * rx - 1.5, p.y + Math.sin(a) * ry - rise - 1.5, 3, 3);
+    }
+    ctx.restore();
   }
 
   drawFx(ctx) {

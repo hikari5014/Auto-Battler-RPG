@@ -72,14 +72,16 @@ function startRun() {
     chapter: save.chapter, wave: 0,
     coins: save.up.coin * 40,
     hero: createHero(def, save),
-    skills: [], phase: 'fight', revived: false,
+    skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
   };
   board.reset(game.run);
+  renderSkillBar();
   battle.reset();
   game.paused = false;
   showScreen(null);
   $('hud').classList.remove('hidden');
+  $('hud-skills').classList.remove('hidden');
   nextWave();
 }
 
@@ -88,6 +90,7 @@ function nextWave() {
   run.wave++;
   run.phase = 'fight';
   if (run.wave > 1) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
+  if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
   battle.startWave(run);
   const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
   $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
@@ -158,16 +161,53 @@ function update(dt) {
 
 // ---------- 商店（三選一技能卡）----------
 // 已獲得的技能：同一種合併顯示，例如「劍 x3」
-function ownedSummary(skills) {
-  const count = new Map();
-  for (const sk of skills) count.set(sk, (count.get(sk) || 0) + 1);
-  return [...count].map(([sk, n]) => `<span>${iconTag(sk.icon, 18)}${n > 1 ? 'x' + n : ''}</span>`).join('');
+// ---------- 技能等級 ----------
+// run.skills = 拿到過的技能（依取得順序，不重複）；run.levels = 每個技能目前幾級
+const skillLv = sk => game.run.levels[sk.id] || 0;
+const isMaxed = sk => !!sk.max && skillLv(sk) >= sk.max;
+
+// 已獲得的技能：圖示＋等級（滿級顯示 MAX）
+function ownedSummary() {
+  return game.run.skills.map(sk => `<span class="owned-sk ${isMaxed(sk) ? 'max' : ''}">${iconTag(sk.icon, 18)}${isMaxed(sk) ? 'MAX' : sk.max ? 'Lv' + skillLv(sk) : 'x' + skillLv(sk)}</span>`).join('');
+}
+
+// 戰鬥畫面下方的技能列：點一下看說明
+function renderSkillBar() {
+  const run = game.run;
+  $('hud-skills').innerHTML = run.skills.map(sk => {
+    const lv = skillLv(sk);
+    return `<button class="sk ${isMaxed(sk) ? 'max' : ''} ${sk.gold ? 'gold' : ''}" data-sk="${sk.id}" aria-label="${sk.name}">
+      ${iconTag(sk.icon, 20)}<b>${isMaxed(sk) ? 'MAX' : sk.max ? lv : 'x' + lv}</b></button>`;
+  }).join('');
+}
+$('hud-skills').addEventListener('click', ev => {
+  const t = ev.target.closest('[data-sk]');
+  if (!t) return;
+  const sk = SKILLS.find(k => k.id === t.dataset.sk);
+  const lv = skillLv(sk);
+  const head = sk.max ? `${sk.name} Lv.${lv}/${sk.max}` : `${sk.name} x${lv}`;
+  toast(`${head}：${sk.desc}${isMaxed(sk) ? '（滿級：' + sk.maxDesc + '）' : ''}`);
+});
+
+// 升到滿級：金色爆發＋橫幅＋滿級獎勵生效
+function celebrateMax(sk, card) {
+  const run = game.run;
+  sk.maxApply(run.hero, run, board);
+  run.hero.maxed = (run.hero.maxed || 0) + 1;
+  banner(`${sk.name} 滿級！`);
+  sfx('wave');
+  if (card) {
+    card.classList.add('maxed');
+    celebrate(card, '#ffd84a');
+    setTimeout(() => celebrate(card, '#fff6b0'), 180);
+  }
+  toast(`滿級獎勵：${sk.maxDesc}`);
 }
 
 function rollOffer() {
   const run = game.run;
   const picks = [];
-  const pool = SKILLS.slice();
+  const pool = SKILLS.filter(sk => !isMaxed(sk)); // 滿級的技能不再出現
   while (picks.length < 3 && pool.length) {
     const total = pool.reduce((s, k) => s + STAR_WEIGHT[k.star], 0);
     let r = Math.random() * total;
@@ -215,17 +255,31 @@ function updateShop() {
     setOff(b, o.bought || cant, o.bought ? '這張已經買過了' : `球幣不足，還差 ${o.price - Math.floor(run.coins)}`);
   });
   setOff($('btn-reroll'), run.coins < run.rerollCost, '球幣不足，無法刷新');
-  $('shop-owned').innerHTML = '已獲得：' + ownedSummary(run.skills);
+  $('shop-owned').innerHTML = '已獲得：' + ownedSummary();
+}
+
+// 卡片上的等級：Lv.2 → 3 / 5，加上一排小格子（已有的實心、這次會加的閃爍）
+function levelHtml(sk, lv) {
+  if (!sk.max) return `<div class="lv">可重複購買${lv ? `（已買 ${lv} 次）` : ''}</div>`;
+  let pips = '';
+  for (let i = 1; i <= sk.max; i++) pips += `<i class="${i <= lv ? 'on' : i === lv + 1 ? 'next' : ''}"></i>`;
+  const next = lv + 1 >= sk.max ? 'MAX' : lv + 1;
+  return `<div class="lv">Lv.${lv} → <b>${next}</b> <small>/ ${sk.max}</small></div><div class="pips">${pips}</div>`;
 }
 
 function renderShop() {
   const run = game.run;
   const cards = run.offer.map((o, i) => {
     const cant = !o.bought && run.coins < o.price;
-    return `<div class="card star${o.sk.star} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
-      <div class="card-icon">${iconTag(o.sk.icon, 44)}</div>
-      <div class="card-name">${o.sk.name}</div>
-      <div class="card-desc">${o.sk.desc}</div>
+    const sk = o.sk;
+    const lv = skillLv(sk) - (o.bought ? 1 : 0); // 買之前的等級
+    const toMax = sk.max && lv + 1 >= sk.max;    // 這張買下去就滿級
+    return `<div class="card star${sk.star} ${sk.gold ? 'gold' : ''} ${toMax ? 'to-max' : ''} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
+      <div class="card-icon">${iconTag(sk.icon, 44)}</div>
+      <div class="card-name">${sk.name}</div>
+      ${levelHtml(sk, lv)}
+      <div class="card-desc">${sk.desc}</div>
+      ${toMax ? `<div class="maxbonus">滿級獎勵<br>${sk.maxDesc}</div>` : ''}
       <div class="stars">${'★'.repeat(o.sk.star)}${'☆'.repeat(3 - o.sk.star)}</div>
       <button class="buy" data-i="${i}" ${offAttr(o.bought || cant, o.bought ? '這張已經買過了' : `球幣不足，還差 ${o.price - Math.floor(run.coins)}`)}>${o.bought ? '已獲得' : iconTag(ICON.gem, 16) + o.price}</button>
     </div>`;
@@ -233,13 +287,13 @@ function renderShop() {
   $('shop-body').innerHTML = `
     <h2>選擇新技能</h2>
     <div class="pill" id="shop-coins">${iconTag(ICON.gem, 18)} <b>${fmt(run.coins)}</b></div>
-    <div class="cards">${cards}</div>
+    <div class="cards">${cards || '<p class="all-max">所有技能都已滿級！</p>'}</div>
     <div class="row">
       <button class="btn small" id="btn-reroll" ${offAttr(run.coins < run.rerollCost, '球幣不足，無法刷新')}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
       <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
-    <div class="owned" id="shop-owned">${run.skills.length ? '已獲得：' + ownedSummary(run.skills) : '用接到的球幣購買技能，可以買不只一張'}</div>`;
+    <div class="owned" id="shop-owned">${run.skills.length ? '已獲得：' + ownedSummary() : '用接到的球幣購買技能，可以買不只一張'}</div>`;
 }
 
 $('shop-body').addEventListener('click', ev => {
@@ -252,13 +306,16 @@ $('shop-body').addEventListener('click', ev => {
     run.coins -= o.price;
     o.bought = true;
     o.sk.apply(run.hero, run, board);
-    run.skills.push(o.sk);
+    if (!run.levels[o.sk.id]) run.skills.push(o.sk);
+    run.levels[o.sk.id] = skillLv(o.sk) + 1;
     sfx('buy');
     // 不整個重畫（不然卡片翻轉動畫會重播），只更新數字與狀態
     const card = t.closest('.card');
     celebrate(card, '#ff7ad9');
     card.classList.add('just-bought');
+    if (isMaxed(o.sk)) celebrateMax(o.sk, card);
     updateShop();
+    renderSkillBar();
     return;
   } else if (t.id === 'btn-reroll') {
     run.coins -= run.rerollCost;
@@ -367,6 +424,7 @@ function goHome() {
   playMusic('home');
   checkUpdate(true);
   $('hud').classList.add('hidden');
+  $('hud-skills').classList.add('hidden');
   renderHome();
   showScreen('screen-home');
 }
@@ -701,3 +759,15 @@ Promise.all([
 
 // 方便測試用
 window.__game = { game, board, battle, save };
+window.__test = {
+  // 讓商店第一張變成指定技能；技能已滿級就回傳 false
+  offer(id) {
+    const sk = SKILLS.find(k => k.id === id);
+    if (isMaxed(sk)) return false;
+    rollOffer();
+    game.run.offer[0] = { sk, price: 10, bought: false };
+    renderShop();
+    return true;
+  },
+  reroll(render) { rollOffer(); if (render) renderShop(); },
+};
