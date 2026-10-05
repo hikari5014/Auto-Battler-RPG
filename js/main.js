@@ -6,6 +6,7 @@ import { Battle, createHero } from './battle.js';
 import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 import { VERSION, CHANGELOG, compareVersion } from './version.js';
 import { fetchLatest, applyUpdate } from './update.js';
+import { initFeedback, isOff, celebrate, pop } from './feedback.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -49,17 +50,19 @@ let dragging = false;
 canvas.addEventListener('pointerdown', ev => {
   initAudio();
   const p = pointerX(ev);
-  if (p.y > game.battleH - 20) {
+  if (game.run && p.y > game.battleH - 20) {
     dragging = true;
-    board.targetX = Math.max(14, Math.min(game.W - 14, p.x));
+    board.touchStart(p.x, p.y);
   }
 });
 window.addEventListener('pointermove', ev => {
   if (!dragging) return;
-  board.targetX = Math.max(14, Math.min(game.W - 14, pointerX(ev).x));
+  const p = pointerX(ev);
+  board.touchMove(p.x, p.y);
 });
-window.addEventListener('pointerup', () => { dragging = false; });
-window.addEventListener('pointercancel', () => { dragging = false; });
+const endDrag = () => { if (dragging) board.touchEnd(); dragging = false; };
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
 document.addEventListener('pointerdown', () => initAudio(), { once: true });
 
 // ---------- 一局遊戲 ----------
@@ -187,34 +190,62 @@ function openShop() {
   showScreen('screen-shop');
 }
 
+// 「不能按」的標記：用 aria-disabled（iPhone 上 disabled 按鈕收不到觸控，就沒辦法搖晃提示）
+function offAttr(cond, why) {
+  return cond ? `aria-disabled="true" data-deny="${why}"` : '';
+}
+function setOff(el, cond, why) {
+  if (!el) return;
+  if (cond) { el.setAttribute('aria-disabled', 'true'); el.dataset.deny = why; } else { el.removeAttribute('aria-disabled'); delete el.dataset.deny; }
+}
+
+// 商店：只更新會變的部分
+function updateShop() {
+  const run = game.run;
+  const coins = $('shop-coins').querySelector('b');
+  coins.textContent = fmt(run.coins);
+  pop($('shop-coins'));
+  document.querySelectorAll('#shop-body .card').forEach(card => {
+    const o = run.offer[+card.dataset.i];
+    const cant = !o.bought && run.coins < o.price;
+    card.classList.toggle('bought', o.bought);
+    card.classList.toggle('cant', cant);
+    const b = card.querySelector('.buy');
+    if (o.bought) b.textContent = '已獲得';
+    setOff(b, o.bought || cant, o.bought ? '這張已經買過了' : `球幣不足，還差 ${o.price - Math.floor(run.coins)}`);
+  });
+  setOff($('btn-reroll'), run.coins < run.rerollCost, '球幣不足，無法刷新');
+  $('shop-owned').innerHTML = '已獲得：' + ownedSummary(run.skills);
+}
+
 function renderShop() {
   const run = game.run;
   const cards = run.offer.map((o, i) => {
     const cant = !o.bought && run.coins < o.price;
-    return `<div class="card star${o.sk.star} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}">
+    return `<div class="card star${o.sk.star} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
       <div class="card-icon">${iconTag(o.sk.icon, 44)}</div>
       <div class="card-name">${o.sk.name}</div>
       <div class="card-desc">${o.sk.desc}</div>
       <div class="stars">${'★'.repeat(o.sk.star)}${'☆'.repeat(3 - o.sk.star)}</div>
-      <button class="buy" data-i="${i}" ${o.bought || cant ? 'disabled' : ''}>${o.bought ? '已購買' : iconTag(ICON.gem, 16) + o.price}</button>
+      <button class="buy" data-i="${i}" ${offAttr(o.bought || cant, o.bought ? '這張已經買過了' : `球幣不足，還差 ${o.price - Math.floor(run.coins)}`)}>${o.bought ? '已獲得' : iconTag(ICON.gem, 16) + o.price}</button>
     </div>`;
   }).join('');
   $('shop-body').innerHTML = `
     <h2>選擇新技能</h2>
-    <div class="pill">${iconTag(ICON.gem, 18)} ${fmt(run.coins)}</div>
+    <div class="pill" id="shop-coins">${iconTag(ICON.gem, 18)} <b>${fmt(run.coins)}</b></div>
     <div class="cards">${cards}</div>
     <div class="row">
-      <button class="btn small" id="btn-reroll" ${run.coins < run.rerollCost ? 'disabled' : ''}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
-      <button class="btn small gift" id="btn-free" ${run.freeReroll ? '' : 'disabled'}>${iconTag(ICON.free, 16)} 免費刷新</button>
+      <button class="btn small" id="btn-reroll" ${offAttr(run.coins < run.rerollCost, '球幣不足，無法刷新')}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
+      <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
-    <div class="owned">${run.skills.length ? '已獲得：' + ownedSummary(run.skills) : '用接到的球幣購買技能，可以買不只一張'}</div>`;
+    <div class="owned" id="shop-owned">${run.skills.length ? '已獲得：' + ownedSummary(run.skills) : '用接到的球幣購買技能，可以買不只一張'}</div>`;
 }
 
 $('shop-body').addEventListener('click', ev => {
   const run = game.run;
   const t = ev.target.closest('button');
-  if (!t || t.disabled) return;
+  if (!t || isOff(t)) return;
   if (t.classList.contains('buy')) {
     const o = run.offer[+t.dataset.i];
     if (o.bought || run.coins < o.price) return;
@@ -223,6 +254,12 @@ $('shop-body').addEventListener('click', ev => {
     o.sk.apply(run.hero, run, board);
     run.skills.push(o.sk);
     sfx('buy');
+    // 不整個重畫（不然卡片翻轉動畫會重播），只更新數字與狀態
+    const card = t.closest('.card');
+    celebrate(card, '#ff7ad9');
+    card.classList.add('just-bought');
+    updateShop();
+    return;
   } else if (t.id === 'btn-reroll') {
     run.coins -= run.rerollCost;
     run.rerollCost += 10;
@@ -306,6 +343,7 @@ $('result-body').addEventListener('click', ev => {
 $('btn-speed').addEventListener('click', () => {
   game.speed = game.speed === 1 ? 2 : 1;
   $('btn-speed').textContent = 'x' + game.speed;
+  pop($('btn-speed'));
 });
 $('btn-pause').addEventListener('click', () => {
   if (!game.run || !['fight', 'settle'].includes(game.run.phase)) return;
@@ -337,7 +375,7 @@ function renderHome() {
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const heroes = HEROES.map(h => {
     const own = save.owned.includes(h.id);
-    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'}" data-hero="${h.id}">
+    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'}" data-hero="${h.id}" data-fx="tilt">
       ${iconTag(['dg', h.sprite], 48, 'hero-emoji')}
       <span class="hero-name">${h.name.split(' ')[1]}</span>
       ${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
@@ -348,15 +386,15 @@ function renderHome() {
     const cost = upgradeCost(lv);
     return `<div class="up">
       <span class="up-icon">${iconTag(u.icon, 28)}</span>
-      <span class="up-text"><b>${u.name} <em>Lv.${lv}</em></b><small>${u.desc}</small></span>
-      <button class="btn small" data-up="${u.id}" ${save.gold < cost ? 'disabled' : ''}>${iconTag(ICON.gold, 16)}${cost}</button>
+      <span class="up-text"><b>${u.name} <em data-lv="${u.id}">Lv.${lv}</em></b><small>${u.desc}</small></span>
+      <button class="btn small" data-up="${u.id}" data-repeat ${offAttr(save.gold < cost, `金幣不足，還差 ${cost - save.gold}`)}>${iconTag(ICON.gold, 16)}<span class="cost">${cost}</span></button>
     </div>`;
   }).join('');
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   $('home-body').innerHTML = `
     <div class="home-stage">
       <div class="top-row">
-        <div class="pill">${iconTag(ICON.gold, 20)} ${fmt(save.gold)}</div>
+        <div class="pill" id="home-gold">${iconTag(ICON.gold, 20)} <b>${fmt(save.gold)}</b></div>
         <span class="top-btns">
           <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
@@ -365,9 +403,9 @@ function renderHome() {
       <h1 class="logo">彈珠勇者</h1>
       <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
       <div class="chapter">
-        <button class="icon-btn" id="ch-prev" ${save.chapter <= 1 ? 'disabled' : ''}>◀</button>
+        <button class="icon-btn" id="ch-prev" ${offAttr(save.chapter <= 1, '已經是第一章')}>◀</button>
         <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b></div>
-        <button class="icon-btn" id="ch-next" ${save.chapter >= save.maxChapter ? 'disabled' : ''}>▶</button>
+        <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= save.maxChapter, '通關這一章才能解鎖下一章')}>▶</button>
       </div>
     </div>
     <div class="home-bottom">
@@ -375,8 +413,8 @@ function renderHome() {
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.range > 100 ? '遠程' : '近戰'}</span></div>
         <div class="stats">
-          <span>${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}</span>
-          <span>${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}</span>
+          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}</span>
+          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}</span>
           <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)}/秒</span>
         </div>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
@@ -394,23 +432,38 @@ function renderHome() {
 
 $('home-body').addEventListener('click', ev => {
   const t = ev.target.closest('button');
-  if (!t || t.disabled) return;
+  if (!t || isOff(t)) return;
   initAudio();
   sfx('tap');
   if (t.dataset.hero) {
     const h = HEROES.find(x => x.id === t.dataset.hero);
-    if (save.owned.includes(h.id)) save.selected = h.id;
-    else if (save.gold >= h.price) {
+    if (save.owned.includes(h.id)) {
+      if (save.selected !== h.id) heroHop = performance.now();
+      save.selected = h.id;
+    } else if (save.gold >= h.price) {
       save.gold -= h.price;
       save.owned.push(h.id);
       save.selected = h.id;
+      heroHop = performance.now();
       sfx('buy');
+      celebrate(t);
     } else {
       toast(`還差 ${h.price - save.gold} 金幣才能解鎖`);
+      t.classList.add('fx-deny');
+      t.addEventListener('animationend', () => t.classList.remove('fx-deny'), { once: true });
+      return;
     }
   } else if (t.dataset.up) {
+    // 升級：按住會連續升級，所以只更新數字，不整頁重畫
     const cost = upgradeCost(save.up[t.dataset.up]);
-    if (save.gold >= cost) { save.gold -= cost; save.up[t.dataset.up]++; sfx('buy'); }
+    if (save.gold >= cost) {
+      save.gold -= cost;
+      save.up[t.dataset.up]++;
+      sfx('buy');
+      writeSave(save);
+      updateHome(t.dataset.up);
+    }
+    return;
   } else if (t.id === 'ch-prev') save.chapter = Math.max(1, save.chapter - 1);
   else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
@@ -420,7 +473,37 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
   writeSave(save);
   renderHome();
+  replayRelease(t);
 });
+
+// 首頁：升級時只更新數字（按鈕還被按著，不能被換掉）
+function updateHome(changed) {
+  const gold = $('home-gold');
+  gold.querySelector('b').textContent = fmt(save.gold);
+  pop(gold);
+  for (const u of UPGRADES) {
+    const cost = upgradeCost(save.up[u.id]);
+    const b = document.querySelector(`[data-up="${u.id}"]`);
+    b.querySelector('.cost').textContent = cost;
+    setOff(b, save.gold < cost, `金幣不足，還差 ${cost - save.gold}`);
+    const lv = document.querySelector(`[data-lv="${u.id}"]`);
+    lv.textContent = 'Lv.' + save.up[u.id];
+    if (u.id === changed) pop(lv);
+  }
+  const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  $('stat-hp').lastChild.textContent = ' ' + Math.round(hero.hp * (1 + 0.1 * save.up.hp));
+  $('stat-atk').lastChild.textContent = ' ' + (hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1);
+  pop($(changed === 'hp' ? 'stat-hp' : 'stat-atk'));
+}
+
+// 整頁重畫後，按鈕是新的一顆；把「彈回來」動畫補在新按鈕上
+function replayRelease(old) {
+  const key = old.id ? '#' + old.id : old.dataset.hero ? `[data-hero="${old.dataset.hero}"]` : null;
+  const el = key && $('home-body').querySelector(key);
+  if (!el) return;
+  el.classList.add('fx-release');
+  el.addEventListener('animationend', () => el.classList.remove('fx-release'), { once: true });
+}
 
 // ---------- 版本與更新 ----------
 let updateInfo = null;      // 最近一次檢查到的網路版本資訊
@@ -437,7 +520,9 @@ async function checkUpdate(quiet) {
     if (!quiet) toast('無法連線，請稍後再試');
     return;
   }
-  if (!game.run) renderHome();
+  // 只切換紅點，不整頁重畫（玩家可能正按著某個按鈕）
+  const ub = $('btn-update');
+  if (ub) ub.classList.toggle('has-update', updateInfo.newer);
   if (updateInfo.newer) {
     if (quiet) toast(`發現新版本 v${updateInfo.version}，點右上角更新`);
     else showUpdateDialog();
@@ -481,7 +566,7 @@ $('info-body').addEventListener('click', async ev => {
   if (t.id === 'btn-info-close') {
     showScreen('screen-home');
   } else if (t.id === 'btn-do-update') {
-    t.disabled = true;
+    t.setAttribute('aria-disabled', 'true');
     t.textContent = '下載新版本中…';
     writeSave(save);
     try { await applyUpdate(); } catch (e) { location.reload(); }
@@ -491,7 +576,19 @@ $('info-body').addEventListener('click', async ev => {
 // ---------- 小工具 ----------
 // keep = 同時保留顯示的另一個畫面（例如在首頁上方開彈窗）
 function showScreen(id, keep) {
-  for (const el of document.querySelectorAll('.screen')) el.classList.toggle('hidden', el.id !== id && el.id !== keep);
+  for (const el of document.querySelectorAll('.screen')) {
+    const show = el.id === id || el.id === keep;
+    clearTimeout(el._leaveTimer);
+    if (show) {
+      el.classList.remove('hidden', 'leaving');
+    } else if (!el.classList.contains('hidden') && el.classList.contains('overlay')) {
+      // 彈窗關閉：先播淡出動畫再藏起來
+      el.classList.add('leaving');
+      el._leaveTimer = setTimeout(() => el.classList.add('hidden'), 160);
+    } else {
+      el.classList.add('hidden');
+    }
+  }
 }
 // 波次進度條：15 格，打過的填滿、目前這格閃爍、精英／魔王格有標記
 function renderWaveBar(wave) {
@@ -566,12 +663,16 @@ function draw() {
   board.draw(ctx, game.run.coins);
 }
 
+let heroHop = 0;
 // 主畫面：上方是 2.5D 展示台（選中的英雄＋遠方霧中的魔王），下方金幣慢慢落下
 const idle = Array.from({ length: 36 }, () => ({ x: Math.random() * 360, y: Math.random() * 800, v: 30 + Math.random() * 60 }));
 function drawHome() {
   const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
-  const hero = { def, x: 0, z: 5.6, scale: 1.35, hurt: 0, lunge: 0, showcase: true };
+  // 換英雄時跳一下
+  const k = Math.min(1, (performance.now() - heroHop) / 450);
+  const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
+  const hero = { def, x: 0, z: 5.6, scale: 1.35 + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
   const teaser = [
     { sprite: ch.boss, x: 2.7, z: 12, size: 1.55, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
     { sprite: ch.enemies[0], x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
@@ -593,6 +694,7 @@ Promise.all([
   document.fonts ? document.fonts.load('16px "Cubic11"').catch(() => {}) : null,
 ]).then(() => {
   $('hud-gem').innerHTML = iconTag(ICON.gem, 18);
+  initFeedback({ deny: toast, sound: sfx });
   goHome();
   requestAnimationFrame(frame);
 });

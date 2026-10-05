@@ -29,6 +29,12 @@ export class Board {
     this.cupW = 130;
     this.cupX = 180;
     this.cupPulse = 0;
+    // 拖曳回饋：grab = 抓住的程度（0~1，有彈性）、tilt = 杯子跟著甩動的角度
+    this.touch = null;      // { x, y } 手指位置
+    this.grab = 0; this.grabV = 0;
+    this.tilt = 0; this.tiltV = 0;
+    this.rings = [];        // 手指按下時擴散的光圈
+    this.dragHintSeen = false;
     this.t = 0;
     this.onCatch = () => {};
     this.onPeg = () => {};
@@ -86,13 +92,42 @@ export class Board {
 
   pour(n) { this.queue += n; }
 
+  // 觸控（由 main.js 呼叫，座標是遊戲內座標）
+  touchStart(x, y) {
+    this.touch = { x, y };
+    this.rings.push({ x, y, t: 0 });
+    this.dragHintSeen = true;
+    this.targetX = Math.max(14, Math.min(this.W - 14, x));
+  }
+  touchMove(x, y) {
+    if (!this.touch) return;
+    this.touch.x = x;
+    this.touch.y = y;
+    this.targetX = Math.max(14, Math.min(this.W - 14, x));
+  }
+  touchEnd() { this.touch = null; }
+
   isEmpty() { return this.queue === 0 && this.balls.length === 0; }
 
   spawn(x, y, vx, vy, v, mask) { this.balls.push({ x, y, vx, vy, v, mask }); }
 
   update(dt) {
     this.t += dt;
+    const prevPx = this.px;
     this.px += (this.targetX - this.px) * Math.min(1, dt * 14);
+    // 彈簧：抓住時放大、放開時抖一抖回到原狀
+    const gTarget = this.touch ? 1 : 0;
+    this.grabV += ((gTarget - this.grab) * 260 - this.grabV * 16) * dt;
+    this.grab += this.grabV * dt;
+    // 杯子往移動方向甩，停下來時晃回來
+    const vel = dt > 0 ? (this.px - prevPx) / dt : 0;
+    const tiltTarget = Math.max(-0.6, Math.min(0.6, -vel * 0.004));
+    this.tiltV += ((tiltTarget - this.tilt) * 200 - this.tiltV * 12) * dt;
+    this.tilt += this.tiltV * dt;
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      this.rings[i].t += dt;
+      if (this.rings[i].t > 0.45) this.rings.splice(i, 1);
+    }
 
     // 倒球：排隊越多倒越快
     if (this.queue > 0) {
@@ -386,23 +421,84 @@ export class Board {
 
   drawPourCup(ctx) {
     const x = this.px, y = this.top + 12;
+    const g = Math.max(0, this.grab);
+
+    // 瞄準線：從杯口往下，碰到哪一道倍率門就讓那道門亮起來
+    if (g > 0.05) {
+      const aimed = this.gates.filter(gt => x >= gt.x && x <= gt.x + gt.w);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, g) * 0.55;
+      ctx.strokeStyle = aimed.length ? '#ffe680' : '#cfc3f0';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 6]);
+      ctx.lineDashOffset = -this.t * 40;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 18);
+      ctx.lineTo(x, this.cupY - 10);
+      ctx.stroke();
+      ctx.restore();
+      for (const gt of aimed) gt.flash = Math.max(gt.flash, 0.35 * Math.min(1, g));
+    }
+
+    // 杯子：抓住時放大 15%，跟著甩動傾斜
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(Math.PI + Math.sin(this.t * 6) * (this.queue > 0 ? 0.08 : 0));
+    const k = 1 + g * 0.15;
+    ctx.scale(k, k);
+    ctx.rotate(Math.PI + this.tilt + Math.sin(this.t * 6) * (this.queue > 0 ? 0.08 : 0));
+    if (g > 0.05) {
+      ctx.shadowColor = '#ffd84a';
+      ctx.shadowBlur = 14 * Math.min(1, g);
+    }
     cupShape(ctx, 34, 26, 1);
     ctx.restore();
+
     ctx.textAlign = 'center';
     if (this.queue > 0) {
       ctx.font = `12px ${FONT}`;
       ctx.fillStyle = '#ffd84a';
       ctx.fillText('x' + this.queue, x + 32, y + 4);
     }
-    // 提示可以拖曳
-    ctx.globalAlpha = 0.3 + Math.sin(this.t * 3) * 0.12;
-    ctx.fillStyle = '#e6dcff';
-    ctx.font = `12px ${FONT}`;
-    ctx.fillText('◀ 左右拖曳瞄準 ▶', this.W / 2, this.top + 46);
+
+    // 手指位置：按下時擴散的光圈＋拖曳中的小圓圈
+    for (const r of this.rings) {
+      const k2 = r.t / 0.45;
+      ctx.globalAlpha = 1 - k2;
+      ctx.strokeStyle = '#ffe680';
+      ctx.lineWidth = 3 * (1 - k2) + 1;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 8 + k2 * 30, 0, TAU);
+      ctx.stroke();
+    }
+    if (this.touch) {
+      ctx.globalAlpha = 0.5 + Math.sin(this.t * 10) * 0.15;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.touch.x, this.touch.y, 14, 0, TAU);
+      ctx.stroke();
+      // 手指到杯子之間的連線，表示「正在控制杯子」
+      ctx.globalAlpha = 0.25;
+      ctx.setLineDash([2, 5]);
+      ctx.beginPath();
+      ctx.moveTo(this.touch.x, this.touch.y - 14);
+      ctx.lineTo(x, y + 16);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.globalAlpha = 1;
+
+    // 提示可以拖曳：還沒摸過時比較明顯，左右箭頭會擺動
+    if (!this.touch) {
+      const swing = Math.sin(this.t * 3) * 6;
+      ctx.globalAlpha = this.dragHintSeen ? 0.25 : 0.55 + Math.sin(this.t * 3) * 0.15;
+      ctx.fillStyle = '#e6dcff';
+      ctx.font = `12px ${FONT}`;
+      ctx.fillText('左右拖曳瞄準', this.W / 2, this.top + 46);
+      ctx.fillText('◀', this.W / 2 - 52 - swing, this.top + 46);
+      ctx.fillText('▶', this.W / 2 + 52 + swing, this.top + 46);
+      ctx.globalAlpha = 1;
+    }
   }
 
   drawCatchCup(ctx, coins) {

@@ -117,6 +117,11 @@ function synthSfx(name) {
     case 'tap':
       tone(900, 'sine', 0.04, 0.05);
       break;
+    case 'deny': // 不能按：低沉的「噗噗」
+      if (!throttle('deny', 120)) return;
+      tone(180, 'square', 0.07, 0.05, 0.8);
+      tone(150, 'square', 0.08, 0.05, 0.8, 0.09);
+      break;
   }
 }
 

@@ -304,7 +304,7 @@ export class Battle {
 
   drawHero(ctx, h) {
     const x = h.x + h.lunge * 0.25;
-    const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0);
+    const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, h.lift || 0);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
     ctx.font = `11px ${FONT}`;

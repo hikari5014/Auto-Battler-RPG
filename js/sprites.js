@@ -117,5 +117,5 @@ export function iconUrl(key, idx, tint) {
 // 產生 <img> 標籤；ref = [圖集, 編號, 染色?]
 export function iconTag(ref, px = 20, cls = '') {
   const [key, idx, tint] = ref;
-  return `<img class="px ${cls}" src="${iconUrl(key, idx, tint)}" width="${px}" height="${px}" alt="">`;
+  return `<img class="px ${cls}" src="${iconUrl(key, idx, tint)}" width="${px}" height="${px}" alt="" draggable="false">`;
 }
