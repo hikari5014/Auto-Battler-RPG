@@ -1,21 +1,28 @@
 // 彈珠台：小球從上方的倒球杯落下，穿過倍率門被放大，最後掉進下方接球杯換成球幣
 import { sfx } from './audio.js';
 import { drawIcon, FONT } from './sprites.js';
+import { boardOf } from './levels.js';
 
-const G = 950;          // 重力
 const BR = 4.5;         // 小球半徑
 const PR = 4;           // 釘子半徑
 const CAP = 450;        // 畫面上最多幾顆球；超過就改成「一顆球代表更多球幣」
-const MAX_GATES = 8;      // 起始 2 道 + 技能最多再加 6 道
+const MAX_GATES = 10;     // 起始 2 道 + 陷阱門最多 2 道 + 技能最多 6 道
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
 
-const GATE_STYLE = {
-  x2: { w: 104, copies: 1, color: '#36d6ff' },
-  x3: { w: 80, copies: 2, color: '#ffd84a', gold: true }, // 金色 x3 門
-  '+3': { w: 88, copies: 3, color: '#6dff8a' },
-  '+5': { w: 88, copies: 5, color: '#4dffc3' },
-};
+// 倍率門的樣子由「類型字串」決定：'x2' 乘法門、'+3' 加法門、'x0.5' 紅色陷阱門
+// copies = 穿過時多生出幾顆球
+function gateStyle(type) {
+  const v = parseFloat(type.slice(1));
+  if (type[0] === 'x') {
+    if (v < 1) return { w: 72, copies: 0, trap: true, color: '#ff4d4d' };
+    if (v >= 4) return { w: 70, copies: v - 1, color: '#d06bff', rainbow: true };
+    if (v >= 3) return { w: 80, copies: v - 1, color: '#ffd84a', gold: true };
+    return { w: 104, copies: v - 1, color: '#36d6ff' };
+  }
+  return { w: v >= 6 ? 78 : 88, copies: v, color: v >= 5 ? '#4dffc3' : '#6dff8a' };
+}
+const pick = list => list[Math.floor(Math.random() * list.length)];
 
 export class Board {
   constructor() {
@@ -48,13 +55,28 @@ export class Board {
     this.h = bottom - top;
     this.cupY = bottom - 58;
     this.cupH = 46;
-    this.pegs = [];
-    [0.16, 0.24, 0.45, 0.52, 0.71, 0.78].forEach((f, i) => {
-      const y = top + this.h * f;
-      const sp = 40;
-      for (let x = 20 + (i % 2 ? sp / 2 : 0); x < W - 10; x += sp) this.pegs.push({ x, y, lit: 0 });
-    });
+    this.build();
     this.targetX = this.px = Math.min(this.px, W - 20);
+  }
+
+  // 依章節設定，把比例座標換成畫面座標，建立釘子與各種機關
+  build() {
+    const cfg = this.cfg || boardOf(1);
+    const X = fx => fx * this.W;
+    const Y = fy => this.top + fy * this.h;
+    this.gravity = cfg.gravity;
+    this.pegs = [...cfg.pegs, ...(cfg.extraPegs || [])].map(([x, y]) => ({ x: X(x), y: Y(y), lit: 0 }));
+    this.walls = (cfg.walls || []).map(([x1, y1, x2, y2]) => ({ x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2) }));
+    this.bumpers = (cfg.bumpers || []).map(([x, y, r]) => ({ x: X(x), y: Y(y), r, lit: 0 }));
+    this.holes = (cfg.holes || []).map(([x, y]) => ({ x: X(x), y: Y(y), r: 10 }));
+    this.portals = (cfg.portals || []).map(([x1, y1, x2, y2]) => ({ x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2), r: 13, lit: 0 }));
+    this.lava = cfg.lava || 0;
+    this._bg = null;
+  }
+
+  setChapter(chapter) {
+    this.cfg = boardOf(chapter);
+    if (this.W) this.build();
   }
 
   gateY(row) { return this.top + this.h * (row === 0 ? 0.35 : 0.6); }
@@ -66,24 +88,42 @@ export class Board {
     this.queue = 0;
     this.cupW = 130;
     this.cupMult = 2;   // 接住的球乘幾倍（大肚杯滿級變 3）
+    this.setChapter(run.chapter);
+    this.wind = { t: 3, dir: 0, gust: 0 };
     this.gates = [];
-    this.addGate('x2', 0);
-    this.addGate('+3', 1);
+    // 兩道基本門：數值每波隨機（見 rerollGates）
+    this.addGate('x2', 0, true);
+    this.addGate('+3', 1, true);
+    for (let i = 0; i < (run.diff.traps || 0); i++) this.addGate('x0.5', i % 2, false, true);
+    this.rerollGates();
   }
 
-  addGate(type, row) {
+  // 每一波重新抽基本門的數值（依章節範圍），陷阱門也換位置
+  rerollGates() {
+    const vals = this.cfg.gates;
+    for (const g of this.gates) {
+      if (g.trap) { g.x = rand(4, this.W - g.w - 4); g.flash = 1; continue; }
+      if (!g.base) continue;
+      g.type = g.row === 0 ? 'x' + pick(vals.mul) : '+' + pick(vals.add);
+      g.w = gateStyle(g.type).w * g.wMul;
+      g.x = Math.min(g.x, this.W - g.w - 4);
+      g.flash = 1;
+    }
+  }
+
+  addGate(type, row, base = false, trap = false) {
     if (this.gates.length >= MAX_GATES) return;
     if (row === undefined) {
       const r0 = this.gates.filter(g => g.row === 0).length;
       const r1 = this.gates.length - r0;
       row = r0 <= r1 ? 0 : 1;
     }
-    const st = GATE_STYLE[type];
+    const st = gateStyle(type);
     this.gates.push({
-      id: this.gates.length, type, row, w: st.w,
+      id: this.gates.length, type, row, w: st.w, wMul: 1, base, trap,
       x: rand(4, this.W - st.w - 4),
       vx: (Math.random() < 0.5 ? -1 : 1) * rand(25, 50),
-      flash: 0,
+      flash: 0, phase: rand(0, 6), vis: 1,
     });
   }
 
@@ -91,7 +131,8 @@ export class Board {
   widenGates(type, k, slow = 1) {
     for (const g of this.gates) {
       if (g.type !== type) continue;
-      g.w = Math.min(this.W * 0.6, g.w * k);
+      g.wMul *= k;
+      g.w = Math.min(this.W * 0.6, gateStyle(g.type).w * g.wMul);
       g.x = Math.min(g.x, this.W - g.w - 4);
       g.vx *= slow;
       g.flash = 1;
@@ -120,7 +161,7 @@ export class Board {
 
   isEmpty() { return this.queue === 0 && this.balls.length === 0; }
 
-  spawn(x, y, vx, vy, v, mask) { this.balls.push({ x, y, vx, vy, v, mask }); }
+  spawn(x, y, vx, vy, v, mask) { this.balls.push({ x, y, vx, vy, v, mask, age: 0 }); }
 
   update(dt) {
     this.t += dt;
@@ -156,12 +197,25 @@ export class Board {
       if (g.x < 4) { g.x = 4; g.vx = Math.abs(g.vx); }
       if (g.x > this.W - g.w - 4) { g.x = this.W - g.w - 4; g.vx = -Math.abs(g.vx); }
       g.flash = Math.max(0, g.flash - dt * 4);
+      // 墓地：門會忽隱忽現
+      g.vis = this.cfg.blink && !g.trap ? Math.max(0, Math.min(1, (Math.sin(this.t * 1.1 + g.phase) + 0.35) * 2.5)) : 1;
+    }
+    for (const b of this.bumpers) b.lit = Math.max(0, b.lit - dt * 5);
+    for (const p of this.portals) p.lit = Math.max(0, p.lit - dt * 3);
+    // 沙漠：每隔幾秒一陣風
+    if (this.cfg.wind) {
+      const w = this.wind;
+      w.t -= dt;
+      if (w.t <= 0) {
+        if (w.gust > 0) { w.gust = 0; w.t = rand(3, 5); } else { w.gust = 1.4; w.dir = Math.random() < 0.5 ? -1 : 1; w.t = 1.4; }
+      }
+      if (w.gust > 0) w.gust = Math.max(0, w.gust - dt);
     }
     for (const p of this.pegs) p.lit = Math.max(0, p.lit - dt * 5);
     this.cupPulse = Math.max(0, this.cupPulse - dt * 6);
 
     const range = (this.W - this.cupW) / 2 - 6;
-    this.cupX = this.W / 2 + Math.sin(this.t * 0.8) * range;
+    this.cupX = this.W / 2 + Math.sin(this.t * 0.8 * (this.cfg.cupSpeed || 1)) * range;
 
     const steps = Math.max(1, Math.ceil(dt * 120));
     for (let s = 0; s < steps; s++) this.step(dt / steps);
@@ -179,7 +233,9 @@ export class Board {
     const cupTop = this.cupY;
     const cupL = this.cupX - this.cupW / 2;
     const cupR = this.cupX + this.cupW / 2;
-    const magnet = this.run.hero.def.id === 'mage';
+    const magnet = this.run.hero.magnet || 0; // 重力法師的吸力（技能可以加強）
+    const G = this.gravity;
+    const windF = this.cfg.wind && this.wind.gust > 0 ? this.wind.dir * 420 : 0;
     const minD = BR + PR;
     const minD2 = minD * minD;
     const gy0 = this.gateY(0);
@@ -188,11 +244,15 @@ export class Board {
     for (let i = balls.length - 1; i >= 0; i--) {
       const b = balls[i];
       const py = b.y;
+      // 保險：卡住太久的球直接落地結算，避免整波卡住
+      b.age += dt;
+      if (b.age > 15) b.y = this.bottom;
       b.vy += G * dt;
       if (b.vy > 650) b.vy = 650;
-      if (magnet && b.y > cupTop - 160 && b.y < cupTop) {
+      if (windF) b.vx += windF * dt;
+      if (magnet && b.y > cupTop - 160 * magnet && b.y < cupTop) {
         const dx = this.cupX - b.x;
-        if (Math.abs(dx) < 120) b.vx += Math.sign(dx) * 480 * dt;
+        if (Math.abs(dx) < 120 * magnet) b.vx += Math.sign(dx) * 480 * magnet * dt;
       }
       b.x += b.vx * dt;
       b.y += b.vy * dt;
@@ -223,13 +283,28 @@ export class Board {
         }
       }
 
+      if (this.walls.length) this.hitWalls(b);
+      if (this.bumpers.length) this.hitBumpers(b);
+      if (this.portals.length) this.usePortals(b);
+      if (this.holes.length && this.inHole(b, dt)) {
+        balls[i] = balls[balls.length - 1];
+        balls.pop();
+        continue;
+      }
+
       for (let k = 0; k < gates.length; k++) {
         const g = gates[k];
         const gy = g.row === 0 ? gy0 : gy1;
+        if (g.vis < 0.5) continue; // 隱形的門無效
         if (py < gy && b.y >= gy && b.x >= g.x && b.x <= g.x + g.w && !(b.mask & (1 << g.id))) {
           b.mask |= 1 << g.id;
           this.trigger(b, g);
         }
+      }
+      if (b.dead) {
+        balls[i] = balls[balls.length - 1];
+        balls.pop();
+        continue;
       }
 
       // 接球杯：從杯口上方進入就算接到
@@ -246,6 +321,13 @@ export class Board {
       }
       // 沒進杯子的球落到地板：照樣算錢，但沒有杯子的 x2 加成
       if (b.y > this.bottom - BR) {
+        // 火山：地板兩側是熔岩，球會被燒掉
+        if (this.lava && (b.x < this.W * this.lava || b.x > this.W * (1 - this.lava))) {
+          if (Math.random() < 0.3) this.pops.push({ x: b.x, y: this.bottom - 10, text: '燒掉', life: 0.5, color: '#ff7a3a' });
+          balls[i] = balls[balls.length - 1];
+          balls.pop();
+          continue;
+        }
         this.onCatch(b, 1);
         balls[i] = balls[balls.length - 1];
         balls.pop();
@@ -254,8 +336,16 @@ export class Board {
   }
 
   trigger(b, g) {
-    const copies = GATE_STYLE[g.type].copies;
+    const st = gateStyle(g.type);
     g.flash = 1;
+    if (st.trap) {
+      // 陷阱門：高價值球價值減半，一般球有一半機率直接消失
+      sfx('deny');
+      if (b.v > 1) b.v = Math.ceil(b.v * 0.5);
+      else if (Math.random() < 0.5) b.dead = true;
+      return;
+    }
+    const copies = st.copies;
     sfx('gate');
     if (this.balls.length + copies > CAP) {
       b.v *= copies + 1;
@@ -264,6 +354,83 @@ export class Board {
     for (let k = 0; k < copies; k++) {
       this.spawn(b.x + rand(-3, 3), b.y + 1, b.vx + rand(-60, 60), b.vy * rand(0.5, 0.85), b.v, b.mask);
     }
+  }
+
+  // 斜牆（沙丘）：把球當成碰到一條有厚度的線段
+  hitWalls(b) {
+    const R = BR + 3;
+    for (const w of this.walls) {
+      const ex = w.x2 - w.x1, ey = w.y2 - w.y1;
+      const len2 = ex * ex + ey * ey;
+      let t = ((b.x - w.x1) * ex + (b.y - w.y1) * ey) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const cx = w.x1 + ex * t, cy = w.y1 + ey * t;
+      const dx = b.x - cx, dy = b.y - cy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= R * R || d2 < 1e-4) continue;
+      const d = Math.sqrt(d2);
+      const nx = dx / d, ny = dy / d;
+      b.x = cx + nx * R;
+      b.y = cy + ny * R;
+      const vn = b.vx * nx + b.vy * ny;
+      if (vn < 0) { b.vx -= 1.4 * vn * nx; b.vy -= 1.4 * vn * ny; }
+    }
+  }
+
+  // 彈跳石：撞到會被大力彈開
+  hitBumpers(b) {
+    for (const p of this.bumpers) {
+      const dx = b.x - p.x, dy = b.y - p.y;
+      const R = p.r + BR;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= R * R || d2 < 1e-4) continue;
+      const d = Math.sqrt(d2);
+      const nx = dx / d, ny = dy / d;
+      b.x = p.x + nx * R;
+      b.y = p.y + ny * R;
+      const speed = Math.max(340, Math.hypot(b.vx, b.vy) * 1.1);
+      b.vx = nx * speed + rand(-20, 20);
+      b.vy = ny * speed;
+      if (p.lit < 0.5) sfx('peg');
+      p.lit = 1;
+      this.onPeg();
+    }
+  }
+
+  // 傳送門：從入口進去，從出口出來（每顆球只會傳送一次）
+  usePortals(b) {
+    if (b.tp) return;
+    for (const p of this.portals) {
+      const dx = b.x - p.x1, dy = b.y - p.y1;
+      if (dx * dx + dy * dy > p.r * p.r) continue;
+      b.tp = true;
+      b.x = p.x2 + rand(-4, 4);
+      b.y = p.y2;
+      b.vx = rand(-60, 60);
+      b.vy = 40;
+      b.mask = 0; // 可以再穿一次倍率門
+      p.lit = 1;
+      sfx('gate');
+      return;
+    }
+  }
+
+  // 黑洞：靠近會被吸過去，掉進去就沒了
+  inHole(b, dt) {
+    for (const h of this.holes) {
+      const dx = h.x - b.x, dy = h.y - b.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 36 * 36) {
+        const d = Math.sqrt(d2) || 1;
+        b.vx += dx / d * 520 * dt;
+        b.vy += dy / d * 520 * dt;
+      }
+      if (d2 < h.r * h.r) {
+        if (Math.random() < 0.3) this.pops.push({ x: h.x, y: h.y - 12, text: '吞噬', life: 0.5, color: '#c58cff' });
+        return true;
+      }
+    }
+    return false;
   }
 
   collect(b) {
@@ -348,6 +515,7 @@ export class Board {
     }
     ctx.globalAlpha = 1;
 
+    this.drawFeatures(ctx);
     this.drawGates(ctx);
 
     // 小球：一般球 = 金幣，高價值球 = 寶石（Kenney Pixel Platformer）
@@ -374,7 +542,7 @@ export class Board {
     for (const p of this.pops) {
       ctx.globalAlpha = Math.min(1, p.life * 2);
       ctx.strokeText(p.text, p.x, p.y);
-      ctx.fillStyle = '#ffe680';
+      ctx.fillStyle = p.color || '#ffe680';
       ctx.fillText(p.text, p.x, p.y);
     }
     ctx.globalAlpha = 1;
@@ -385,19 +553,34 @@ export class Board {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const g of this.gates) {
-      const st = GATE_STYLE[g.type];
+      const st = gateStyle(g.type);
       const y = this.gateY(g.row);
+      if (g.vis <= 0.02) {
+        // 墓地：隱形中只留一條淡淡的虛線
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = st.color;
+        ctx.setLineDash([3, 5]);
+        ctx.strokeRect(g.x, y - 11, g.w, 22);
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      ctx.globalAlpha = g.vis;
       const pulse = 0.5 + Math.sin(this.t * 4 + g.id) * 0.5;
       ctx.save();
       // 外光暈
       ctx.shadowColor = st.color;
       ctx.shadowBlur = 10 + g.flash * 14;
       ctx.fillStyle = st.color;
-      ctx.globalAlpha = 0.22 + g.flash * 0.45 + pulse * 0.08;
+      ctx.globalAlpha = (0.22 + g.flash * 0.45 + pulse * 0.08) * g.vis;
       roundRect(ctx, g.x, y - 11, g.w, 22, 6);
       ctx.fill();
       ctx.restore();
+      ctx.globalAlpha = g.vis;
       if (st.gold) this.drawGoldShine(ctx, g, y);
+      if (st.rainbow) this.drawRainbow(ctx, g, y);
+      if (st.trap) this.drawTrap(ctx, g, y);
+      ctx.globalAlpha = g.vis;
       // 流動的箭頭
       ctx.save();
       roundRect(ctx, g.x, y - 11, g.w, 22, 6);
@@ -425,10 +608,142 @@ export class Board {
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.strokeText(g.type, g.x + g.w / 2, y + 1);
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = st.trap ? '#ffd0d0' : '#fff';
       ctx.fillText(g.type, g.x + g.w / 2, y + 1);
+      ctx.globalAlpha = 1;
     }
     ctx.textBaseline = 'alphabetic';
+  }
+
+  // x4 以上：彩虹流動
+  drawRainbow(ctx, g, y) {
+    ctx.save();
+    roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+    ctx.clip();
+    const off = (this.t * 80) % 120;
+    const rb = ctx.createLinearGradient(g.x - 120 + off, 0, g.x + off, 0);
+    ['#ff5a5a', '#ffd84a', '#6dff8a', '#36d6ff', '#d06bff', '#ff5a5a'].forEach((c, i) => rb.addColorStop(i / 5, c));
+    ctx.globalAlpha *= 0.45;
+    ctx.fillStyle = rb;
+    ctx.fillRect(g.x, y - 11, g.w, 22);
+    ctx.restore();
+  }
+
+  // 陷阱門：紅黑斜紋警告
+  drawTrap(ctx, g, y) {
+    ctx.save();
+    roundRect(ctx, g.x, y - 11, g.w, 22, 6);
+    ctx.clip();
+    ctx.globalAlpha *= 0.4;
+    ctx.fillStyle = '#000';
+    const off = (this.t * 20) % 16;
+    for (let x = g.x - 22 + off; x < g.x + g.w + 22; x += 16) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 11);
+      ctx.lineTo(x + 8, y + 11);
+      ctx.lineTo(x + 18, y - 11);
+      ctx.lineTo(x + 10, y - 11);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 章節機關：沙丘、彈跳石、黑洞、傳送門、熔岩、陣風
+  drawFeatures(ctx) {
+    const t = this.t;
+    // 沙丘斜坡
+    for (const w of this.walls) {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#8a5a2b';
+      ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
+      ctx.strokeStyle = '#e8b86a';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(w.x1, w.y1 - 1); ctx.lineTo(w.x2, w.y2 - 1); ctx.stroke();
+    }
+    // 彈跳石：發紅光的熔岩石
+    for (const b of this.bumpers) {
+      const r = b.r * (1 + b.lit * 0.15);
+      const g = ctx.createRadialGradient(b.x - r * 0.3, b.y - r * 0.3, 1, b.x, b.y, r);
+      g.addColorStop(0, b.lit > 0 ? '#fff2c0' : '#ffb15a');
+      g.addColorStop(0.5, '#e0461f');
+      g.addColorStop(1, '#5a1608');
+      ctx.fillStyle = g;
+      ctx.shadowColor = '#ff6a2a';
+      ctx.shadowBlur = 8 + b.lit * 14;
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, TAU); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // 黑洞：旋轉的紫色漩渦
+    for (const h of this.holes) {
+      const g = ctx.createRadialGradient(h.x, h.y, 1, h.x, h.y, h.r + 8);
+      g.addColorStop(0, '#000');
+      g.addColorStop(0.55, '#2a0b4a');
+      g.addColorStop(1, 'rgba(120,60,200,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r + 8, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(200,150,255,0.6)';
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < 3; k++) {
+        const a = t * 3 + k * 2.1;
+        ctx.beginPath(); ctx.arc(h.x, h.y, h.r + 3 - k * 2, a, a + 1.6); ctx.stroke();
+      }
+    }
+    // 傳送門：入口紫、出口青
+    for (const p of this.portals) {
+      for (const [x, y, c] of [[p.x1, p.y1, '#d06bff'], [p.x2, p.y2, '#36d6ff']]) {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 10 + p.lit * 12;
+        ctx.beginPath(); ctx.ellipse(x, y, p.r, p.r * 0.55, 0, 0, TAU); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 1.5;
+        const a = t * 4;
+        ctx.beginPath(); ctx.ellipse(x, y, p.r * 0.6, p.r * 0.32, 0, a, a + 3); ctx.stroke();
+      }
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = '#cfc3f0';
+      ctx.setLineDash([2, 6]);
+      ctx.beginPath(); ctx.moveTo(p.x1, p.y1); ctx.quadraticCurveTo(this.W / 2, this.top + 10, p.x2, p.y2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+    // 熔岩：地板兩側
+    if (this.lava) {
+      const lw = this.W * this.lava;
+      for (const x0 of [0, this.W - lw]) {
+        const g = ctx.createLinearGradient(0, this.bottom - 22, 0, this.bottom);
+        g.addColorStop(0, 'rgba(255,90,30,0)');
+        g.addColorStop(1, 'rgba(255,90,30,0.85)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x0, this.bottom - 22, lw, 22);
+        ctx.fillStyle = '#ffcf4a';
+        for (let k = 0; k < 4; k++) {
+          const bx = x0 + ((k * 37 + t * 20) % lw);
+          const by = this.bottom - 4 - Math.abs(Math.sin(t * 3 + k)) * 10;
+          ctx.globalAlpha = 0.8;
+          ctx.fillRect(bx, by, 2.5, 2.5);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    // 陣風：吹的時候畫出沙粒線條和方向箭頭
+    if (this.cfg.wind && this.wind.gust > 0) {
+      const dir = this.wind.dir;
+      ctx.strokeStyle = 'rgba(240,200,140,0.35)';
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < 14; k++) {
+        const y = this.top + 60 + ((k * 53) % (this.h - 120));
+        const x = ((t * 300 * dir + k * 97) % (this.W + 80) + this.W + 80) % (this.W + 80) - 40;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - dir * 26, y); ctx.stroke();
+      }
+      ctx.textAlign = 'center';
+      ctx.font = `13px ${FONT}`;
+      ctx.fillStyle = '#ffe0a0';
+      ctx.fillText(dir > 0 ? '陣風 ▶▶' : '◀◀ 陣風', this.W / 2, this.top + 62);
+    }
   }
 
   // 金色門：金屬漸層＋一道光掃過＋兩顆閃爍的小星星

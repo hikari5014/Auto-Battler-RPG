@@ -1,25 +1,27 @@
 // 遊戲靜態資料：英雄、敵人、章節、技能卡、局外升級
 
+// 英雄：四種打法差很多
+// role = 首頁顯示的定位；crit/block/splash/life/thorns = 天生自帶的能力
 export const HEROES = [
   {
-    id: 'blade', name: '劍士 艾倫', sprite: 96, price: 0,
-    hp: 130, atk: 9, interval: 1.0, range: 60, hits: 1,
-    passive: '劍氣：每第 3 次攻擊揮出劍氣，打中所有敵人',
+    id: 'blade', name: '劍士 艾倫', sprite: 96, price: 0, role: '平衡・近戰',
+    hp: 150, atk: 10, interval: 1.0, range: 60, hits: 1, block: 0.1,
+    passive: '劍氣：每第 3 次攻擊揮出劍氣，打中所有敵人；天生 10% 格擋',
   },
   {
-    id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300,
-    hp: 95, atk: 8, interval: 0.9, range: 240, hits: 1,
-    passive: '球雨箭：每接住 20 顆球，自動射出一支強力箭',
+    id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300, role: '高速・遠程',
+    hp: 95, atk: 5, interval: 0.5, range: 240, hits: 1, crit: 0.15,
+    passive: '球雨箭：每接住 20 顆球自動射出強力箭；攻速極快、天生 15% 暴擊，但很脆',
   },
   {
-    id: 'mage', name: '重力法師 諾娃', sprite: 84, price: 700,
-    hp: 105, atk: 10, interval: 1.2, range: 200, hits: 1, splash: 0.25,
-    passive: '重力井：接球杯會把附近的小球吸進來',
+    id: 'mage', name: '重力法師 諾娃', sprite: 84, price: 700, role: '範圍・遠程',
+    hp: 90, atk: 17, interval: 1.7, range: 200, hits: 1, splash: 0.5, magnet: 1,
+    passive: '重力井：接球杯會吸住附近的小球；攻擊慢但每下都濺射全體 50%',
   },
   {
-    id: 'saw', name: '鏈鋸狂戰 巴克', sprite: 87, price: 1200,
-    hp: 160, atk: 9, interval: 1.1, range: 60, hits: 1, life: 0.06,
-    passive: '鏈鋸：小球每撞釘子 12 次，就砍前排敵人一刀',
+    id: 'saw', name: '鏈鋸狂戰 巴克', sprite: 87, price: 1200, role: '坦克・近戰',
+    hp: 200, atk: 8, interval: 1.2, range: 60, hits: 1, life: 0.08, thorns: 0.2,
+    passive: '鏈鋸：小球每撞釘子 12 次就砍一刀；血超厚、天生吸血 8%、反傷 20%',
   },
 ];
 
@@ -81,6 +83,36 @@ export const SKILLS = [
     maxDesc: '金色 x3 門變寬 40%、移動變慢', maxApply: (h, run, board) => { board.widenGates('x3', 1.4, 0.5); } },
   { id: 'cup', icon: ['ic', 192], star: 1, max: 3, name: '大肚杯', desc: '接球杯變寬 25%', apply: (h, run, board) => { board.cupW = Math.min(220, board.cupW * 1.25); },
     maxDesc: '接住的球從 x2 變成 x3', maxApply: (h, run, board) => { board.cupMult = 3; } },
+
+  // ---------- 職業專屬技能（只會出現在對應英雄的商店）----------
+  // 劍士
+  { id: 'b_whirl', hero: 'blade', icon: ['ic', 1021, '#7fd1ff'], star: 2, max: 2, name: '旋風劍氣', desc: '劍氣觸發所需攻擊次數 -1', apply: h => { h.swordEvery = Math.max(1, h.swordEvery - 1); },
+    maxDesc: '劍氣會連發兩道', maxApply: h => { h.swordTwice = true; } },
+  { id: 'b_edge', hero: 'blade', icon: ['ic', 426, '#7fd1ff'], star: 1, max: 3, name: '劍氣強化', desc: '劍氣傷害 +80%', apply: h => { h.swordMul += 0.8; },
+    maxDesc: '劍氣必定暴擊', maxApply: h => { h.swordCrit = true; } },
+  { id: 'b_guard', hero: 'blade', icon: ['ic', 233, '#ffd84a'], star: 2, max: 2, name: '劍盾架式', desc: '格擋 +15%，格擋時回復 4% 血量', apply: h => { h.block = Math.min(0.8, h.block + 0.15); h.blockHeal += 0.04; },
+    maxDesc: '格擋時回血加倍', maxApply: h => { h.blockHeal *= 2; } },
+  // 射手
+  { id: 'a_multi', hero: 'archer', icon: ['ic', 289, '#b6ff6d'], star: 2, max: 3, name: '多重箭', desc: '每次攻擊多射 1 支箭給隨機敵人', apply: h => { h.multiShot += 1; },
+    maxDesc: '多重箭傷害 +100%', maxApply: h => { h.multiMul = 2; } },
+  { id: 'a_pierce', hero: 'archer', icon: ['ic', 289, '#ffd84a'], star: 2, max: 2, name: '穿透箭', desc: '箭會穿透，打到後面的敵人（40% 傷害）', apply: h => { h.pierce += 0.4; },
+    maxDesc: '穿透傷害變成 100%', maxApply: h => { h.pierce = 1; } },
+  { id: 'a_rain', hero: 'archer', icon: ['ic', 237, '#b6ff6d'], star: 1, max: 3, name: '箭雨加速', desc: '球雨箭需要的接球數 -4', apply: h => { h.arrowNeed = Math.max(6, h.arrowNeed - 4); },
+    maxDesc: '球雨箭一次射 3 支', maxApply: h => { h.arrowCount = 3; } },
+  // 法師
+  { id: 'm_meteor', hero: 'mage', icon: ['ic', 616, '#ff9f43'], star: 3, max: 2, name: '隕石術', desc: '每 4 次攻擊召喚隕石打全體（300% 傷害）', apply: h => { h.meteorEvery = 4; h.meteorMul += 3; },
+    maxDesc: '每 3 次攻擊就召喚隕石', maxApply: h => { h.meteorEvery = 3; } },
+  { id: 'm_grav', hero: 'mage', icon: ['ic', 1018, '#d06bff'], star: 1, max: 3, name: '重力強化', desc: '接球杯吸力的範圍與力度 +40%', apply: h => { h.magnet += 0.4; },
+    maxDesc: '吸力再 +80%', maxApply: h => { h.magnet += 0.8; } },
+  { id: 'm_frost', hero: 'mage', icon: ['ic', 669, '#9fe3ff'], star: 2, max: 2, name: '冰霜', desc: '被打到的敵人攻擊速度 -25%', apply: h => { h.frost += 0.25; },
+    maxDesc: '冰霜效果加倍', maxApply: h => { h.frost = Math.min(0.8, h.frost * 2); } },
+  // 狂戰士
+  { id: 's_saw', hero: 'saw', icon: ['ic', 385, '#ff9f43'], star: 1, max: 3, name: '鏈鋸加速', desc: '鏈鋸需要的撞擊數 -3', apply: h => { h.sawNeed = Math.max(3, h.sawNeed - 3); },
+    maxDesc: '鏈鋸傷害 +150%', maxApply: h => { h.sawMul += 1.5; } },
+  { id: 's_rage', hero: 'saw', icon: ['ic', 531, '#ff5a5a'], star: 2, max: 2, name: '狂暴', desc: '血量低於 50% 時攻擊力 +60%', apply: h => { h.rage += 0.6; },
+    maxDesc: '狂暴時攻擊速度 +50%', maxApply: h => { h.rageSpd = 0.5; } },
+  { id: 's_feast', hero: 'saw', icon: ['ic', 532, '#ff5a5a'], star: 2, max: 3, name: '嗜血', desc: '每擊殺一隻敵人回復 6% 血量', apply: h => { h.killHeal += 0.06; },
+    maxDesc: '擊殺時最大血量永久 +3%', maxApply: h => { h.killGrow = 0.03; } },
 ];
 
 export const STAR_PRICE = [0, 20, 45, 80];

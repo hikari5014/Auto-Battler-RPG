@@ -5,6 +5,7 @@ import { Board, fmt } from './board.js';
 import { Battle, createHero } from './battle.js';
 import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 import { VERSION, CHANGELOG, compareVersion } from './version.js';
+import { DIFFICULTIES, difficultyOf, boardOf } from './levels.js';
 import { fetchLatest, applyUpdate } from './update.js';
 import { initFeedback, isOff, celebrate, pop } from './feedback.js';
 
@@ -74,6 +75,8 @@ function startRun() {
     hero: createHero(def, save),
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
+    diff: difficultyOf(save.difficulty),   // 難度
+    rules: boardOf(save.chapter),          // 這一章的彈珠台與特殊規則
   };
   board.reset(game.run);
   renderSkillBar();
@@ -81,8 +84,9 @@ function startRun() {
   game.paused = false;
   showScreen(null);
   $('hud').classList.remove('hidden');
-  $('hud-skills').classList.remove('hidden');
   nextWave();
+  // 開場提示這一章的特殊規則
+  setTimeout(() => game.run && game.run.wave === 1 && toast(`${CHAPTERS[(save.chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`), 1500);
 }
 
 function nextWave() {
@@ -91,6 +95,7 @@ function nextWave() {
   run.phase = 'fight';
   if (run.wave > 1) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
   if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
+  if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
   battle.startWave(run);
   const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
   $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
@@ -110,15 +115,16 @@ board.onCatch = (b, mult) => {
   const run = game.run;
   run.coins += b.v * mult;
   run.caught++;
-  if (run.hero.def.id === 'archer' && run.caught % 20 === 0 && run.phase === 'fight') {
-    battle.strikeFront(2.5, '球雨箭!', '#b6ff6d');
+  const h = run.hero;
+  if (h.def.id === 'archer' && run.caught % h.arrowNeed === 0 && run.phase === 'fight') {
+    for (let k = 0; k < h.arrowCount; k++) battle.strikeFront(2.5, '球雨箭!', '#b6ff6d');
   }
 };
 board.onPeg = () => {
   const run = game.run;
   if (run.hero.def.id !== 'saw' || run.phase !== 'fight') return;
   run.pegHits++;
-  if (run.pegHits % 12 === 0) battle.strikeFront(0.6, '鏈鋸!', '#ff9f43');
+  if (run.pegHits % run.hero.sawNeed === 0) battle.strikeFront(run.hero.sawMul, '鏈鋸!', '#ff9f43');
 };
 
 let lastCoinText = '', lastCoins = 0, lastBump = 0;
@@ -171,22 +177,50 @@ function ownedSummary() {
   return game.run.skills.map(sk => `<span class="owned-sk ${isMaxed(sk) ? 'max' : ''}">${iconTag(sk.icon, 18)}${isMaxed(sk) ? 'MAX' : sk.max ? 'Lv' + skillLv(sk) : 'x' + skillLv(sk)}</span>`).join('');
 }
 
-// 戰鬥畫面下方的技能列：點一下看說明
+// 戰鬥畫面右上角的「技能」按鈕：只顯示數量，點開才看完整清單（不擋畫面）
 function renderSkillBar() {
-  const run = game.run;
-  $('hud-skills').innerHTML = run.skills.map(sk => {
-    const lv = skillLv(sk);
-    return `<button class="sk ${isMaxed(sk) ? 'max' : ''} ${sk.gold ? 'gold' : ''}" data-sk="${sk.id}" aria-label="${sk.name}">
-      ${iconTag(sk.icon, 20)}<b>${isMaxed(sk) ? 'MAX' : sk.max ? lv : 'x' + lv}</b></button>`;
-  }).join('');
+  const n = game.run.skills.length;
+  const maxed = game.run.skills.filter(isMaxed).length;
+  $('skill-count').textContent = n;
+  $('btn-skills').classList.toggle('has-max', maxed > 0);
+  if (n) pop($('btn-skills'));
 }
-$('hud-skills').addEventListener('click', ev => {
-  const t = ev.target.closest('[data-sk]');
-  if (!t) return;
-  const sk = SKILLS.find(k => k.id === t.dataset.sk);
-  const lv = skillLv(sk);
-  const head = sk.max ? `${sk.name} Lv.${lv}/${sk.max}` : `${sk.name} x${lv}`;
-  toast(`${head}：${sk.desc}${isMaxed(sk) ? '（滿級：' + sk.maxDesc + '）' : ''}`);
+
+function openSkillPanel() {
+  const run = game.run;
+  if (!run) return;
+  const wasLive = run.phase === 'fight' || run.phase === 'settle';
+  if (wasLive) game.paused = true;
+  const h = run.hero;
+  const rows = run.skills.map(sk => {
+    const lv = skillLv(sk);
+    let pips = '';
+    if (sk.max) for (let i = 1; i <= sk.max; i++) pips += `<i class="${i <= lv ? 'on' : ''}"></i>`;
+    return `<div class="sk-row ${isMaxed(sk) ? 'max' : ''}">
+      <span class="sk-ic">${iconTag(sk.icon, 28)}</span>
+      <span class="sk-info">
+        <b>${sk.name}${sk.hero ? ' <span class="tag excl">專屬</span>' : ''}</b>
+        <small>${sk.desc}</small>
+        ${sk.max ? `<small class="${isMaxed(sk) ? 'max-on' : 'max-off'}">${isMaxed(sk) ? '★ 滿級：' : '滿級獎勵：'}${sk.maxDesc}</small>` : ''}
+      </span>
+      <span class="sk-lv">${isMaxed(sk) ? '<b class="max">MAX</b>' : sk.max ? `Lv.${lv}/${sk.max}` : 'x' + lv}<span class="pips">${pips}</span></span>
+    </div>`;
+  }).join('');
+  $('skills-body').innerHTML = `
+    <h2>我的技能</h2>
+    <p class="hero-pass">${iconTag(['dg', h.def.sprite], 24)} ${h.def.passive}</p>
+    <div class="sk-list">${rows || '<p class="hint">還沒有技能，打完一波就能在商店購買</p>'}</div>
+    <button class="btn big" id="btn-skills-close">${wasLive ? '繼續戰鬥' : '關閉'}</button>`;
+  $('skills-body').dataset.resume = wasLive ? '1' : '';
+  showScreen('screen-skills', run.phase === 'shop' ? 'screen-shop' : null);
+}
+$('btn-skills').addEventListener('click', openSkillPanel);
+$('skills-body').addEventListener('click', ev => {
+  if (!ev.target.closest('#btn-skills-close')) return;
+  sfx('tap');
+  const resume = $('skills-body').dataset.resume;
+  if (resume) game.paused = false;
+  showScreen(game.run && game.run.phase === 'shop' ? 'screen-shop' : null);
 });
 
 // 升到滿級：金色爆發＋橫幅＋滿級獎勵生效
@@ -207,15 +241,18 @@ function celebrateMax(sk, card) {
 function rollOffer() {
   const run = game.run;
   const picks = [];
-  const pool = SKILLS.filter(sk => !isMaxed(sk)); // 滿級的技能不再出現
+  // 共同技能＋這位英雄的專屬技能；滿級的不再出現
+  const heroId = run.hero.def.id;
+  const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === heroId));
+  const weight = sk => STAR_WEIGHT[sk.star] * (sk.hero ? 1.6 : 1); // 專屬技能比較常出現
   while (picks.length < 3 && pool.length) {
-    const total = pool.reduce((s, k) => s + STAR_WEIGHT[k.star], 0);
+    const total = pool.reduce((s, k) => s + weight(k), 0);
     let r = Math.random() * total;
     let idx = 0;
-    for (; idx < pool.length; idx++) { r -= STAR_WEIGHT[pool[idx].star]; if (r <= 0) break; }
+    for (; idx < pool.length; idx++) { r -= weight(pool[idx]); if (r <= 0) break; }
     idx = Math.min(idx, pool.length - 1);
     const sk = pool.splice(idx, 1)[0];
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1)), bought: false });
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price), bought: false });
   }
   run.offer = picks;
 }
@@ -274,9 +311,9 @@ function renderShop() {
     const sk = o.sk;
     const lv = skillLv(sk) - (o.bought ? 1 : 0); // 買之前的等級
     const toMax = sk.max && lv + 1 >= sk.max;    // 這張買下去就滿級
-    return `<div class="card star${sk.star} ${sk.gold ? 'gold' : ''} ${toMax ? 'to-max' : ''} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
+    return `<div class="card star${sk.star} ${sk.gold ? 'gold' : ''} ${sk.hero ? 'excl' : ''} ${toMax ? 'to-max' : ''} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
       <div class="card-icon">${iconTag(sk.icon, 44)}</div>
-      <div class="card-name">${sk.name}</div>
+      <div class="card-name">${sk.hero ? '<span class="excl-tag">專屬</span>' : ''}${sk.name}</div>
       ${levelHtml(sk, lv)}
       <div class="card-desc">${sk.desc}</div>
       ${toMax ? `<div class="maxbonus">滿級獎勵<br>${sk.maxDesc}</div>` : ''}
@@ -358,7 +395,8 @@ function endRun(win) {
   run.phase = 'over';
   const cleared = win ? MAX_WAVE : run.wave - 1;
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
-  if (win) gold += 150 * run.chapter;
+  gold = Math.round(gold * run.diff.gold);
+  if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
   save.gold += gold;
   let unlocked = '';
   if (win && run.chapter === save.maxChapter) {
@@ -424,7 +462,6 @@ function goHome() {
   playMusic('home');
   checkUpdate(true);
   $('hud').classList.add('hidden');
-  $('hud-skills').classList.add('hidden');
   renderHome();
   showScreen('screen-home');
 }
@@ -462,23 +499,28 @@ function renderHome() {
       <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
       <div class="chapter">
         <button class="icon-btn" id="ch-prev" ${offAttr(save.chapter <= 1, '已經是第一章')}>◀</button>
-        <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b></div>
+        <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b><em>${boardOf(save.chapter).rule}</em></div>
         <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= save.maxChapter, '通關這一章才能解鎖下一章')}>▶</button>
       </div>
     </div>
     <div class="home-bottom">
+      <div class="diffs" role="radiogroup" aria-label="難度">${DIFFICULTIES.map(d => `
+        <button class="diff ${d.id === save.difficulty ? 'sel' : ''}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}">
+          <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
+      </div>
       <div class="heroes">${heroes}</div>
       <div class="hero-info">
-        <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.range > 100 ? '遠程' : '近戰'}</span></div>
+        <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
         <div class="stats">
           <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}</span>
           <span id="stat-atk">${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}</span>
-          <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)}/秒</span>
+          <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)} 下/秒</span>
         </div>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
+        <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
       </div>
       <div class="ups">${ups}</div>
-      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}</small></button>
+      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}</small></button>
       <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
       <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
       <div class="version-row">
@@ -522,6 +564,10 @@ $('home-body').addEventListener('click', ev => {
       updateHome(t.dataset.up);
     }
     return;
+  } else if (t.dataset.diff) {
+    save.difficulty = t.dataset.diff;
+    const d = difficultyOf(save.difficulty);
+    toast(`${d.name}：敵人血量 x${d.hp}、攻擊 x${d.atk}${d.count ? `、每波多 ${d.count} 隻` : ''}${d.traps ? `、${d.traps} 道陷阱門` : ''}，金幣 x${d.gold}`);
   } else if (t.id === 'ch-prev') save.chapter = Math.max(1, save.chapter - 1);
   else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
@@ -556,7 +602,7 @@ function updateHome(changed) {
 
 // 整頁重畫後，按鈕是新的一顆；把「彈回來」動畫補在新按鈕上
 function replayRelease(old) {
-  const key = old.id ? '#' + old.id : old.dataset.hero ? `[data-hero="${old.dataset.hero}"]` : null;
+  const key = old.id ? '#' + old.id : old.dataset.hero ? `[data-hero="${old.dataset.hero}"]` : old.dataset.diff ? `[data-diff="${old.dataset.diff}"]` : null;
   const el = key && $('home-body').querySelector(key);
   if (!el) return;
   el.classList.add('fx-release');
@@ -752,6 +798,7 @@ Promise.all([
   document.fonts ? document.fonts.load('16px "Cubic11"').catch(() => {}) : null,
 ]).then(() => {
   $('hud-gem').innerHTML = iconTag(ICON.gem, 18);
+  $('skills-ic').innerHTML = iconTag(['ic', 768], 20);
   initFeedback({ deny: toast, sound: sfx });
   goHome();
   requestAnimationFrame(frame);

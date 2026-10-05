@@ -5,6 +5,7 @@ import { CHAPTERS, MAX_WAVE, ELITE_SPRITE } from './data.js';
 import { drawSprite, drawIcon, FONT } from './sprites.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
+import { diffScale } from './levels.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const HERO_POS = { x: -1.35, z: 4 };
@@ -17,16 +18,24 @@ export function createHero(def, save) {
     baseAtk: def.atk * (1 + 0.1 * save.up.atk),
     atkMul: 1, spdMul: 1,
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits, crit: 0.05, critDmg: 1.5,
-    block: 0, dbl: 0, life: def.life || 0, splash: def.splash || 0, thorns: 0,
+    hits: def.hits, crit: def.crit || 0.05, critDmg: 1.5,
+    block: def.block || 0, dbl: 0, life: def.life || 0, splash: def.splash || 0, thorns: def.thorns || 0,
+    magnet: def.magnet || 0,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
+    // 職業專屬技能用到的數值
+    swordEvery: 3, swordMul: 1, swordTwice: false, swordCrit: false, blockHeal: 0,
+    multiShot: 0, multiMul: 1, pierce: 0, arrowNeed: 20, arrowCount: 1,
+    meteorEvery: 0, meteorMul: 0, frost: 0,
+    sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
     ballsPerKill: 5,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
 }
 
-export const heroAtk = h => h.baseAtk * h.atkMul;
+// 狂暴：血量低於一半時攻擊力提高
+const raging = h => h.rage > 0 && h.hp < h.maxHp * 0.5;
+export const heroAtk = h => h.baseAtk * h.atkMul * (raging(h) ? 1 + h.rage : 1);
 
 // 第 i 個排隊位置：越後面越遠、越往右，形成一條斜線
 const slot = (i, big) => ({ x: -0.3 + i * 0.55 + (big ? 0.25 : 0), z: 4.4 + i * 0.85 + (big ? 0.3 : 0) });
@@ -54,20 +63,21 @@ export class Battle {
   startWave(run) {
     const w = run.wave;
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
+    const diff = run.diff;
     const scale = (1 + 0.16 * (w - 1)) * Math.pow(1.8, run.chapter - 1);
     const mk = (kind, sprite) => {
       const m = kind === 'boss' ? { hp: 22, atk: 2.6, size: 1.55, balls: 12, iv: 1.6 }
         : kind === 'elite' ? { hp: 5, atk: 1.8, size: 1.1, balls: 4, iv: 1.4 }
         : { hp: 1, atk: 1, size: 0.75, balls: 1, iv: 1.3 };
-      const maxHp = 18 * scale * m.hp;
+      const maxHp = 18 * scale * m.hp * diffScale(diff.hp, w);
       return {
-        sprite, kind, maxHp, hp: maxHp, atk: 2.4 * scale * m.atk, interval: m.iv,
+        sprite, kind, maxHp, hp: maxHp, atk: 2.4 * scale * m.atk * diffScale(diff.atk, w), interval: m.iv, slow: 0,
         timer: rand(0, 0.6), x: rand(2, 3.2), z: rand(17, 20), size: m.size, ballMul: m.balls,
         kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6),
       };
     };
     const q = [];
-    const n = w === MAX_WAVE ? 2 : 3 + Math.floor(w * 0.55);
+    const n = (w === MAX_WAVE ? 2 : 3 + Math.floor(w * 0.55)) + diff.count;
     for (let i = 0; i < n; i++) q.push(mk('normal', ch.enemies[Math.floor(Math.random() * ch.enemies.length)]));
     if (w % 5 === 0 && w !== MAX_WAVE) q.push(mk('elite', ELITE_SPRITE));
     if (w === MAX_WAVE) q.push(mk('boss', ch.boss));
@@ -106,7 +116,7 @@ export class Battle {
       e.flash = Math.max(0, e.flash - dt * 6);
       e.lunge = Math.max(0, e.lunge - dt * 6);
       if (i < 2 && d < 0.05) {
-        e.timer += dt;
+        e.timer += dt * (1 - e.slow); // 冰霜：被凍到的敵人攻擊變慢
         if (e.timer >= e.interval) {
           e.timer = 0;
           e.lunge = 1;
@@ -119,7 +129,7 @@ export class Battle {
     // 射程要加上敵人的身體半徑：魔王體型大、站得比較遠，近戰也要打得到
     const front = this.enemies[0];
     if (front && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2 + front.size * 0.4) {
-      h.timer += dt * h.spdMul;
+      h.timer += dt * h.spdMul * (raging(h) ? 1 + h.rageSpd : 1);
       if (h.timer >= h.interval && h.hitQueue <= 0) {
         h.timer = 0;
         const rounds = 1 + Math.floor(h.dbl) + (Math.random() < h.dbl % 1 ? 1 : 0);
@@ -127,7 +137,11 @@ export class Battle {
         h.hitTimer = 0;
         if (rounds > 1) this.text(h.x, h.z, 1.3, '連擊!', '#ffdd55', 14);
         h.swings++;
-        if (h.def.id === 'blade' && h.swings % 3 === 0) this.swordWave();
+        if (h.def.id === 'blade' && h.swings % h.swordEvery === 0) {
+          this.swordWave();
+          if (h.swordTwice) setTimeout(() => this.g.run && this.swordWave(), 160);
+        }
+        if (h.meteorEvery && h.swings % h.meteorEvery === 0) this.meteor();
       }
     }
     if (h.hitQueue > 0) {
@@ -145,9 +159,16 @@ export class Battle {
     const h = this.g.run.hero;
     const t = this.enemies.find(e => !e.dead);
     if (!t) { h.hitQueue = 0; return; }
+    h.lunge = 1;
+    // 墓地：敵人有機率閃避
+    if (this.g.run.rules.dodge && Math.random() < this.g.run.rules.dodge) {
+      this.text(t.x, t.z, t.size + 0.3, '閃避', '#c9c2d1', 12);
+      if (h.range > 2) this.streak(h, t, '#888', 0.12);
+      return;
+    }
     const crit = Math.random() < h.crit;
     const dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
-    h.lunge = 1;
+    if (h.frost > 0) t.slow = h.frost;
     if (h.range > 2) this.streak(h, t, crit ? '#ffdd55' : '#ffffff', 0.15);
     else this.slashes.push({ x: t.x, z: t.z, h: t.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit });
     this.damage(t, dmg, crit);
@@ -157,6 +178,19 @@ export class Battle {
     // 致命一擊滿級：暴擊時震波打中所有敵人
     if (crit && h.critSplash > 0) {
       for (const e of this.enemies) if (e !== t && !e.dead) this.damage(e, dmg * h.critSplash, false, true);
+    }
+    // 射手：多重箭射向隨機敵人
+    for (let k = 0; k < h.multiShot; k++) {
+      const others = this.enemies.filter(e => !e.dead);
+      if (!others.length) break;
+      const o = others[Math.floor(Math.random() * others.length)];
+      this.streak(h, o, '#b6ff6d', 0.12);
+      this.damage(o, dmg * 0.6 * h.multiMul, false, true);
+    }
+    // 射手：穿透箭打到後面一隻
+    if (h.pierce > 0) {
+      const behind = this.enemies.filter(e => !e.dead && e !== t)[0];
+      if (behind) { this.streak(t, behind, '#ffd84a', 0.12); this.damage(behind, dmg * h.pierce, false, true); }
     }
     if (h.life > 0) h.hp = Math.min(h.maxHp, h.hp + dmg * h.life);
     sfx(crit ? 'crit' : 'hit');
@@ -169,10 +203,27 @@ export class Battle {
 
   swordWave() {
     const h = this.g.run.hero;
-    const dmg = heroAtk(h);
+    const dmg = heroAtk(h) * h.swordMul * (h.swordCrit ? h.critDmg : 1);
     this.text(h.x + 0.6, h.z, 1.2, '劍氣!', '#7fd1ff', 15);
-    for (const e of this.enemies) if (!e.dead) this.damage(e, dmg, false, true);
+    for (const e of this.enemies) if (!e.dead) this.damage(e, dmg, h.swordCrit, !h.swordCrit);
     this.streaks.push({ x1: h.x, z1: h.z, h1: 0.4, x2: 4, z2: 14, h2: 0.4, life: 0.25, color: '#7fd1ff', wide: true });
+    this.enemies = this.enemies.filter(e => !e.dead);
+  }
+
+  // 法師：隕石從天而降，打中所有敵人
+  meteor() {
+    const h = this.g.run.hero;
+    const dmg = heroAtk(h) * h.meteorMul;
+    this.text(h.x + 0.5, h.z, 1.4, '隕石術!', '#ff9f43', 16);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      this.streaks.push({ x1: e.x + 0.8, z1: e.z, h1: 4, x2: e.x, z2: e.z, h2: 0.2, life: 0.3, color: '#ff9f43', wide: true });
+      this.damage(e, dmg, true);
+    }
+    this.shake = Math.max(this.shake, 8);
+    this.scene.cam.punch = 1.2;
+    sfx('crit');
+    this.enemies = this.enemies.filter(e => !e.dead);
   }
 
   // 給英雄被動用：對最前面的敵人造成傷害
@@ -198,6 +249,9 @@ export class Battle {
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
       this.g.onKill(e);
+      const h = this.g.run.hero;
+      if (h.killGrow) { h.maxHp *= 1 + h.killGrow; }
+      if (h.killHeal) { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.killHeal); }
       sfx('kill');
       // 金幣在 3D 空間裡噴出、落地彈跳
       for (let i = 0; i < 10; i++) {
@@ -212,6 +266,7 @@ export class Battle {
     if (Math.random() < h.block) {
       this.text(h.x, h.z, 1.2, '格擋', '#9fe3ff', 14);
       sfx('block');
+      if (h.blockHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.blockHeal);
       // 鐵壁滿級：格擋後立刻反擊
       if (h.counter > 0) {
         this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit: true });

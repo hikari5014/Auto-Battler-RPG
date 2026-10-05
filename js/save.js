@@ -8,6 +8,7 @@ const DEFAULT = {
   maxChapter: 1,
   up: { atk: 0, hp: 0, coin: 0 },
   muted: false,
+  difficulty: 'casual',
 };
 
 export function loadSave() {
