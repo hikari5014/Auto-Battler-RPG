@@ -76,7 +76,7 @@ export class Battle {
     const mk = (key, tier) => {
       const mon = MONSTERS[key];
       const t = TIERS[tier];
-      const maxHp = 18 * scale * mon.hp * t.hp * diffScale(diff.hp, w);
+      const maxHp = 18 * scale * mon.hp * t.hp * diffScale(diff.hp, w) * (run.nextHpMul || 1);
       return {
         key, name: mon.name, sprite: mon.sprite, kind: tier, tier: t,
         maxHp, hp: maxHp, atk: 2.4 * scale * mon.atk * t.atk * diffScale(diff.atk, w),

@@ -10,6 +10,7 @@ import { fetchLatest, applyUpdate } from './update.js';
 import { initFeedback, isOff, celebrate, pop, vibrate } from './feedback.js';
 import { settings, loadSettings, applySettings, settingsHtml } from './settings.js';
 import { Tutorial } from './tutorial.js';
+import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -114,6 +115,12 @@ function nextWave() {
   if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
   if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
   battle.startWave(run);
+  run.nextHpMul = 1; // 惡魔契約只影響一波
+  // 球之祝福：持續 3 波
+  if (run.ballBuff) {
+    if (run.ballBuff.fresh) run.ballBuff.fresh = false;
+    else if (--run.ballBuff.waves <= 0) run.ballBuff = null;
+  }
   const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
   $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
   renderWaveBar(run.wave);
@@ -126,8 +133,52 @@ function nextWave() {
 function onKill(e) {
   const run = game.run;
   run.kills++;
-  board.pour(run.hero.ballsPerKill * e.ballMul);
+  board.pour((run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul);
 }
+
+// ---------- 奇遇事件 ----------
+function openEvent() {
+  const run = game.run;
+  run.phase = 'event';
+  run.events = rollEvents(run, board);
+  run.eventDone = false;
+  $('event-body').innerHTML = `
+    <h2>奇遇</h2>
+    <p class="ev-sub">旅途中遇到了一些事…選一個吧</p>
+    <div class="ev-list">${run.events.map((e, i) => `
+      <button class="ev-card" data-ev="${i}" data-fx="tilt">
+        <span class="ev-ic">${iconTag(e.icon, 36)}</span>
+        <span class="ev-info"><b>${e.title} <i class="ev-tag ${e.tag === '風險' ? 'risk' : e.tag === '增益' ? 'buff' : ''}">${e.tag}</i></b><small>${e.desc}</small></span>
+      </button>`).join('')}
+    </div>
+    <button class="btn ghost" id="btn-ev-skip">跳過，直接去商店</button>`;
+  showScreen('screen-event');
+  sfx('wave');
+}
+
+$('event-body').addEventListener('click', ev => {
+  const run = game.run;
+  const t = ev.target.closest('button');
+  if (!t || !run) return;
+  if (t.id === 'btn-ev-skip' || t.id === 'btn-ev-go') { sfx('tap'); openShop(); return; }
+  if (t.dataset.ev === undefined || run.eventDone) return;
+  run.eventDone = true;
+  const e = run.events[+t.dataset.ev];
+  const res = e.apply({
+    run, board,
+    randomSkill: makeRandomSkill(run, isMaxed),
+    gainSkill: sk => { gainSkill(sk); if (isMaxed(sk)) celebrateMax(sk, null); },
+  });
+  if (run.ballBuff) run.ballBuff.fresh = run.ballBuff.fresh !== false;
+  renderSkillBar();
+  // 選中的卡顯示結果，其他卡淡出
+  document.querySelectorAll('.ev-card').forEach(c => c.classList.add(c === t ? 'chosen' : 'faded'));
+  t.querySelector('small').textContent = res.text;
+  t.classList.add(res.good ? 'good' : 'bad');
+  sfx(res.good ? 'buy' : 'lose');
+  celebrate(t, res.good ? '#ffd84a' : '#ff5a5a');
+  $('btn-ev-skip').outerHTML = '<button class="btn big" id="btn-ev-go">前往商店 ▶</button>';
+});
 
 board.onCatch = (b, mult) => {
   const run = game.run;
@@ -179,6 +230,7 @@ function update(dt) {
     }
   } else if (run.phase === 'settle' && board.isEmpty()) {
     if (run.wave >= MAX_WAVE) endRun(true);
+    else if (EVENT_WAVES.includes(run.wave)) openEvent();
     else openShop();
   }
 }
@@ -292,7 +344,7 @@ function rollOffer() {
     for (; idx < pool.length; idx++) { r -= weight(pool[idx]); if (r <= 0) break; }
     idx = Math.min(idx, pool.length - 1);
     const sk = pool.splice(idx, 1)[0];
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price), bought: false });
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * (run.shopDiscount || 1)), bought: false });
   }
   run.offer = picks;
 }
@@ -363,7 +415,7 @@ function renderShop() {
     </div>`;
   }).join('');
   $('shop-body').innerHTML = `
-    <h2>選擇新技能</h2>
+    <h2>選擇新技能</h2>${run.shopDiscount < 1 ? '<p class="discount">流浪商人：全部半價！</p>' : ''}
     <div class="pill" id="shop-coins">${iconTag(ICON.gem, 18)} <b>${fmt(run.coins)}</b></div>
     <div class="cards">${cards || '<p class="all-max">所有技能都已滿級！</p>'}</div>
     <div class="row">
@@ -405,6 +457,7 @@ $('shop-body').addEventListener('click', ev => {
     sfx('tap');
   } else if (t.id === 'btn-next') {
     sfx('tap');
+    run.shopDiscount = 1; // 流浪商人的半價只限這一次商店
     showScreen(null);
     nextWave();
     return;
