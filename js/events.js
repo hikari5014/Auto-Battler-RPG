@@ -34,8 +34,7 @@ export const EVENTS = [
     desc: '血量回滿，最大血量 +10%',
     cond: () => true,
     apply: ({ run }) => {
-      run.hero.maxHp *= 1.1;
-      run.hero.hp = run.hero.maxHp;
+      for (const h of run.heroes) { h.maxHp *= 1.1; h.hp = h.maxHp; } // 雙職業時兩位都有
       return { good: true, text: '血量全滿，最大血量 +10%' };
     },
   },
@@ -87,7 +86,7 @@ export const EVENTS = [
     id: 'training', icon: ['ic', 426, '#ffd84a'], title: '訓練場', tag: '穩定',
     desc: '攻擊力 +15%、攻擊速度 +10%',
     cond: () => true,
-    apply: ({ run }) => { run.hero.atkMul += 0.15; run.hero.spdMul += 0.1; return { good: true, text: '攻擊力 +15%、攻速 +10%' }; },
+    apply: ({ run }) => { for (const h of run.heroes) { h.atkMul += 0.15; h.spdMul += 0.1; } return { good: true, text: '攻擊力 +15%、攻速 +10%' }; },
   },
 ];
 

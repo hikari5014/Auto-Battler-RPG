@@ -4,7 +4,7 @@ import { shareResult } from './share.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
-import { Battle, createHero } from './battle.js';
+import { Battle, createHero, BENCH_POS } from './battle.js';
 import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
 import { VERSION, CHANGELOG, compareVersion } from './version.js';
 import { DIFFICULTIES, difficultyOf, boardOf } from './levels.js';
@@ -93,6 +93,10 @@ document.addEventListener('pointerdown', () => initAudio(), { once: true });
 // opts.daily = 每日挑戰（固定章節、簡單難度、加上特殊規則）
 function startRun(opts = {}) {
   const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  // 雙職業：主職業先上場，副職業在後面待命
+  const def2 = save.second && save.second !== def.id && save.owned.includes(save.second) ? HEROES.find(h => h.id === save.second) : null;
+  const defs = def2 ? [def, def2] : [def];
+  const heroes = defs.map(d => createHero(d, save));
   const chapter = opts.chapter || save.chapter;
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
@@ -100,7 +104,8 @@ function startRun(opts = {}) {
   game.run = {
     chapter, wave: 0, daily: !!opts.daily, endless: !!opts.endless, mods,
     coins: tb.coin + gearBonus(save).coin, tb,
-    hero: createHero(def, save),
+    hero: heroes[0], heroes, switchCd: 0,
+    heroIds: defs.map(d => d.id), heroCls: [...new Set(defs.flatMap(heroCls))],
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
     diff: difficultyOf(opts.daily ? 'easy' : save.difficulty), // 難度
@@ -108,10 +113,11 @@ function startRun(opts = {}) {
   };
   // 每日挑戰「玻璃大砲」
   if (mods.glass) {
-    const h = game.run.hero;
-    h.baseAtk *= 1.6;
-    h.maxHp *= 0.6;
-    h.hp = h.maxHp;
+    for (const h of heroes) {
+      h.baseAtk *= 1.6;
+      h.maxHp *= 0.6;
+      h.hp = h.maxHp;
+    }
   }
   board.reset(game.run);
   // 天賦：接球杯、倍率、開局分裂門
@@ -133,6 +139,11 @@ function startRun(opts = {}) {
   // 開場提示這一章的特殊規則
   const intro = opts.daily ? `每日挑戰｜${opts.mods.map(m => MODS[m].name).join('、')}` : `${CHAPTERS[(chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`;
   setTimeout(() => game.run && game.run.wave === 1 && toast(intro), 1500);
+  if (def2) {
+    heroes[1].x = BENCH_POS.x; heroes[1].z = BENCH_POS.z;
+    if (!save.duoTip) { save.duoTip = true; setTimeout(() => game.run && toast('點右下角的「換手」切換職業，換上場時會「換手斬」砍全體！'), 4200); }
+  }
+  renderSwitch();
   save.stats.runs++;
 }
 
@@ -147,8 +158,12 @@ function nextWave() {
     board.setChapter(run.chapter);
     toast(`進入${chapterName(run.chapter)}｜${run.rules.rule}`);
   }
-  if (run.wave > 1 && !run.mods.noHeal) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * run.hero.regen);
-  if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
+  for (const h of run.heroes) {
+    // 倒下的副職業休息一波後帶著 30% 血回來
+    if (h.hp <= 0) { if (run.wave > 1) h.hp = h.maxHp * 0.3; continue; }
+    if (run.wave > 1 && !run.mods.noHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.regen);
+    if (h.fullHealWave) h.hp = h.maxHp; // 強壯體魄滿級
+  }
   if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
   battle.startWave(run);
   run.nextHpMul = 1; // 惡魔契約只影響一波
@@ -165,6 +180,7 @@ function nextWave() {
   playMusic(CHAPTERS[(run.chapter - 1) % CHAPTERS.length].music);
   if (run.wave > 1) sfx('wave');
   banner(boss ? '魔王來襲！' : run.endless ? `第 ${run.wave} 層` : `第 ${run.wave} 波`);
+  renderSwitch();
 }
 
 function onKill(e) {
@@ -180,6 +196,48 @@ function onKill(e) {
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
+
+// ---------- 雙職業：切換 ----------
+function renderSwitch() {
+  const run = game.run;
+  const b = $('btn-switch');
+  const bench = run && run.heroes.length > 1 ? run.heroes.find(h => h !== run.hero) : null;
+  b.classList.toggle('hidden', !bench);
+  if (!bench) return;
+  $('switch-ic').innerHTML = iconTag(['dg', bench.def.sprite], 26);
+  b.style.setProperty('--hp', Math.max(0, bench.hp) / bench.maxHp);
+  b.classList.toggle('down', bench.hp <= 0);
+  updateSwitchCd();
+}
+function updateSwitchCd() {
+  const run = game.run;
+  const b = $('btn-switch');
+  const cd = run.switchCd, full = run.hero.switchCd;
+  b.style.setProperty('--cd', cd > 0 ? cd / full : 0);
+  b.classList.toggle('ready', cd <= 0);
+  const bench = run.heroes.find(h => h !== run.hero);
+  setOff(b, cd > 0 || !bench || bench.hp <= 0 || run.phase !== 'fight', !bench || bench.hp <= 0 ? '另一位職業倒下了，下一波才會回來' : cd > 0 ? `冷卻中（${cd.toFixed(1)} 秒）` : '戰鬥中才能切換');
+}
+// forced = 上場的倒下了，不管冷卻直接換
+function doSwitch(forced) {
+  const run = game.run;
+  const next = run.heroes.find(h => h !== run.hero);
+  if (!next || next.hp <= 0) return;
+  const prev = run.hero;
+  run.hero = next;
+  next.x = BENCH_POS.x; next.z = BENCH_POS.z;
+  next.timer = 0; next.hitQueue = 0;
+  prev.hitQueue = 0;
+  run.switchCd = next.switchCd;
+  if (!forced) battle.switchStrike(next);
+  renderSwitch();
+}
+$('btn-switch').addEventListener('click', () => {
+  const t = $('btn-switch');
+  if (isOff(t) || !game.run || game.run.phase !== 'fight') return;
+  doSwitch(false);
+  pop(t);
+});
 
 // ---------- 奇遇事件 ----------
 function openEvent() {
@@ -264,6 +322,8 @@ function update(dt) {
   const live = !game.paused && (run.phase === 'fight' || run.phase === 'settle');
   battle.update(game.paused ? 0 : dt, live && run.phase === 'fight');
   if (!live) return;
+  if (run.switchCd > 0 && !game.paused) { run.switchCd = Math.max(0, run.switchCd - dt); updateSwitchCd(); }
+  if (run.heroes.length > 1) $('btn-switch').style.setProperty('--hp', Math.max(0, run.heroes.find(h => h !== run.hero).hp) / run.heroes.find(h => h !== run.hero).maxHp);
   board.update(dt);
   const shown = fmt(run.coins);
   if (shown !== lastCoinText) {
@@ -281,6 +341,12 @@ function update(dt) {
       banner('不死鳥・浴火重生！');
       sfx('wave');
       vibrate([40, 60, 120]);
+    } else if (run.hero.hp <= 0 && run.heroes.some(h => h !== run.hero && h.hp > 0)) {
+      // 雙職業：上場的倒下，另一位自動接手
+      run.hero.hp = 0;
+      const down = run.hero.def.name.split(' ')[1];
+      doSwitch(true);
+      banner(`${down} 倒下！${run.hero.def.name.split(' ')[1]} 接手`);
     } else if (run.hero.hp <= 0) {
       run.hero.hp = 0;
       onDeath();
@@ -337,7 +403,7 @@ function openSkillPanel() {
   }).join('');
   $('skills-body').innerHTML = `
     <h2>我的技能</h2>
-    <p class="hero-pass">${iconTag(['dg', h.def.sprite], 24)} ${h.def.passive}</p>
+    ${run.heroes.map(x => `<p class="hero-pass ${x === h ? '' : 'bench'}">${iconTag(['dg', x.def.sprite], 24)} ${x.def.passive}</p>`).join('')}
     <div class="sk-list">${rows || '<p class="hint">還沒有技能，打完一波就能在商店購買</p>'}</div>
     <button class="btn big" id="btn-skills-close">${wasLive ? '繼續戰鬥' : '關閉'}</button>`;
   $('skills-body').dataset.resume = wasLive ? '1' : '';
@@ -353,9 +419,19 @@ $('skills-body').addEventListener('click', ev => {
 });
 
 // 獲得技能（購買或怪物掉落都走這裡）
+// 雙職業：技能同時加給兩位（專屬技能只給本人）；會改彈珠台的效果只做一次
+const NO_BOARD = new Proxy({}, { get: () => () => {}, set: () => true });
+function forHeroes(sk, fn) {
+  let first = true;
+  for (const h of game.run.heroes) {
+    if (sk.hero && sk.hero !== h.def.id) continue;
+    fn(h, first ? board : NO_BOARD);
+    first = false;
+  }
+}
 function gainSkill(sk) {
   const run = game.run;
-  sk.apply(run.hero, run, board);
+  forHeroes(sk, (h, b) => sk.apply(h, run, b));
   if (!run.levels[sk.id]) run.skills.push(sk);
   run.levels[sk.id] = skillLv(sk) + 1;
 }
@@ -377,8 +453,8 @@ function onSkillDrop() {
 // 升到滿級：金色爆發＋橫幅＋滿級獎勵生效
 function celebrateMax(sk, card) {
   const run = game.run;
-  sk.maxApply(run.hero, run, board);
-  run.hero.maxed = (run.hero.maxed || 0) + 1;
+  forHeroes(sk, (h, b) => sk.maxApply(h, run, b));
+  for (const h of run.heroes) h.maxed = (h.maxed || 0) + 1;
   save.stats.maxed++;
   banner(`${sk.name} 滿級！`);
   sfx('wave');
@@ -561,7 +637,7 @@ function endRun(win) {
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
-  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + run.hero.goldBonus)); // 黃金戒指＋天賦＋盜賊王
+  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + Math.max(...run.heroes.map(h => h.goldBonus)))); // 黃金戒指＋天賦＋盜賊王
   save.gold += gold;
   const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
   const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex);
@@ -589,7 +665,7 @@ function endRun(win) {
   let recordHtml = '';
   if (run.endless) {
     save.records = save.records || [];
-    const rec = { hero: run.hero.def.id, diff: run.diff.id, wave: cleared, kills: run.kills, date: todayKey() };
+    const rec = { hero: run.heroes[0].def.id, hero2: run.heroes[1] && run.heroes[1].def.id, diff: run.diff.id, wave: cleared, kills: run.kills, date: todayKey() };
     save.records.push(rec);
     save.records.sort((a, b) => b.wave - a.wave || b.kills - a.kills);
     save.records = save.records.slice(0, 10);
@@ -599,7 +675,7 @@ function endRun(win) {
   // 分享用的資料
   game.lastResult = {
     win, endless: run.endless, daily: run.daily, cleared, kills: run.kills, chapter: run.chapter,
-    hero: run.hero.def, diff: run.diff, skills: run.skills.slice(0, 8),
+    hero: run.heroes[0].def, hero2: run.heroes[1] && run.heroes[1].def, diff: run.diff, skills: run.skills.slice(0, 8),
   };
   let unlocked = '';
   if (win && run.chapter === save.maxChapter && !run.endless) {
@@ -632,7 +708,8 @@ $('result-body').addEventListener('click', ev => {
   sfx('tap');
   if (t.id === 'btn-revive') {
     run.revived = true;
-    run.hero.hp = run.hero.maxHp * 0.6;
+    for (const h of run.heroes) if (h.hp <= 0) h.hp = h.maxHp * 0.6;
+    renderSwitch();
     run.phase = 'fight';
     showScreen(null);
   } else if (t.id === 'btn-giveup') {
@@ -672,8 +749,24 @@ function goHome() {
   playMusic('home');
   checkUpdate(true);
   $('hud').classList.add('hidden');
+  $('btn-switch').classList.add('hidden');
   renderHome();
   showScreen('screen-home');
+}
+
+// 雙職業：選主職業與副職業（副職業可以不帶）
+let duoPick = 'main';
+function duoBar() {
+  if (save.owned.length < 2) return '';
+  if (save.second === save.selected || (save.second && !save.owned.includes(save.second))) save.second = null;
+  const main = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  const sec = save.second && HEROES.find(h => h.id === save.second);
+  return `<div class="duo">
+    <button class="duo-slot ${duoPick === 'main' ? 'on' : ''}" id="duo-main"><i>主</i>${iconTag(['dg', main.sprite], 26)}<span>${main.name.split(' ')[1]}</span></button>
+    <span class="duo-mid">⇄<small>戰鬥中可切換</small></span>
+    <button class="duo-slot second ${duoPick === 'second' ? 'on' : ''} ${sec ? '' : 'empty'}" id="duo-second"><i>副</i>${sec ? iconTag(['dg', sec.sprite], 26) + `<span>${sec.name.split(' ')[1]}</span>` : '<span>＋ 選副職業</span>'}</button>
+    ${sec ? '<button class="duo-x" id="duo-clear" aria-label="不帶副職業">✕</button>' : ''}
+  </div>`;
 }
 
 // 隱藏職業：達成對應成就就自動加入
@@ -698,7 +791,7 @@ function renderHome() {
   const heroes = HEROES.map(h => {
     const own = save.owned.includes(h.id);
     const secret = h.hidden && !own;
-    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
+    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
       ${iconTag(['dg', h.sprite], 48, 'hero-emoji')}
       <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
       ${secret ? '<span class="hero-price secret">隱藏職業</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
@@ -730,6 +823,7 @@ function renderHome() {
         <button class="diff ${d.id === save.difficulty ? 'sel' : ''}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}">
           <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
       </div>
+      ${duoBar()}
       <div class="heroes">${heroes}</div>
       <button class="gear-btn" id="btn-gear">${gearSummary()}</button>
       <div class="meta-row">
@@ -749,7 +843,7 @@ function renderHome() {
         <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
       </div>
       <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
-      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}</small></button>
+      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button>
       <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
       <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
       <div class="version-row">
@@ -770,8 +864,15 @@ $('home-body').addEventListener('click', ev => {
   sfx('tap');
   if (t.dataset.hero) {
     const h = HEROES.find(x => x.id === t.dataset.hero);
-    if (save.owned.includes(h.id)) {
+    if (save.owned.includes(h.id) && duoPick === 'second') {
+      // 選副職業：選到主職業就互換
+      if (h.id === save.selected) { save.selected = save.second || h.id; save.second = save.second ? h.id : null; }
+      else save.second = h.id;
+      duoPick = 'main';
+      toast(`副職業：${h.name}`);
+    } else if (save.owned.includes(h.id)) {
       if (save.selected !== h.id) heroHop = performance.now();
+      if (h.id === save.second) save.second = save.selected; // 點到副職業 → 主副互換
       save.selected = h.id;
     } else if (h.hidden) {
       const a = unlockAch(h);
@@ -803,6 +904,9 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-talent') { openTalent(); return; }
+  else if (t.id === 'duo-main') duoPick = 'main';
+  else if (t.id === 'duo-second') { duoPick = 'second'; toast('點一位英雄當副職業'); }
+  else if (t.id === 'duo-clear') { save.second = null; duoPick = 'main'; }
   else if (t.id === 'btn-ach') { openAch(); return; }
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
@@ -1000,7 +1104,8 @@ function openEndless() {
   const recs = save.records || [];
   const rows = recs.map((r, i) => {
     const h = HEROES.find(x => x.id === r.hero) || HEROES[0];
-    return `<div class="rec ${i === 0 ? 'top' : ''}"><b>${i + 1}</b>${iconTag(['dg', h.sprite], 24)}<span>${h.name.split(' ')[1]}・${difficultyOf(r.diff).name}</span><em>${r.wave} 層</em><small>${r.date.slice(5)}</small></div>`;
+    const h2 = r.hero2 && HEROES.find(x => x.id === r.hero2);
+    return `<div class="rec ${i === 0 ? 'top' : ''}"><b>${i + 1}</b>${iconTag(['dg', h.sprite], 24)}${h2 ? iconTag(['dg', h2.sprite], 18) : ''}<span>${h.name.split(' ')[1]}${h2 ? '＋' + h2.name.split(' ')[1] : ''}・${difficultyOf(r.diff).name}</span><em>${r.wave} 層</em><small>${r.date.slice(5)}</small></div>`;
   }).join('');
   $('endless-body').innerHTML = `
     <h2>無盡塔</h2>

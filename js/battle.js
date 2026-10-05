@@ -13,6 +13,7 @@ import { talentBonus } from './talent.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const HERO_POS = { x: -1.35, z: 4 };
+export const BENCH_POS = { x: -3.6, z: 4.6 }; // 雙職業：換上場的職業從畫面左邊衝進來
 const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
 
 export function createHero(def, save) {
@@ -46,6 +47,7 @@ export function createHero(def, save) {
     fireDot: 0.3, iceSlow: 0.3, iceFreeze: 0, boltJumps: 2, boltMul: 0.6,
     breathEvery: 4, breathTwice: false, breathMul: 1.5,
     starNeed: 15, starCount: 1, starMul: 2, starCrit: false,
+    switchMul: 2, switchCd: 6, switchHeal: 0, switchStun: 0, // 雙職業：換手斬
     stealCoins: def.id === 'thief' ? 3 : 0, stealBig: false, goldBonus: def.id === 'thief' ? 0.3 : 0, chestEvery: false,
     ballsPerKill: 5 + gb.ball + tb.ball,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
@@ -142,6 +144,9 @@ export class Battle {
     h.hurt = Math.max(0, h.hurt - dt * 4);
     this.updateFx(dt);
     this.updateBoss(dt);
+    // 剛換上場的職業從後面衝到前面
+    h.x += (HERO_POS.x - h.x) * Math.min(1, dt * 9);
+    h.z += (HERO_POS.z - h.z) * Math.min(1, dt * 9);
     if (!fighting) return;
     if (h.regenPs && h.hp > 0) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.regenPs * dt); // 神聖光環
 
@@ -320,6 +325,33 @@ export class Battle {
     this.shake = Math.max(this.shake, 6);
     this.scene.cam.punch = 1;
     sfx('crit');
+    this.enemies = this.enemies.filter(e => !e.dead);
+  }
+
+  // 雙職業：換上場的職業砍全體（會吃到暴擊、中毒、擊暈、冰霜、吸血等技能效果）
+  switchStrike(h) {
+    const color = { melee: '#ff8a6b', ranged: '#8fe36b', spell: '#c38bff' }[[].concat(h.def.cls)[0]];
+    this.text(HERO_POS.x + 0.6, HERO_POS.z, 1.5, '換手斬!', color, 18);
+    let total = 0;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const crit = Math.random() < h.crit;
+      const dmg = heroAtk(h) * h.switchMul * (crit ? h.critDmg : 1);
+      this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.25, rot: rand(-0.8, 0.8), crit: true });
+      this.streaks.push({ x1: h.x, z1: h.z, h1: 0.5, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.25, color, wide: true });
+      if (h.dot) { e.dotDps = heroAtk(h) * h.dot; e.dotT = h.dotTime; e.dotColor = h.dotColor; }
+      if (h.stun && Math.random() < h.stun) e.stun = 1;
+      if (h.switchStun) e.stun = Math.max(e.stun || 0, h.switchStun);
+      if (h.frost) e.slow = h.frost;
+      this.damage(e, dmg, crit);
+      total += dmg;
+    }
+    if (h.life) h.hp = Math.min(h.maxHp, h.hp + total * h.life);
+    if (h.switchHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.switchHeal);
+    this.shake = Math.max(this.shake, 9);
+    this.scene.cam.punch = 1.4;
+    sfx('crit');
+    vibrate(30);
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 

@@ -184,6 +184,9 @@ export const SKILLS = [
   { id: 'g_interest', icon: ['ic', 1057, '#ffd84a'], star: 2, max: 3, name: '利息', desc: '每波結束得到 8% 球幣利息（上限隨波數提高）', apply: h => { h.interest += 0.08; },
     maxDesc: '利息上限加倍', maxApply: h => { h.interestCap = 2; } },
 
+  { id: 'g_swap', duo: true, icon: ['ic', 1021, '#7fffd4'], star: 2, max: 3, name: '換手專精', desc: '換手斬傷害 +100%，切換冷卻 -1 秒', apply: h => { h.switchMul += 1; h.switchCd = Math.max(2, h.switchCd - 1); },
+    maxDesc: '換手時回復 15% 血量並擊暈所有敵人 1 秒', maxApply: h => { h.switchHeal = 0.15; h.switchStun = 1; } },
+
   // ---------- 職業專屬技能（只會出現在對應英雄的商店）----------
   // 劍士
   { id: 'b_whirl', hero: 'blade', icon: ['ic', 1021, '#7fd1ff'], star: 2, max: 2, name: '旋風劍氣', desc: '劍氣觸發所需攻擊次數 -1', apply: h => { h.swordEvery = Math.max(1, h.swordEvery - 1); },
@@ -278,6 +281,7 @@ export function skillAllowed(sk, run) {
   const ids = run.heroIds || [run.hero.def.id];
   const cls = run.heroCls || heroCls(run.hero.def);
   if (sk.hero) return ids.includes(sk.hero);
+  if (sk.duo) return ids.length > 1; // 換手技能：帶兩位職業才會出現
   return !sk.cat || cls.includes(sk.cat);
 }
 
