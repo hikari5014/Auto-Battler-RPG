@@ -1,7 +1,7 @@
 // 自動戰鬥（2.5D）：角色是平面紙片人，站在有深度的 3D 地面上
 // 英雄站在左前方，敵人從右後方的霧裡走出來，排成一斜排往前逼近
 import { sfx } from './audio.js';
-import { CHAPTERS, MAX_WAVE, ELITE_SPRITE } from './data.js';
+import { CHAPTERS, MAX_WAVE, MONSTERS, TIERS } from './data.js';
 import { drawSprite, drawIcon, FONT } from './sprites.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
@@ -56,6 +56,11 @@ export class Battle {
     this.streaks = [];
     this.parts = [];
     this.slashes = [];
+    this.shocks = [];       // 魔王砸地的衝擊波
+    this.embers = [];       // 魔王身邊飄的火星
+    this.boss = null;
+    this.bossIntro = null;
+    this.flashWhite = 0;
   }
 
   layout(W, top, bottom) { this.scene.layout(W, top, bottom); }
@@ -65,24 +70,37 @@ export class Battle {
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
     const diff = run.diff;
     const scale = (1 + 0.16 * (w - 1)) * Math.pow(1.8, run.chapter - 1);
-    const mk = (kind, sprite) => {
-      const m = kind === 'boss' ? { hp: 22, atk: 2.6, size: 1.55, balls: 12, iv: 1.6 }
-        : kind === 'elite' ? { hp: 5, atk: 1.8, size: 1.1, balls: 4, iv: 1.4 }
-        : { hp: 1, atk: 1, size: 0.75, balls: 1, iv: 1.3 };
-      const maxHp = 18 * scale * m.hp * diffScale(diff.hp, w);
+    // 一隻怪 = 種類（圖鑑）× 等級（普通／隊長／菁英／寶箱怪／魔王）
+    const mk = (key, tier) => {
+      const mon = MONSTERS[key];
+      const t = TIERS[tier];
+      const maxHp = 18 * scale * mon.hp * t.hp * diffScale(diff.hp, w);
       return {
-        sprite, kind, maxHp, hp: maxHp, atk: 2.4 * scale * m.atk * diffScale(diff.atk, w), interval: m.iv, slow: 0,
-        timer: rand(0, 0.6), x: rand(2, 3.2), z: rand(17, 20), size: m.size, ballMul: m.balls,
-        kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6),
+        key, name: mon.name, sprite: mon.sprite, kind: tier, tier: t,
+        maxHp, hp: maxHp, atk: 2.4 * scale * mon.atk * t.atk * diffScale(diff.atk, w),
+        interval: mon.iv * (tier === 'boss' ? 1 : 1), speed: mon.speed, dodge: mon.dodge || 0, armor: mon.armor || 0,
+        slow: 0, timer: rand(0, 0.6), x: 0, z: 0, size: t.size, ballMul: t.balls,
+        kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6), enraged: false,
       };
     };
+    const randomMon = () => ch.enemies[Math.floor(Math.random() * ch.enemies.length)];
     const q = [];
-    const n = (w === MAX_WAVE ? 2 : 3 + Math.floor(w * 0.55)) + diff.count;
-    for (let i = 0; i < n; i++) q.push(mk('normal', ch.enemies[Math.floor(Math.random() * ch.enemies.length)]));
-    if (w % 5 === 0 && w !== MAX_WAVE) q.push(mk('elite', ELITE_SPRITE));
-    if (w === MAX_WAVE) q.push(mk('boss', ch.boss));
+    if (w === MAX_WAVE) {
+      // 魔王關：兩隻隊長護衛＋魔王
+      q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), mk(ch.boss, 'boss'));
+    } else {
+      const n = 3 + Math.floor(w * 0.55) + diff.count;
+      // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
+      const eliteChance = Math.min(0.2, 0.06 + w * 0.01);
+      for (let i = 0; i < n; i++) q.push(mk(randomMon(), Math.random() < eliteChance ? 'elite' : 'normal'));
+      // 第 3 波起有隊長，第 8 波起兩隻
+      const captains = w >= 8 ? 2 : w >= 3 ? 1 : 0;
+      for (let i = 0; i < captains; i++) q.splice(Math.floor(q.length / 2) + i, 0, mk(randomMon(), 'captain'));
+      if (w % 5 === 0) q.push(mk('mimic', 'chest'));
+    }
     this.queue = q;
     this.spawnTimer = 0.4;
+    this.boss = null;
   }
 
   cleared() { return this.queue.length === 0 && this.enemies.length === 0; }
@@ -95,13 +113,21 @@ export class Battle {
     h.lunge = Math.max(0, h.lunge - dt * 8);
     h.hurt = Math.max(0, h.hurt - dt * 4);
     this.updateFx(dt);
+    this.updateBoss(dt);
     if (!fighting) return;
 
     if (this.queue.length) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
-        this.enemies.push(this.queue.shift());
+        // 從畫面右側外面走進來（站在自己排隊位置的那個深度）
+        const e = this.queue.shift();
+        const s0 = slot(this.enemies.length, e.kind === 'boss');
+        e.z = s0.z + rand(-0.3, 0.6);
+        e.x = (this.scene.W / 2 + 30) / this.scene.cam.f * e.z + e.size;
+        this.enemies.push(e);
         this.spawnTimer = 0.75;
+        if (e.kind === 'boss') this.startBossIntro(e);
+        else if (e.kind === 'elite') this.text(e.x - 0.8, e.z, e.size + 0.6, '菁英出現!', '#d06bff', 13);
       }
     }
 
@@ -110,16 +136,17 @@ export class Battle {
       const s = slot(i, e.kind === 'boss');
       const dx = s.x - e.x, dz = s.z - e.z;
       const d = Math.hypot(dx, dz);
-      const step = 3.2 * dt;
+      const step = 3.2 * (e.speed || 1) * dt * (e.kind === 'boss' && this.bossIntro ? 0.5 : 1);
       if (d > step) { e.x += dx / d * step; e.z += dz / d * step; } else { e.x = s.x; e.z = s.z; }
       e.kb = Math.max(0, e.kb - dt * 4);
       e.flash = Math.max(0, e.flash - dt * 6);
       e.lunge = Math.max(0, e.lunge - dt * 6);
       if (i < 2 && d < 0.05) {
-        e.timer += dt * (1 - e.slow); // 冰霜：被凍到的敵人攻擊變慢
+        e.timer += dt * (1 - e.slow) * (e.enraged ? 1.4 : 1); // 冰霜變慢、狂暴變快
         if (e.timer >= e.interval) {
           e.timer = 0;
           e.lunge = 1;
+          if (e.kind === 'boss') this.bossSlam(e);
           this.enemyHit(e);
         }
       }
@@ -161,7 +188,7 @@ export class Battle {
     if (!t) { h.hitQueue = 0; return; }
     h.lunge = 1;
     // 墓地：敵人有機率閃避
-    if (this.g.run.rules.dodge && Math.random() < this.g.run.rules.dodge) {
+    if (Math.random() < (this.g.run.rules.dodge || 0) + (t.dodge || 0)) {
       this.text(t.x, t.z, t.size + 0.3, '閃避', '#c9c2d1', 12);
       if (h.range > 2) this.streak(h, t, '#888', 0.12);
       return;
@@ -241,10 +268,78 @@ export class Battle {
     this.streaks.push({ x1: h.x + 0.2, z1: h.z, h1: 0.5, x2: t.x, z2: t.z, h2: t.size * 0.5, life, color });
   }
 
+  // ---------- 魔王演出 ----------
+  startBossIntro(e) {
+    this.boss = e;
+    this.bossIntro = { t: 0, e, step: 0 };
+    this.g.onBossIntro && this.g.onBossIntro(e);
+  }
+
+  updateBoss(dt) {
+    this.flashWhite = Math.max(0, this.flashWhite - dt * 2.5);
+    if (this.bossIntro) {
+      const bi = this.bossIntro;
+      bi.t += dt;
+      // 魔王走路的每一步都震動畫面
+      if (Math.floor(bi.t / 0.55) > bi.step) {
+        bi.step++;
+        this.shake = Math.max(this.shake, 7);
+        this.shocks.push({ x: bi.e.x, z: bi.e.z, t: 0, big: false });
+        sfx('hurt');
+      }
+      if (bi.t > 3) this.bossIntro = null;
+    }
+    for (let i = this.shocks.length - 1; i >= 0; i--) {
+      this.shocks[i].t += dt;
+      if (this.shocks[i].t > 0.6) this.shocks.splice(i, 1);
+    }
+    // 魔王周圍持續冒火星
+    const b = this.boss;
+    if (b && !b.dead && this.embers.length < 40 && Math.random() < dt * 30) {
+      this.embers.push({ x: b.x + rand(-0.6, 0.6) * b.size, z: b.z + rand(-0.2, 0.2), h: rand(0, 0.3), vh: rand(0.6, 1.4), life: rand(0.8, 1.4), max: 1.4 });
+    }
+    for (let i = this.embers.length - 1; i >= 0; i--) {
+      const p = this.embers[i];
+      p.life -= dt;
+      p.h += p.vh * dt;
+      if (p.life <= 0) this.embers.splice(i, 1);
+    }
+  }
+
+  bossSlam(e) {
+    this.shocks.push({ x: e.x, z: e.z, t: 0, big: true });
+    this.shake = Math.max(this.shake, e.enraged ? 9 : 6);
+    this.scene.cam.punch = Math.max(this.scene.cam.punch, 0.6);
+  }
+
+  bossEnrage(e) {
+    e.enraged = true;
+    e.atk *= 1.3;
+    this.text(e.x, e.z, e.size + 0.9, '狂暴化!', '#ff3b3b', 22);
+    this.shake = 12;
+    this.flashWhite = 0.6;
+    this.shocks.push({ x: e.x, z: e.z, t: 0, big: true });
+    sfx('crit');
+    this.g.onBossEnrage && this.g.onBossEnrage(e);
+  }
+
+  bossDeath(e) {
+    this.flashWhite = 1;
+    this.shake = 16;
+    this.scene.cam.punch = 2;
+    for (let i = 0; i < 40; i++) {
+      this.parts.push({ x: e.x, z: e.z, h: e.size * 0.6, vx: rand(-3, 3), vz: rand(-2, 2.5), vh: rand(3, 7), life: rand(0.9, 1.4) });
+    }
+    for (let k = 0; k < 3; k++) this.shocks.push({ x: e.x, z: e.z, t: -k * 0.15, big: true });
+    this.boss = null;
+  }
+
   damage(e, dmg, crit, small) {
+    dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷
     e.hp -= dmg;
     e.flash = 1;
     e.kb = small ? 0.3 : 1;
+    if (e.kind === 'boss' && !e.enraged && e.hp > 0 && e.hp < e.maxHp * 0.5) this.bossEnrage(e);
     this.text(e.x + rand(-0.15, 0.15), e.z, e.size + 0.25, fmt(Math.max(1, dmg)), crit ? '#ffdd55' : (small ? '#cfd8ff' : '#fff'), crit ? 20 : (small ? 11 : 14));
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
@@ -258,6 +353,12 @@ export class Battle {
         this.parts.push({ x: e.x, z: e.z, h: e.size * 0.5, vx: rand(-1.6, 1.6), vz: rand(-1.2, 1.6), vh: rand(2, 4.5), life: rand(0.6, 0.9) });
       }
       if (e.kind !== 'normal') { this.shake = 10; this.scene.cam.punch = 1.5; }
+      // 菁英、寶箱怪有機率掉落免費技能
+      if (e.tier && e.tier.skillDrop && Math.random() < e.tier.skillDrop) {
+        this.text(e.x, e.z, e.size + 0.8, '技能掉落!', '#ffd84a', 16);
+        this.g.onSkillDrop(e);
+      }
+      if (e.kind === 'boss') this.bossDeath(e);
     }
   }
 
@@ -341,9 +442,10 @@ export class Battle {
     this.drawFx(ctx);
     ctx.restore();
     sc.drawFrame(ctx);
+    this.drawBossOverlay(ctx);
   }
 
-  drawActor(ctx, sprite, x, z, size, flash, phase, lift = 0) {
+  drawActor(ctx, sprite, x, z, size, flash, phase, lift = 0, rage = 0) {
     const sc = this.scene;
     sc.shadow(ctx, x, z, size * 0.7);
     const p = sc.project(x, z, lift);
@@ -352,7 +454,7 @@ export class Battle {
     const w = size * p.s * (1 - breathe);
     const hgt = size * p.s * (1 + breathe);
     ctx.globalAlpha = 1 - sc.fogAt(z) * 0.85;
-    drawSprite(ctx, sprite, p.x, p.y + 1, w, false, flash, 'dg', hgt);
+    drawSprite(ctx, sprite, p.x, p.y + 1, w, false, flash, 'dg', hgt, rage);
     ctx.globalAlpha = 1;
     return { p, top: p.y - hgt };
   }
@@ -361,11 +463,56 @@ export class Battle {
     // 擊退：被打時往後彈；攻擊：往英雄方向撲一下
     const x = e.x + e.kb * 0.35 - e.lunge * 0.3;
     const z = e.z + e.kb * 0.2;
-    const lift = e.lunge * 0.1;
-    const { p, top } = this.drawActor(ctx, e.sprite, x, z, e.size, e.flash, e.phase, lift);
-    if (!e.teaser && this.scene.fogAt(z) < 0.6) {
-      const bw = Math.max(24, Math.min(54, e.size * p.s * 0.8));
-      this.bar(ctx, p.x - bw / 2, top - 7, bw, e.hp / e.maxHp, e.kind === 'boss' ? '#ff3df0' : '#ff4d4d', e.kind === 'boss');
+    const lift = e.lunge * (e.kind === 'boss' ? 0.25 : 0.1);
+    const sc = this.scene;
+    // 等級外觀：菁英紫色光環、寶箱怪橘光、魔王腳下有發紅的裂地光
+    if (e.kind === 'elite' || e.kind === 'chest' || e.kind === 'boss') this.drawTierGlow(ctx, e, x, z);
+    const rage = e.enraged ? 0.25 + Math.sin(sc.t * 10) * 0.15 : 0;
+    const { p, top } = this.drawActor(ctx, e.sprite, x, z, e.size, e.flash, e.phase, lift, rage);
+    if (e.teaser || sc.fogAt(z) >= 0.6 || e.kind === 'boss') return; // 魔王用畫面上方的大血條
+    const bw = Math.max(24, Math.min(54, e.size * p.s * 0.8));
+    this.bar(ctx, p.x - bw / 2, top - 7, bw, e.hp / e.maxHp, '#ff4d4d');
+    const t = e.tier;
+    if (t && t.label) {
+      // 等級標籤（隊長有皇冠）
+      ctx.font = `10px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeText(t.label, p.x, top - 10);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.label, p.x, top - 10);
+      if (e.kind === 'captain') drawIcon(ctx, 'ic', 141, p.x, top - 26, 14);
+    }
+  }
+
+  drawTierGlow(ctx, e, x, z) {
+    const sc = this.scene;
+    const p = sc.project(x, z);
+    const color = e.kind === 'boss' ? (e.enraged ? '255,40,40' : '255,60,180') : e.kind === 'chest' ? '255,159,67' : '208,107,255';
+    const rx = e.size * p.s * 0.6, ry = e.size * p.s * 0.17;
+    const pulse = 0.5 + Math.sin(sc.t * 4 + e.phase) * 0.5;
+    const g = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, rx);
+    g.addColorStop(0, `rgba(${color},${0.55 + pulse * 0.2})`);
+    g.addColorStop(1, `rgba(${color},0)`);
+    ctx.save();
+    ctx.fillStyle = g;
+    ctx.translate(p.x, p.y);
+    ctx.scale(1, ry / rx);
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // 往上飄的光點
+    if (e.kind !== 'boss') {
+      ctx.fillStyle = `rgba(${color},0.9)`;
+      for (let i = 0; i < 5; i++) {
+        const k = (sc.t * 0.7 + i / 5) % 1;
+        const a = e.phase + i * 1.3;
+        ctx.globalAlpha = 1 - k;
+        ctx.fillRect(p.x + Math.cos(a) * rx * 0.7 - 1.5, p.y - k * e.size * p.s - 1.5, 3, 3);
+      }
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -411,6 +558,28 @@ export class Battle {
 
   drawFx(ctx) {
     const sc = this.scene;
+    // 魔王砸地的衝擊波（貼在地面上的橢圓圈往外擴散）
+    for (const w of this.shocks) {
+      if (w.t < 0) continue;
+      const k = w.t / 0.6;
+      const p = sc.project(w.x, w.z);
+      const r = (w.big ? 2.6 : 1.4) * k * p.s;
+      ctx.globalAlpha = (1 - k) * 0.8;
+      ctx.strokeStyle = w.big ? '#ff6a3a' : '#e0d0c0';
+      ctx.lineWidth = (w.big ? 5 : 3) * (1 - k) + 1;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, r, r * 0.28, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // 魔王的火星
+    for (const p of this.embers) {
+      const q = sc.project(p.x, p.z, p.h);
+      ctx.globalAlpha = Math.min(1, p.life / p.max * 1.5);
+      ctx.fillStyle = p.life > 0.5 ? '#ffb347' : '#ff4a2a';
+      ctx.fillRect(q.x - 1.5, q.y - 1.5, 3, 3);
+    }
+    ctx.globalAlpha = 1;
     // 遠程攻擊的光束
     for (const s of this.streaks) {
       const a = sc.project(s.x1, s.z1, s.h1);
@@ -462,6 +631,104 @@ export class Battle {
       ctx.fillText(t.text, p.x, p.y - t.rise);
     }
     ctx.globalAlpha = 1;
+  }
+
+  // 魔王關的畫面效果：登場時暗場＋紅色警示條＋名字卡；之後畫面上方顯示大血條
+  drawBossOverlay(ctx) {
+    const sc = this.scene;
+    const { W, top, bottom } = sc;
+    const t = sc.t;
+    const boss = this.boss;
+    if (boss || this.bossIntro) {
+      // 四周紅色暗角，隨心跳脈動
+      const beat = 0.5 + Math.sin(t * (boss && boss.enraged ? 9 : 5)) * 0.5;
+      const v = ctx.createRadialGradient(W / 2, (top + bottom) / 2, 40, W / 2, (top + bottom) / 2, W * 0.75);
+      v.addColorStop(0, 'rgba(0,0,0,0)');
+      v.addColorStop(1, `rgba(140,0,20,${0.25 + beat * 0.2})`);
+      ctx.fillStyle = v;
+      ctx.fillRect(0, top, W, bottom - top);
+    }
+    const bi = this.bossIntro;
+    if (bi) {
+      const k = bi.t;
+      // 暗場
+      ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 0.55 - Math.max(0, k - 2) * 0.55)})`;
+      ctx.fillRect(0, top, W, bottom - top);
+      // 上下滑入的警示條
+      const slide = Math.min(1, k * 3) * (k > 2.5 ? Math.max(0, 1 - (k - 2.5) * 2) : 1);
+      for (const [y, dir] of [[top + 58, 1], [bottom - 40, -1]]) {
+        ctx.save();
+        ctx.translate((1 - slide) * W * dir, 0);
+        ctx.fillStyle = 'rgba(200,0,30,0.85)';
+        ctx.fillRect(0, y, W, 16);
+        ctx.fillStyle = '#ffd84a';
+        const off = (t * 60) % 24;
+        for (let x = -24 + off; x < W + 24; x += 24) {
+          ctx.beginPath();
+          ctx.moveTo(x, y + 16); ctx.lineTo(x + 8, y + 16); ctx.lineTo(x + 16, y); ctx.lineTo(x + 8, y);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      // WARNING 字樣與魔王名字
+      ctx.save();
+      ctx.globalAlpha = slide;
+      ctx.textAlign = 'center';
+      ctx.font = `${30 + Math.sin(t * 12) * 2}px ${FONT}`;
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#000';
+      ctx.strokeText('⚠ WARNING ⚠', W / 2, top + 112);
+      ctx.fillStyle = '#ff3b3b';
+      ctx.fillText('⚠ WARNING ⚠', W / 2, top + 112);
+      ctx.font = `18px ${FONT}`;
+      ctx.strokeText(`魔王「${bi.e.name}」出現了！`, W / 2, top + 140);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(`魔王「${bi.e.name}」出現了！`, W / 2, top + 140);
+      ctx.restore();
+    }
+    // 魔王大血條（登場演出結束後）
+    if (boss && !bi) {
+      const bw = W - 40, x = 20, y = top + 66;
+      const f = Math.max(0, boss.hp / boss.maxHp);
+      this.hpShown = this.hpShown === undefined ? f : this.hpShown + (f - this.hpShown) * 0.08;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x - 2, y - 2, bw + 4, 14);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x, y, bw * this.hpShown, 10); // 白色殘影：剛扣掉的血慢慢消失
+      const g = ctx.createLinearGradient(x, 0, x + bw, 0);
+      g.addColorStop(0, boss.enraged ? '#ff2a2a' : '#ff3df0');
+      g.addColorStop(1, boss.enraged ? '#ff8a2a' : '#8a3dff');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, bw * f, 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(x, y, bw * f, 2);
+      ctx.strokeStyle = boss.enraged ? '#ffd84a' : '#000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 2, y - 2, bw + 4, 14);
+      ctx.textAlign = 'left';
+      ctx.font = `12px ${FONT}`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#000';
+      const label = `魔王・${boss.name}${boss.enraged ? '（狂暴）' : ''}`;
+      ctx.strokeText(label, x, y - 5);
+      ctx.fillStyle = boss.enraged ? '#ff6a6a' : '#ffd0ff';
+      ctx.fillText(label, x, y - 5);
+      ctx.textAlign = 'right';
+      const num = `${fmt(Math.max(0, boss.hp))} / ${fmt(boss.maxHp)}`;
+      ctx.strokeText(num, x + bw, y - 5);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(num, x + bw, y - 5);
+      // 50% 的位置畫一條線：打到這裡會狂暴
+      ctx.fillStyle = '#ffd84a';
+      ctx.fillRect(x + bw * 0.5 - 1, y - 2, 2, 14);
+    } else {
+      this.hpShown = undefined;
+    }
+    // 白色閃光（狂暴、打倒魔王）
+    if (this.flashWhite > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 0.7})`;
+      ctx.fillRect(0, top, W, bottom - top);
+    }
   }
 
   bar(ctx, x, y, w, f, color, big) {

@@ -23,6 +23,7 @@ export const ICON = {
 };
 
 let white = {};
+let red = {};    // 魔王狂暴時的紅色剪影
 
 export function loadSprites() {
   return Promise.all(Object.entries(SHEETS).map(([key, s]) => new Promise(resolve => {
@@ -38,6 +39,17 @@ export function loadSprites() {
       g.fillStyle = '#fff';
       g.fillRect(0, 0, c.width, c.height);
       white[key] = c;
+      if (key === 'dg') {
+        const r = document.createElement('canvas');
+        r.width = c.width;
+        r.height = c.height;
+        const rg = r.getContext('2d');
+        rg.drawImage(s.img, 0, 0);
+        rg.globalCompositeOperation = 'source-in';
+        rg.fillStyle = '#ff2a2a';
+        rg.fillRect(0, 0, r.width, r.height);
+        red[key] = r;
+      }
       resolve();
     };
     s.img.onerror = resolve;
@@ -55,7 +67,7 @@ function src(key, idx) {
 
 // 角色：以「腳底中心」為基準畫
 // sizeY 可以跟 size 不同，用來做「呼吸」般的伸縮動畫
-export function drawSprite(ctx, idx, cx, footY, size, flip = false, flash = 0, key = 'dg', sizeY = size) {
+export function drawSprite(ctx, idx, cx, footY, size, flip = false, flash = 0, key = 'dg', sizeY = size, rage = 0) {
   if (!ready(key)) return;
   const [img, sx, sy, t] = src(key, idx);
   ctx.save();
@@ -63,8 +75,13 @@ export function drawSprite(ctx, idx, cx, footY, size, flip = false, flash = 0, k
   ctx.translate(cx, footY - sizeY);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(img, sx, sy, t, t, -size / 2, 0, size, sizeY);
+  const base = ctx.globalAlpha;
+  if (rage > 0 && red[key]) {
+    ctx.globalAlpha = base * rage;
+    ctx.drawImage(red[key], sx, sy, t, t, -size / 2, 0, size, sizeY);
+  }
   if (flash > 0 && white[key]) {
-    ctx.globalAlpha *= flash * 0.85;
+    ctx.globalAlpha = base * flash * 0.85;
     ctx.drawImage(white[key], sx, sy, t, t, -size / 2, 0, size, sizeY);
   }
   ctx.restore();

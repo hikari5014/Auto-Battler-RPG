@@ -1,4 +1,4 @@
-import { HEROES, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, upgradeCost } from './data.js';
+import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, upgradeCost } from './data.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -19,6 +19,13 @@ const game = {
   W: 360, H: 640, battleH: 260,
   run: null, speed: 1, paused: false,
   onKill: e => onKill(e),
+  onSkillDrop: e => onSkillDrop(e),
+  // 魔王登場：換魔王音樂、手機震動
+  onBossIntro: () => {
+    playMusic('boss');
+    try { navigator.vibrate && navigator.vibrate([60, 80, 60, 80, 120]); } catch (err) { /* ignore */ }
+  },
+  onBossEnrage: e => banner(`${e.name} 狂暴化！`),
 };
 const board = new Board();
 const battle = new Battle(game);
@@ -100,7 +107,8 @@ function nextWave() {
   const tag = run.wave === MAX_WAVE ? ' ' + iconTag(ICON.crown, 16) + '魔王' : run.wave % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
   $('hud-wave').innerHTML = `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
   renderWaveBar(run.wave);
-  playMusic(run.wave === MAX_WAVE ? 'boss' : run.chapter % 2 ? 'stage1' : 'stage2');
+  // 每章有自己的音樂；魔王關等魔王登場才切成魔王音樂
+  playMusic(CHAPTERS[(run.chapter - 1) % CHAPTERS.length].music);
   if (run.wave > 1) sfx('wave');
   banner(run.wave === MAX_WAVE ? '魔王來襲！' : `第 ${run.wave} 波`);
 }
@@ -223,6 +231,28 @@ $('skills-body').addEventListener('click', ev => {
   showScreen(game.run && game.run.phase === 'shop' ? 'screen-shop' : null);
 });
 
+// 獲得技能（購買或怪物掉落都走這裡）
+function gainSkill(sk) {
+  const run = game.run;
+  sk.apply(run.hero, run, board);
+  if (!run.levels[sk.id]) run.skills.push(sk);
+  run.levels[sk.id] = skillLv(sk) + 1;
+}
+
+// 菁英、寶箱怪掉落：隨機一個還沒滿級、這位英雄能用的技能，免費獲得
+function onSkillDrop() {
+  const run = game.run;
+  const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === run.hero.def.id));
+  if (!pool.length) return;
+  const sk = pool[Math.floor(Math.random() * pool.length)];
+  gainSkill(sk);
+  sfx('buy');
+  banner(`掉落技能：${sk.name}！`);
+  toast(`${sk.name} → ${sk.max ? `Lv.${skillLv(sk)}/${sk.max}` : '已使用'}：${sk.desc}`);
+  if (isMaxed(sk)) celebrateMax(sk, null);
+  renderSkillBar();
+}
+
 // 升到滿級：金色爆發＋橫幅＋滿級獎勵生效
 function celebrateMax(sk, card) {
   const run = game.run;
@@ -342,9 +372,7 @@ $('shop-body').addEventListener('click', ev => {
     if (o.bought || run.coins < o.price) return;
     run.coins -= o.price;
     o.bought = true;
-    o.sk.apply(run.hero, run, board);
-    if (!run.levels[o.sk.id]) run.skills.push(o.sk);
-    run.levels[o.sk.id] = skillLv(o.sk) + 1;
+    gainSkill(o.sk);
     sfx('buy');
     // 不整個重畫（不然卡片翻轉動畫會重播），只更新數字與狀態
     const card = t.closest('.card');
@@ -405,7 +433,7 @@ function endRun(win) {
     unlocked = `<p class="good">解鎖第 ${save.maxChapter} 章：${chapterName(save.maxChapter)}</p>`;
   }
   writeSave(save);
-  if (win) sfx('win');
+  if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
   $('result-body').innerHTML = `
     <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${win ? '章節通關！' : '冒險結束'}</h2>
     <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
@@ -778,9 +806,9 @@ function drawHome() {
   const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
   const hero = { def, x: 0, z: 5.6, scale: 1.35 + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
   const teaser = [
-    { sprite: ch.boss, x: 2.7, z: 12, size: 1.55, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
-    { sprite: ch.enemies[0], x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
-    { sprite: ch.enemies[1], x: 2.4, z: 7.5, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 3, teaser: true },
+    { sprite: MONSTERS[ch.boss].sprite, x: 2.7, z: 12, size: 1.85, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
+    { sprite: MONSTERS[ch.enemies[0]].sprite, x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
+    { sprite: MONSTERS[ch.enemies[1]].sprite, x: 2.4, z: 7.5, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 3, teaser: true },
   ];
   battle.drawWorld(ctx, save.chapter, hero, teaser);
   ctx.globalAlpha = 0.18;
