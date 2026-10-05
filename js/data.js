@@ -150,14 +150,6 @@ export const SKILLS = [
 export const STAR_PRICE = [0, 20, 45, 80];
 export const STAR_WEIGHT = [0, 60, 30, 10];
 
-export const UPGRADES = [
-  { id: 'atk', icon: ['ic', 424, '#e8eef7'], name: '基礎攻擊', desc: '每級 +10% 攻擊力' },
-  { id: 'hp', icon: ['ic', 532], name: '基礎血量', desc: '每級 +10% 血量' },
-  { id: 'coin', icon: ['pp', 67], name: '開局球幣', desc: '每級開局多 40 球幣' },
-];
-
-export const upgradeCost = lv => Math.round(60 * Math.pow(1.55, lv));
-
 export const MAX_WAVE = 15;
 // 無盡塔：每 10 層一個循環（第 10、20、30… 層是魔王），打完魔王進入下一章
 export const ENDLESS_CYCLE = 10;

@@ -250,7 +250,7 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .stats { display: flex; justify-content: center; gap: 14px; font-size: 13px; color: var(--ink-soft); }
 .hero-info .passive { color: #1e5d8a; font-size: 12px; }
 
-.ups { display: flex; flex-direction: column; gap: 4px; }
+
 .up { display: flex; align-items: center; gap: 10px; padding: 0 2px; text-align: left; }
 .up-text { flex: 1; display: flex; flex-direction: column; }
 .up-text em { font-style: normal; color: #a0522d; }
@@ -811,3 +811,65 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- 天賦網 ---------- */
+.talent-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; margin: 8px 0 0; padding: 6px 10px;
+  border-radius: 10px; border: 2px solid #000;
+  background: linear-gradient(90deg, rgba(80, 40, 140, 0.85), rgba(14, 9, 30, 0.85));
+  box-shadow: inset 0 0 0 2px var(--glass-line);
+  color: #fff; text-align: left;
+}
+.talent-btn span { flex: 1; display: flex; flex-direction: column; }
+.talent-btn b { font-size: 15px; }
+.talent-btn small { font-size: 11px; color: var(--muted); }
+.talent-btn em { font-style: normal; color: var(--gold); }
+.talent-btn.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 0 12px rgba(255, 216, 74, 0.45); }
+.talent-btn.ready small { color: var(--gold); }
+
+#talent-body { background: none; }
+.talent-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.talent-top small { font-size: 11px; color: #fdf3d8; text-align: right; }
+.tweb {
+  position: relative; width: 100%; aspect-ratio: 1; margin: 2px auto 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(70, 40, 130, 0.55) 0%, rgba(14, 9, 30, 0.85) 70%);
+}
+.web-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.web-bg .ring { fill: none; stroke: rgba(255, 255, 255, 0.1); stroke-width: 0.4; }
+.web-bg .ring.dash { stroke-dasharray: 1.5 1.5; stroke: rgba(255, 242, 168, 0.25); }
+.web-bg line { stroke: rgba(255, 255, 255, 0.18); stroke-width: 0.7; stroke-linecap: round; }
+.web-bg line.half { stroke: rgba(255, 216, 74, 0.45); stroke-dasharray: 1.2 1; }
+.web-bg line.lit { stroke: var(--gold); stroke-width: 1.1; filter: drop-shadow(0 0 1px #ffd84a); }
+.tnode {
+  position: absolute; width: 9%; aspect-ratio: 1; translate: -50% -50%;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2px solid #000; padding: 0;
+  background: #2a2340; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+  filter: grayscale(1) brightness(0.6);
+}
+.tnode.key { width: 11.5%; border-radius: 30%; rotate: 45deg; }
+.tnode.key img { rotate: -45deg; }
+.tnode.reach { filter: none; opacity: 0.85; box-shadow: inset 0 0 0 2px var(--tc); }
+.tnode.on { filter: none; background: color-mix(in srgb, var(--tc) 45%, #1a1030); box-shadow: inset 0 0 0 2px var(--tc), 0 0 10px var(--tc); }
+.tnode.max { background: color-mix(in srgb, var(--tc) 70%, #1a1030); }
+.tnode.can::after { content: ''; position: absolute; inset: -5px; border-radius: inherit; border: 2px solid var(--gold); animation: blink 1s steps(2) infinite; }
+.tnode.sel { outline: 3px solid #fff; outline-offset: 2px; z-index: 2; }
+.tnode.core { filter: none; background: #fff2a8; box-shadow: 0 0 14px #fff2a8; }
+.tlv { position: absolute; bottom: -5px; right: -9px; font-style: normal; font-size: 9px; line-height: 1; padding: 1px 3px; border-radius: 4px; background: #000; color: #fff; white-space: nowrap; }
+.tnode.key .tlv { rotate: -45deg; bottom: auto; top: 50%; right: -6px; }
+.tnode.max .tlv { color: var(--gold); }
+.tlv:empty { display: none; }
+.tdetail {
+  display: flex; align-items: center; gap: 8px; min-height: 64px;
+  padding: 6px 8px; border-radius: 10px; text-align: left;
+  background: var(--glass); box-shadow: inset 0 0 0 2px var(--glass-line);
+}
+.td-ic { width: 42px; height: 42px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid var(--tc); background: rgba(0, 0, 0, 0.35); }
+.td-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.td-info b { font-size: 15px; }
+.td-info .tag { font-style: normal; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--tc, #555); color: #000; }
+.td-info .tag.key { background: #fff2a8; }
+.td-now { font-size: 12px; color: #fff; }
+.td-next { font-size: 11px; color: var(--muted); }

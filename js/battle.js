@@ -9,6 +9,7 @@ import { diffScale } from './levels.js';
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus } from './gear.js';
+import { talentBonus } from './talent.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const HERO_POS = { x: -1.35, z: 4 };
@@ -16,14 +17,16 @@ const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
 
 export function createHero(def, save) {
   const gb = gearBonus(save); // 身上裝備的加成
-  const maxHp = def.hp * (1 + 0.1 * save.up.hp) * (1 + gb.hp);
+  const tb = talentBonus(save); // 天賦網的加成
+  const maxHp = def.hp * (1 + tb.hp) * (1 + gb.hp);
   return {
     def, maxHp, hp: maxHp,
-    baseAtk: def.atk * (1 + 0.1 * save.up.atk) * (1 + gb.atk),
-    atkMul: 1, spdMul: 1,
+    baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk),
+    atkMul: 1, spdMul: 1 + tb.spd,
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits, crit: (def.crit || 0.05) + gb.crit, critDmg: 1.5,
-    block: def.block || 0, dbl: 0, life: def.life || 0, splash: def.splash || 0, thorns: def.thorns || 0,
+    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit, critDmg: 1.5 + tb.critDmg,
+    block: (def.block || 0) + tb.block, dbl: 0, life: (def.life || 0) + tb.life, splash: def.splash || 0, thorns: (def.thorns || 0) + tb.thorns,
+    bossDmg: tb.bossDmg, skillDropBonus: tb.skillDrop, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen,
     magnet: def.magnet || 0,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
     // 職業專屬技能用到的數值
@@ -31,7 +34,7 @@ export function createHero(def, save) {
     multiShot: 0, multiMul: 1, pierce: 0, arrowNeed: 20, arrowCount: 1,
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
-    ballsPerKill: 5 + gb.ball,
+    ballsPerKill: 5 + gb.ball + tb.ball,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
@@ -344,6 +347,7 @@ export class Battle {
 
   damage(e, dmg, crit, small) {
     dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷
+    if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
     e.hp -= dmg;
     e.flash = 1;
     e.kb = small ? 0.3 : 1;
@@ -362,7 +366,7 @@ export class Battle {
       }
       if (e.kind !== 'normal') { this.shake = 10; this.scene.cam.punch = 1.5; }
       // 菁英、寶箱怪有機率掉落免費技能
-      if (e.tier && e.tier.skillDrop && Math.random() < e.tier.skillDrop) {
+      if (e.tier && e.tier.skillDrop && Math.random() < e.tier.skillDrop + (h.skillDropBonus || 0)) {
         this.text(e.x, e.z, e.size + 0.8, '技能掉落!', '#ffd84a', 16);
         this.g.onSkillDrop(e);
       }

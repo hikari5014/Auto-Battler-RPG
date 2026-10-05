@@ -1,4 +1,5 @@
-import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, UPGRADES, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave, upgradeCost } from './data.js';
+import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
+import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
 import { shareResult } from './share.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
@@ -21,6 +22,7 @@ const ctx = canvas.getContext('2d');
 const save = loadSave();
 loadSettings(save);
 ensureMeta(save);
+ensureTalents(save);
 // 已經玩過的老玩家不用再看教學
 if (save.tutorialDone === undefined) save.tutorialDone = save.gold > 0 || save.maxChapter > 1 || save.owned.length > 1;
 setMuted(save.muted);
@@ -94,9 +96,10 @@ function startRun(opts = {}) {
   const chapter = opts.chapter || save.chapter;
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
+  const tb = talentBonus(save);
   game.run = {
     chapter, wave: 0, daily: !!opts.daily, endless: !!opts.endless, mods,
-    coins: save.up.coin * 40 + gearBonus(save).coin,
+    coins: tb.coin + gearBonus(save).coin, tb,
     hero: createHero(def, save),
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
@@ -111,6 +114,15 @@ function startRun(opts = {}) {
     h.hp = h.maxHp;
   }
   board.reset(game.run);
+  // 天賦：接球杯、倍率、開局分裂門
+  board.cupW = Math.min(220, board.cupW * (1 + tb.cupW));
+  board.cupMult += tb.cupMult;
+  for (let i = 0; i < tb.gatePlus; i++) board.addGate('+3');
+  // 天賦「開局禮包」：免費一個隨機技能
+  if (tb.startSkill) {
+    const sk = makeRandomSkill(game.run, isMaxed)(k => k.id !== 'heal');
+    if (sk) { gainSkill(sk); setTimeout(() => game.run && toast(`開局禮包：${sk.name}`), 2600); }
+  }
   renderSkillBar();
   battle.reset();
   game.paused = false;
@@ -135,7 +147,7 @@ function nextWave() {
     board.setChapter(run.chapter);
     toast(`進入${chapterName(run.chapter)}｜${run.rules.rule}`);
   }
-  if (run.wave > 1 && !run.mods.noHeal) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
+  if (run.wave > 1 && !run.mods.noHeal) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * run.hero.regen);
   if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
   if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
   battle.startWave(run);
@@ -256,7 +268,14 @@ function update(dt) {
   }
 
   if (run.phase === 'fight') {
-    if (run.hero.hp <= 0) {
+    if (run.hero.hp <= 0 && run.hero.phoenix) {
+      // 天賦「不死鳥」：自動復活一次
+      run.hero.phoenix = false;
+      run.hero.hp = run.hero.maxHp * 0.5;
+      banner('不死鳥・浴火重生！');
+      sfx('wave');
+      vibrate([40, 60, 120]);
+    } else if (run.hero.hp <= 0) {
       run.hero.hp = 0;
       onDeath();
     } else if (battle.cleared()) {
@@ -371,7 +390,7 @@ function rollOffer() {
   // 共同技能＋這位英雄的專屬技能；滿級的不再出現
   const heroId = run.hero.def.id;
   const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === heroId));
-  const weight = sk => STAR_WEIGHT[sk.star] * (sk.hero ? 1.6 : 1); // 專屬技能比較常出現
+  const weight = sk => STAR_WEIGHT[sk.star] * (sk.hero ? 1.6 : 1) * (sk.star > 1 ? 1 + run.tb.luck : 1); // 專屬技能比較常出現；天賦「好運」提高高星
   while (picks.length < 3 && pool.length) {
     const total = pool.reduce((s, k) => s + weight(k), 0);
     let r = Math.random() * total;
@@ -379,7 +398,7 @@ function rollOffer() {
     for (; idx < pool.length; idx++) { r -= weight(pool[idx]); if (r <= 0) break; }
     idx = Math.min(idx, pool.length - 1);
     const sk = pool.splice(idx, 1)[0];
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * (run.shopDiscount || 1)), bought: false });
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * (run.shopDiscount || 1) * (1 - run.tb.price)), bought: false });
   }
   run.offer = picks;
 }
@@ -387,8 +406,8 @@ function rollOffer() {
 function openShop() {
   const run = game.run;
   run.phase = 'shop';
-  run.rerollCost = 10 + run.wave * 2;
-  run.freeReroll = true;
+  run.rerollCost = Math.round((10 + run.wave * 2) * (1 - run.tb.rerollDisc));
+  run.freeReroll = 1 + run.tb.reroll; // 天賦「多看看」多給幾次
   rollOffer();
   renderShop();
   showScreen('screen-shop');
@@ -455,7 +474,7 @@ function renderShop() {
     <div class="cards">${cards || '<p class="all-max">所有技能都已滿級！</p>'}</div>
     <div class="row">
       <button class="btn small" id="btn-reroll" ${offAttr(run.coins < run.rerollCost, '球幣不足，無法刷新')}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
-      <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新</button>
+      <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新${run.freeReroll > 1 ? ' x' + run.freeReroll : ''}</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
     <div class="owned" id="shop-owned">${run.skills.length ? '已獲得：' + ownedSummary() : '用接到的球幣購買技能，可以買不只一張'}</div>`;
@@ -482,12 +501,12 @@ $('shop-body').addEventListener('click', ev => {
     return;
   } else if (t.id === 'btn-reroll') {
     run.coins -= run.rerollCost;
-    run.rerollCost += 10;
+    run.rerollCost += Math.round(10 * (1 - run.tb.rerollDisc));
     rollOffer();
     sfx('tap');
   } else if (t.id === 'btn-free') {
     // 正式版這裡接「激勵廣告」：看完廣告才給免費刷新
-    run.freeReroll = false;
+    run.freeReroll--;
     rollOffer();
     sfx('tap');
   } else if (t.id === 'btn-next') {
@@ -524,7 +543,7 @@ function endRun(win) {
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
-  gold = Math.round(gold * (1 + gearBonus(save).gold)); // 黃金戒指
+  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold)); // 黃金戒指＋天賦
   save.gold += gold;
   const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
   const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex);
@@ -649,15 +668,7 @@ function renderHome() {
       ${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
     </button>`;
   }).join('');
-  const ups = UPGRADES.map(u => {
-    const lv = save.up[u.id];
-    const cost = upgradeCost(lv);
-    return `<div class="up">
-      <span class="up-icon">${iconTag(u.icon, 28)}</span>
-      <span class="up-text"><b>${u.name} <em data-lv="${u.id}">Lv.${lv}</em></b><small>${u.desc}</small></span>
-      <button class="btn small" data-up="${u.id}" data-repeat ${offAttr(save.gold < cost, `金幣不足，還差 ${cost - save.gold}`)}>${iconTag(ICON.gold, 16)}<span class="cost">${cost}</span></button>
-    </div>`;
-  }).join('');
+  const tb = talentBonus(save);
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   $('home-body').innerHTML = `
     <div class="home-stage">
@@ -692,14 +703,14 @@ function renderHome() {
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
         <div class="stats">
-          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + 0.1 * save.up.hp))}</span>
-          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1)}</span>
+          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(hero.hp * (1 + tb.hp))}</span>
+          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${(hero.atk * (1 + tb.atk)).toFixed(1)}</span>
           <span>${iconTag(ICON.target, 14)} ${(1 / hero.interval).toFixed(1)} 下/秒</span>
         </div>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
         <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
       </div>
-      <div class="ups">${ups}</div>
+      <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}</small></button>
       <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
       <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
@@ -733,17 +744,6 @@ $('home-body').addEventListener('click', ev => {
       t.addEventListener('animationend', () => t.classList.remove('fx-deny'), { once: true });
       return;
     }
-  } else if (t.dataset.up) {
-    // 升級：按住會連續升級，所以只更新數字，不整頁重畫
-    const cost = upgradeCost(save.up[t.dataset.up]);
-    if (save.gold >= cost) {
-      save.gold -= cost;
-      save.up[t.dataset.up]++;
-      sfx('buy');
-      writeSave(save);
-      updateHome(t.dataset.up);
-    }
-    return;
   } else if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
     const d = difficultyOf(save.difficulty);
@@ -754,6 +754,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
+  else if (t.id === 'btn-talent') { openTalent(); return; }
   else if (t.id === 'btn-ach') { openAch(); return; }
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
@@ -765,26 +766,6 @@ $('home-body').addEventListener('click', ev => {
   replayRelease(t);
 });
 
-// 首頁：升級時只更新數字（按鈕還被按著，不能被換掉）
-function updateHome(changed) {
-  const gold = $('home-gold');
-  gold.querySelector('b').textContent = fmt(save.gold);
-  pop(gold);
-  for (const u of UPGRADES) {
-    const cost = upgradeCost(save.up[u.id]);
-    const b = document.querySelector(`[data-up="${u.id}"]`);
-    b.querySelector('.cost').textContent = cost;
-    setOff(b, save.gold < cost, `金幣不足，還差 ${cost - save.gold}`);
-    const lv = document.querySelector(`[data-lv="${u.id}"]`);
-    lv.textContent = 'Lv.' + save.up[u.id];
-    if (u.id === changed) pop(lv);
-  }
-  const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
-  $('stat-hp').lastChild.textContent = ' ' + Math.round(hero.hp * (1 + 0.1 * save.up.hp));
-  $('stat-atk').lastChild.textContent = ' ' + (hero.atk * (1 + 0.1 * save.up.atk)).toFixed(1);
-  pop($(changed === 'hp' ? 'stat-hp' : 'stat-atk'));
-}
-
 // 整頁重畫後，按鈕是新的一顆；把「彈回來」動畫補在新按鈕上
 function replayRelease(old) {
   const key = old.id ? '#' + old.id : old.dataset.hero ? `[data-hero="${old.dataset.hero}"]` : old.dataset.diff ? `[data-diff="${old.dataset.diff}"]` : null;
@@ -793,6 +774,131 @@ function replayRelease(old) {
   el.classList.add('fx-release');
   el.addEventListener('animationend', () => el.classList.remove('fx-release'), { once: true });
 }
+
+// ---------- 天賦網 ----------
+// 有沒有任何天賦現在就能升級（首頁按鈕會亮）
+const talentReady = () => TALENTS.some(n => !whyNot(save, n));
+let talentSel = 'A0';
+
+function openTalent() {
+  if (save.talentRefund) {
+    toast(`天賦網上線！舊的升級已退還 ${save.talentRefund} 金幣`);
+    save.talentRefund = 0;
+    writeSave(save);
+  }
+  renderTalent();
+  showScreen('screen-talent', 'screen-home');
+}
+
+// 蜘蛛網：背景是 3 圈六角形＋外圈虛線，中間的線是格子之間的連線
+function webSvg() {
+  const hex = r => Array.from({ length: 6 }, (_, i) => {
+    const a = -Math.PI / 2 + i * Math.PI / 3;
+    return `${50 + Math.cos(a) * r * 100},${50 + Math.sin(a) * r * 100}`;
+  }).join(' ');
+  const links = LINKS.map(([a, b]) => {
+    const A = talentById(a), B = talentById(b);
+    return `<line data-link="${a}|${b}" x1="${A.x * 100}" y1="${A.y * 100}" x2="${B.x * 100}" y2="${B.y * 100}"/>`;
+  }).join('');
+  return `<svg class="web-bg" viewBox="0 0 100 100" aria-hidden="true">
+    <polygon class="ring" points="${hex(0.155)}"/><polygon class="ring" points="${hex(0.28)}"/><polygon class="ring" points="${hex(0.4)}"/>
+    <circle class="ring dash" cx="50" cy="50" r="46.5"/>
+    <g class="links">${links}</g></svg>`;
+}
+
+function renderTalent() {
+  const nodes = TALENTS.map(n => `<button class="tnode ${n.key ? 'key' : ''} ${n.id === 'core' ? 'core' : ''}" data-node="${n.id}" style="left:${n.x * 100}%;top:${n.y * 100}%;--tc:${n.color}" aria-label="${n.name}">
+      ${iconTag(n.icon, n.key ? 22 : 18)}<i class="tlv"></i></button>`).join('');
+  $('talent-body').innerHTML = `
+    <h2>天賦網</h2>
+    <div class="talent-top">
+      <div class="pill" id="talent-gold">${iconTag(ICON.gold, 18)} <b>${fmt(save.gold)}</b></div>
+      <small>已點 <b id="talent-pts">${totalPoints(save)}</b> 點<br>每多點一點，全部變貴 4%</small>
+    </div>
+    <div class="tweb">${webSvg()}${nodes}</div>
+    <div class="tdetail" id="tdetail"></div>
+    <div class="row">
+      <button class="btn small ghost" id="btn-talent-reset">重置（全額退還）</button>
+      <button class="btn small" id="btn-talent-close">關閉</button>
+    </div>`;
+  updateTalent();
+}
+
+// 只更新狀態（升級按鈕可以按住連點，不能被換掉）
+function updateTalent(changed) {
+  $('talent-gold').querySelector('b').textContent = fmt(save.gold);
+  $('talent-pts').textContent = totalPoints(save);
+  document.querySelectorAll('.tnode').forEach(el => {
+    const n = talentById(el.dataset.node);
+    const lv = tLv(save, n.id);
+    el.classList.toggle('on', lv > 0);
+    el.classList.toggle('max', lv >= n.max && n.id !== 'core');
+    el.classList.toggle('reach', lv === 0 && canReach(save, n));
+    el.classList.toggle('can', !whyNot(save, n));
+    el.classList.toggle('sel', n.id === talentSel);
+    el.querySelector('.tlv').textContent = n.id === 'core' ? '' : n.max > 1 ? `${lv}/${n.max}` : lv ? '★' : '';
+    if (n.id === changed) pop(el);
+  });
+  document.querySelectorAll('[data-link]').forEach(l => {
+    const [a, b] = l.dataset.link.split('|');
+    l.classList.toggle('lit', tLv(save, a) > 0 && tLv(save, b) > 0);
+    l.classList.toggle('half', (tLv(save, a) > 0) !== (tLv(save, b) > 0));
+  });
+  const n = talentById(talentSel);
+  const lv = tLv(save, n.id);
+  const why = whyNot(save, n);
+  const det = $('tdetail');
+  if (det.dataset.node !== n.id) {
+    det.dataset.node = n.id;
+    det.innerHTML = `<span class="td-ic" style="--tc:${n.color}">${iconTag(n.icon, 30)}</span>
+      <span class="td-info"><b>${n.name}${n.key ? ' <i class="tag key">核心</i>' : n.branch ? ` <i class="tag" style="--tc:${n.color}">${n.branch.name}</i>` : ''}</b>
+        <small class="td-now"></small><small class="td-next"></small></span>
+      ${n.id === 'core' ? '' : `<button class="btn small" id="btn-tbuy" data-repeat>${iconTag(ICON.gold, 16)}<span class="cost"></span></button>`}`;
+  }
+  det.querySelector('.td-now').textContent = n.id === 'core' ? n.fmt() : lv ? `目前 Lv.${lv}/${n.max}：${talentDesc(save, n)}` : `尚未點亮（最高 ${n.max} 級）`;
+  det.querySelector('.td-next').textContent = n.id === 'core' ? '從這裡往外點亮天賦' : lv >= n.max ? '已經滿級 ★' : `下一級：${talentDesc(save, n, lv + 1)}`;
+  const b = $('btn-tbuy');
+  if (b) {
+    b.querySelector('.cost').textContent = lv >= n.max ? 'MAX' : talentCost(save, n);
+    setOff(b, !!why, why);
+  }
+}
+
+$('talent-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  if (t.dataset.node) {
+    talentSel = t.dataset.node;
+    sfx('tap');
+    updateTalent();
+  } else if (t.id === 'btn-tbuy') {
+    const n = talentById(talentSel);
+    if (buyTalent(save, n)) {
+      sfx('buy');
+      writeSave(save);
+      const el = document.querySelector(`.tnode[data-node="${n.id}"]`);
+      if (tLv(save, n.id) >= n.max) { celebrate(el, n.key ? '#fff2a8' : '#ffd84a'); if (n.key) banner(`核心天賦：${n.name}！`); }
+      updateTalent(n.id);
+      pop($('talent-gold'));
+    }
+  } else if (t.id === 'btn-talent-reset') {
+    sfx('tap');
+    if (!totalPoints(save)) { toast('還沒有點任何天賦'); return; }
+    if (t.dataset.confirm) {
+      const g = resetTalents(save);
+      writeSave(save);
+      toast(`天賦已重置，退還 ${g} 金幣`);
+      renderTalent();
+    } else {
+      t.dataset.confirm = '1';
+      t.textContent = '再按一次確認重置';
+    }
+  } else if (t.id === 'btn-talent-close') {
+    sfx('tap');
+    renderHome();
+    showScreen('screen-home');
+  }
+});
 
 // ---------- 成就與統計 ----------
 function openAch() {
