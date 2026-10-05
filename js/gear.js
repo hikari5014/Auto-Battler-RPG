@@ -108,6 +108,15 @@ export function gearBonus(save) {
   return b;
 }
 
+// 直接給一件指定稀有度的隨機裝備（每日挑戰獎勵用）
+export function grantItem(save, rarity) {
+  const gear = ensureGear(save);
+  const slot = ['weapon', 'armor', 'charm'][Math.floor(Math.random() * 3)];
+  const it = makeItem(gear, slot, rarity);
+  gear.items.push(it);
+  return it;
+}
+
 export function equip(save, id) {
   const gear = ensureGear(save);
   const it = gear.items.find(x => x.id === id);

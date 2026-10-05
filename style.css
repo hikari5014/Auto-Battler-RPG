@@ -457,6 +457,68 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 }
 @keyframes legend-glow { 50% { box-shadow: 0 0 14px #ffb820, inset 0 0 10px rgba(255, 184, 32, 0.5); } }
 
+/* ---------- 成就、每日挑戰 ---------- */
+.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.meta-btn {
+  position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 2px solid #000;
+  background: var(--glass);
+  box-shadow: inset 0 0 0 2px var(--glass-line);
+  color: #fff;
+  font-size: 14px;
+}
+.meta-btn small { width: 100%; font-size: 10px; color: var(--muted); }
+.meta-btn.fresh { box-shadow: inset 0 0 0 2px rgba(255, 216, 74, 0.6), 0 0 10px rgba(255, 216, 74, 0.35); }
+.meta-btn.fresh small { color: var(--gold); }
+.badge {
+  position: absolute;
+  top: -6px; right: -6px;
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  border: 2px solid #000;
+  background: #ff3b3b;
+  font-size: 11px;
+  animation: bump 1s ease-in-out infinite;
+}
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
+.stats-grid span { display: flex; flex-direction: column; padding: 4px; border-radius: 6px; background: rgba(0, 0, 0, 0.3); font-size: 10px; color: var(--muted); }
+.stats-grid b { font-size: 16px; color: #fff; }
+.ach-list { max-height: 48vh; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: 4px; }
+.ach {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 4px;
+  text-align: left;
+  border: 8px solid transparent;
+  border-image: url("assets/ui/ancient-tan_inlay.png") 5 fill / 8px stretch;
+  image-rendering: pixelated;
+  color: var(--ink);
+}
+.ach.ready { border-image-source: url("assets/ui/colored-yellow.png"); }
+.ach.claimed { opacity: 0.55; }
+.ach-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ach-info b { font-size: 14px; }
+.ach-info small { font-size: 11px; color: var(--ink-soft); }
+.ach-bar { position: relative; height: 12px; border-radius: 3px; background: rgba(0, 0, 0, 0.25); overflow: hidden; }
+.ach-bar i { position: absolute; inset: 0 auto 0 0; background: #2e9e4f; }
+.ach-bar em { position: relative; font-style: normal; font-size: 9px; color: #fff; padding-left: 4px; text-shadow: 0 1px 0 #000; }
+.ach-ok { font-size: 11px; color: #2e9e4f; }
+.daily-date { font-size: 12px; }
+.mods { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.mod {
+  display: flex; flex-direction: column;
+  padding: 4px;
+  border: 8px solid transparent;
+  border-image: url("assets/ui/colored-yellow.png") 6 fill / 8px stretch;
+  image-rendering: pixelated;
+  color: #4a2a00;
+}
+.mod b { font-size: 16px; }
+.mod small { font-size: 12px; }
+
 /* ---------- 技能卡 ---------- */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; perspective: 600px; }
 .card {

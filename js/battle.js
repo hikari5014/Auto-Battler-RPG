@@ -78,11 +78,13 @@ export class Battle {
     const mk = (key, tier) => {
       const mon = MONSTERS[key];
       const t = TIERS[tier];
-      const maxHp = 18 * scale * mon.hp * t.hp * diffScale(diff.hp, w) * (run.nextHpMul || 1);
+      const mods = run.mods || {};
+      const maxHp = 18 * scale * mon.hp * t.hp * diffScale(diff.hp, w) * (run.nextHpMul || 1)
+        * (mods.tanky ? 1.4 : 1) * (mods.giant && tier === 'boss' ? 2 : 1);
       return {
         key, name: mon.name, sprite: mon.sprite, kind: tier, tier: t,
         maxHp, hp: maxHp, atk: 2.4 * scale * mon.atk * t.atk * diffScale(diff.atk, w),
-        interval: mon.iv * (tier === 'boss' ? 1 : 1), speed: mon.speed, dodge: mon.dodge || 0, armor: mon.armor || 0,
+        interval: mon.iv / (mods.speedy ? 1.5 : 1), speed: mon.speed * (mods.speedy ? 1.5 : 1), dodge: mon.dodge || 0, armor: mon.armor || 0,
         slow: 0, timer: rand(0, 0.6), x: 0, z: 0, size: t.size, ballMul: t.balls,
         kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6), enraged: false,
       };
@@ -95,7 +97,7 @@ export class Battle {
     } else {
       const n = 3 + Math.floor(w * 0.55) + diff.count;
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
-      const eliteChance = Math.min(0.2, 0.06 + w * 0.01);
+      const eliteChance = Math.min(0.2, 0.06 + w * 0.01) * ((run.mods || {}).elites ? 3 : 1);
       for (let i = 0; i < n; i++) q.push(mk(randomMon(), Math.random() < eliteChance ? 'elite' : 'normal'));
       // 第 3 波起有隊長，第 8 波起兩隻
       const captains = w >= 8 ? 2 : w >= 3 ? 1 : 0;

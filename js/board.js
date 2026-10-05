@@ -105,7 +105,8 @@ export class Board {
     for (const g of this.gates) {
       if (g.trap) { g.x = rand(4, this.W - g.w - 4); g.flash = 1; continue; }
       if (!g.base) continue;
-      g.type = g.row === 0 ? 'x' + pick(vals.mul) : '+' + pick(vals.add);
+      // 每日挑戰「純乘法」：兩排都抽乘法門
+      g.type = g.row === 0 || (this.run.mods || {}).mulOnly ? 'x' + pick(vals.mul) : '+' + pick(vals.add);
       g.w = gateStyle(g.type).w * g.wMul;
       g.x = Math.min(g.x, this.W - g.w - 4);
       g.flash = 1;

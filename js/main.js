@@ -11,13 +11,15 @@ import { initFeedback, isOff, celebrate, pop, vibrate } from './feedback.js';
 import { settings, loadSettings, applySettings, settingsHtml } from './settings.js';
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
-import { ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount } from './gear.js';
+import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
 const ctx = canvas.getContext('2d');
 const save = loadSave();
 loadSettings(save);
+ensureMeta(save);
 // 已經玩過的老玩家不用再看教學
 if (save.tutorialDone === undefined) save.tutorialDone = save.gold > 0 || save.maxChapter > 1 || save.owned.length > 1;
 setMuted(save.muted);
@@ -85,17 +87,28 @@ window.addEventListener('pointercancel', endDrag);
 document.addEventListener('pointerdown', () => initAudio(), { once: true });
 
 // ---------- 一局遊戲 ----------
-function startRun() {
+// opts.daily = 每日挑戰（固定章節、簡單難度、加上特殊規則）
+function startRun(opts = {}) {
   const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  const chapter = opts.chapter || save.chapter;
+  const mods = {};
+  for (const m of opts.mods || []) mods[m] = true;
   game.run = {
-    chapter: save.chapter, wave: 0,
+    chapter, wave: 0, daily: !!opts.daily, mods,
     coins: save.up.coin * 40 + gearBonus(save).coin,
     hero: createHero(def, save),
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
-    diff: difficultyOf(save.difficulty),   // 難度
-    rules: boardOf(save.chapter),          // 這一章的彈珠台與特殊規則
+    diff: difficultyOf(opts.daily ? 'easy' : save.difficulty), // 難度
+    rules: boardOf(chapter),               // 這一章的彈珠台與特殊規則
   };
+  // 每日挑戰「玻璃大砲」
+  if (mods.glass) {
+    const h = game.run.hero;
+    h.baseAtk *= 1.6;
+    h.maxHp *= 0.6;
+    h.hp = h.maxHp;
+  }
   board.reset(game.run);
   renderSkillBar();
   battle.reset();
@@ -105,14 +118,16 @@ function startRun() {
   nextWave();
   tutorial.onRunStart();
   // 開場提示這一章的特殊規則
-  setTimeout(() => game.run && game.run.wave === 1 && toast(`${CHAPTERS[(save.chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`), 1500);
+  const intro = opts.daily ? `每日挑戰｜${opts.mods.map(m => MODS[m].name).join('、')}` : `${CHAPTERS[(chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`;
+  setTimeout(() => game.run && game.run.wave === 1 && toast(intro), 1500);
+  save.stats.runs++;
 }
 
 function nextWave() {
   const run = game.run;
   run.wave++;
   run.phase = 'fight';
-  if (run.wave > 1) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
+  if (run.wave > 1 && !run.mods.noHeal) run.hero.hp = Math.min(run.hero.maxHp, run.hero.hp + run.hero.maxHp * 0.15);
   if (run.hero.fullHealWave) run.hero.hp = run.hero.maxHp; // 強壯體魄滿級
   if (run.wave > 1) board.rerollGates(); // 倍率門每波換數值
   battle.startWave(run);
@@ -135,7 +150,11 @@ function onKill(e) {
   const run = game.run;
   run.kills++;
   // 裝備可能給小數的掉球數：小數部分用機率決定多不多掉一顆
-  const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul;
+  // 統計
+  save.stats.kills++;
+  if (e.kind === 'boss') save.stats.bosses++;
+  else if (e.kind !== 'normal') save.stats.elites++;
+  const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
 
@@ -166,6 +185,7 @@ $('event-body').addEventListener('click', ev => {
   if (t.id === 'btn-ev-skip' || t.id === 'btn-ev-go') { sfx('tap'); openShop(); return; }
   if (t.dataset.ev === undefined || run.eventDone) return;
   run.eventDone = true;
+  save.stats.events++;
   const e = run.events[+t.dataset.ev];
   const res = e.apply({
     run, board,
@@ -185,7 +205,9 @@ $('event-body').addEventListener('click', ev => {
 
 board.onCatch = (b, mult) => {
   const run = game.run;
-  run.coins += b.v * mult;
+  const gain = b.v * mult * (run.mods.rich ? 1.5 : 1);
+  run.coins += gain;
+  save.stats.coins += gain;
   run.caught++;
   const h = run.hero;
   if (h.def.id === 'archer' && run.caught % h.arrowNeed === 0 && run.phase === 'fight') {
@@ -323,6 +345,7 @@ function celebrateMax(sk, card) {
   const run = game.run;
   sk.maxApply(run.hero, run, board);
   run.hero.maxed = (run.hero.maxed || 0) + 1;
+  save.stats.maxed++;
   banner(`${sk.name} 滿級！`);
   sfx('wave');
   if (card) {
@@ -494,7 +517,28 @@ function endRun(win) {
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
   gold = Math.round(gold * (1 + gearBonus(save).gold)); // 黃金戒指
   save.gold += gold;
-  const { drops, salvaged } = rollDrops(save, cleared, win, DIFFICULTIES.findIndex(d => d.id === run.diff.id));
+  const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
+  const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex);
+  // 統計
+  const st = save.stats;
+  st.bestWave = Math.max(st.bestWave, cleared);
+  if (win) {
+    st.wins++;
+    if (diffIndex >= 3) st.hardWin++;
+    if (diffIndex >= 4) st.hellWin++;
+  }
+  // 每日挑戰：今天第一次通關 → 金幣＋史詩裝備
+  let dailyHtml = '';
+  if (run.daily && win && !dailyDone(save)) {
+    const ch = todayChallenge(save);
+    const g = dailyReward(ch);
+    save.gold += g;
+    const it = grantItem(save, 2);
+    drops.push(it);
+    save.daily = { date: todayKey(), done: true };
+    st.dailyWins++;
+    dailyHtml = `<p class="good">每日挑戰完成！額外 +${g} 金幣＋史詩裝備</p>`;
+  }
   let unlocked = '';
   if (win && run.chapter === save.maxChapter) {
     save.maxChapter++;
@@ -507,7 +551,7 @@ function endRun(win) {
     <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${win ? '章節通關！' : '冒險結束'}</h2>
     <p>第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波・擊敗 ${run.kills} 隻</p>
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${unlocked}
+    ${unlocked}${dailyHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
@@ -611,6 +655,10 @@ function renderHome() {
       </div>
       <div class="heroes">${heroes}</div>
       <button class="gear-btn" id="btn-gear">${gearSummary()}</button>
+      <div class="meta-row">
+        <button class="meta-btn" id="btn-ach">${iconTag(ICON.trophy, 20)} 成就${achClaimable(save).length ? `<b class="badge">${achClaimable(save).length}</b>` : ''}</button>
+        <button class="meta-btn ${dailyDone(save) ? 'done' : 'fresh'}" id="btn-daily">${iconTag(['ic', 630, '#ffd84a'], 20)} 每日挑戰<small>${dailyDone(save) ? '今日完成 ✓' : '尚未挑戰'}</small></button>
+      </div>
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
         <div class="stats">
@@ -676,6 +724,8 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
+  else if (t.id === 'btn-ach') { openAch(); return; }
+  else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
@@ -712,6 +762,77 @@ function replayRelease(old) {
   el.classList.add('fx-release');
   el.addEventListener('animationend', () => el.classList.remove('fx-release'), { once: true });
 }
+
+// ---------- 成就與統計 ----------
+function openAch() {
+  renderAch();
+  showScreen('screen-ach', 'screen-home');
+}
+function renderAch() {
+  const st = save.stats;
+  // 可領取的排最上面，已領取的排最下面
+  const rank = a => save.claimed.includes(a.id) ? 2 : achDone(save, a) ? 0 : 1;
+  const rows = ACHIEVEMENTS.slice().sort((x, y) => rank(x) - rank(y)).map(a => {
+    const cur = Math.min(a.goal, Math.floor(a.get(save)));
+    const done = achDone(save, a);
+    const claimed = save.claimed.includes(a.id);
+    return `<div class="ach ${claimed ? 'claimed' : done ? 'ready' : ''}">
+      <span class="ach-info"><b>${a.name}</b><small>${a.desc}</small>
+        <span class="ach-bar"><i style="width:${cur / a.goal * 100}%"></i><em>${fmt(cur)} / ${fmt(a.goal)}</em></span></span>
+      ${claimed ? '<span class="ach-ok">已領取</span>' : `<button class="btn small ${done ? 'gift' : ''}" data-claim="${a.id}" ${offAttr(!done, '還沒達成')}>${iconTag(ICON.gold, 14)}${a.gold}</button>`}
+    </div>`;
+  }).join('');
+  $('ach-body').innerHTML = `
+    <h2>成就</h2>
+    <div class="stats-grid">
+      <span><b>${st.runs}</b>冒險次數</span><span><b>${st.wins}</b>通關</span><span><b>${fmt(st.kills)}</b>擊敗</span>
+      <span><b>${st.bosses}</b>魔王</span><span><b>${st.elites}</b>菁英</span><span><b>${fmt(st.coins)}</b>累計球幣</span>
+    </div>
+    <div class="ach-list">${rows}</div>
+    <button class="btn" id="btn-ach-close">關閉</button>`;
+}
+$('ach-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.dataset.claim) {
+    const a = ACHIEVEMENTS.find(x => x.id === t.dataset.claim);
+    save.gold += a.gold;
+    save.claimed.push(a.id);
+    sfx('buy');
+    celebrate(t, '#ffd84a');
+    toast(`領取「${a.name}」：+${a.gold} 金幣`);
+    writeSave(save);
+    renderAch();
+  } else if (t.id === 'btn-ach-close') {
+    renderHome();
+    showScreen('screen-home');
+  }
+});
+
+// ---------- 每日挑戰 ----------
+function openDaily() {
+  const ch = todayChallenge(save);
+  const done = dailyDone(save);
+  $('daily-body').innerHTML = `
+    <h2>每日挑戰</h2>
+    <p class="daily-date">${ch.date}・第 ${ch.chapter} 章 ${chapterName(ch.chapter)}・簡單難度</p>
+    <div class="mods">${ch.mods.map(m => `<div class="mod"><b>${MODS[m].name}</b><small>${MODS[m].desc}</small></div>`).join('')}</div>
+    <p class="hint">使用目前選擇的英雄。每天第一次通關獎勵：${iconTag(ICON.gold, 14)}${dailyReward(ch)} 金幣＋一件史詩裝備</p>
+    <button class="btn big ${done ? '' : 'gift'}" id="btn-daily-go">${done ? '再玩一次（今日獎勵已領取）' : '開始挑戰'}</button>
+    <button class="btn ghost" id="btn-daily-close">關閉</button>`;
+  showScreen('screen-daily', 'screen-home');
+}
+$('daily-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  sfx('tap');
+  if (t.id === 'btn-daily-go') {
+    const ch = todayChallenge(save);
+    writeSave(save);
+    startRun({ daily: true, chapter: ch.chapter, mods: ch.mods });
+  } else if (t.id === 'btn-daily-close') showScreen('screen-home');
+});
 
 // ---------- 裝備 ----------
 function gearSummary() {
@@ -773,6 +894,8 @@ $('gear-body').addEventListener('click', ev => {
   else if (t.id === 'btn-salvage') { const g = salvage(save, gearSel); toast(`分解獲得 ${g} 金幣`); gearSel = null; }
   else if (t.id === 'btn-merge') {
     const made = mergeAll(save);
+    save.stats.merged += made.length;
+    save.stats.legendMerged += made.filter(x => x.rarity === 3).length;
     if (made.length) { sfx('wave'); banner(`合成 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
   } else if (t.id === 'btn-gear-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
   writeSave(save);
