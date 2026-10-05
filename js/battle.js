@@ -34,6 +34,11 @@ export function createHero(def, save) {
     multiShot: 0, multiMul: 1, pierce: 0, arrowNeed: 20, arrowCount: 1,
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
+    // 近戰／遠程／法術技能
+    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: 0, opener: 0, openerStun: false, openerUsed: false,
+    snipe: 0, snipeCrit: false, dot: 0, dotColor: '#7dff5a', dotTime: 3, critEvery: 0, hitCount: 0, slowWalk: 0, slowAtk: 0,
+    chainEvery: 0, chainMul: 0, chainJumps: 3, shieldPct: 0, shield: 0, shieldBurst: 0, killBlast: 0,
+    interest: 0, interestCap: 1,
     ballsPerKill: 5 + gb.ball + tb.ball,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
@@ -111,6 +116,10 @@ export class Battle {
     }
     this.queue = q;
     this.spawnTimer = 0.4;
+    // 每波重置：開場衝鋒、魔力護盾
+    const h = run.hero;
+    h.openerUsed = false;
+    if (h.shieldPct) h.shield = h.maxHp * h.shieldPct;
     this.boss = null;
   }
 
@@ -147,13 +156,21 @@ export class Battle {
       const s = slot(i, e.kind === 'boss');
       const dx = s.x - e.x, dz = s.z - e.z;
       const d = Math.hypot(dx, dz);
-      const step = 3.2 * (e.speed || 1) * dt * (e.kind === 'boss' && this.bossIntro ? 0.5 : 1);
+      // 中毒／燃燒：每 0.5 秒扣一次血
+      if (e.dotT > 0) {
+        e.dotT -= dt;
+        e.dotAcc = (e.dotAcc || 0) + dt;
+        if (e.dotAcc >= 0.5) { e.dotAcc = 0; this.damage(e, e.dotDps * 0.5, false, true, e.dotColor); }
+      }
+      // 擊暈：站著不動、不攻擊
+      if (e.stun > 0) { e.stun -= dt; e.flash = Math.max(e.flash, 0.3); return; }
+      const step = 3.2 * (e.speed || 1) * dt * (e.kind === 'boss' && this.bossIntro ? 0.5 : 1) * (1 - h.slowWalk);
       if (d > step) { e.x += dx / d * step; e.z += dz / d * step; } else { e.x = s.x; e.z = s.z; }
       e.kb = Math.max(0, e.kb - dt * 4);
       e.flash = Math.max(0, e.flash - dt * 6);
       e.lunge = Math.max(0, e.lunge - dt * 6);
       if (i < 2 && d < 0.05) {
-        e.timer += dt * (1 - e.slow) * (e.enraged ? 1.4 : 1); // 冰霜變慢、狂暴變快
+        e.timer += dt * (1 - e.slow) * (1 - h.slowAtk) * (e.enraged ? 1.4 : 1); // 冰霜變慢、狂暴變快
         if (e.timer >= e.interval) {
           e.timer = 0;
           e.lunge = 1;
@@ -180,6 +197,7 @@ export class Battle {
           if (h.swordTwice) setTimeout(() => this.g.run && this.swordWave(), 160);
         }
         if (h.meteorEvery && h.swings % h.meteorEvery === 0) this.meteor();
+        if (h.chainEvery && h.swings % h.chainEvery === 0) this.chain();
       }
     }
     if (h.hitQueue > 0) {
@@ -204,8 +222,18 @@ export class Battle {
       if (h.range > 2) this.streak(h, t, '#888', 0.12);
       return;
     }
-    const crit = Math.random() < h.crit;
-    const dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
+    h.hitCount++;
+    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0);
+    let dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
+    // 開場衝鋒：每波第一下
+    if (h.opener && !h.openerUsed) {
+      h.openerUsed = true;
+      dmg *= 1 + h.opener;
+      this.text(h.x + 0.5, h.z, 1.4, '衝鋒!', '#ff8a6b', 16);
+      if (h.openerStun) for (const e of this.enemies) if (!e.dead) e.stun = 1.5;
+    }
+    if (h.stun && Math.random() < h.stun) { t.stun = 1; this.text(t.x, t.z, t.size + 0.5, '暈眩', '#ffd84a', 12); }
+    if (h.dot) { t.dotDps = heroAtk(h) * h.dot; t.dotT = h.dotTime; t.dotColor = h.dotColor; }
     if (h.frost > 0) t.slow = h.frost;
     if (h.range > 2) this.streak(h, t, crit ? '#ffdd55' : '#ffffff', 0.15);
     else this.slashes.push({ x: t.x, z: t.z, h: t.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit });
@@ -230,6 +258,17 @@ export class Battle {
       const behind = this.enemies.filter(e => !e.dead && e !== t)[0];
       if (behind) { this.streak(t, behind, '#ffd84a', 0.12); this.damage(behind, dmg * h.pierce, false, true); }
     }
+    // 橫掃：順便砍到第 2 隻（滿級砍全部）
+    if (h.cleave > 0) {
+      const rest = this.enemies.filter(e => !e.dead && e !== t);
+      for (const e of h.cleaveAll ? rest : rest.slice(0, 1)) this.damage(e, dmg * h.cleave, false, true);
+    }
+    // 狙擊：最後面那隻
+    if (h.snipe > 0) {
+      const alive = this.enemies.filter(e => !e.dead && e !== t);
+      const last = alive[alive.length - 1];
+      if (last) { this.streak(h, last, '#b6ff6d', 0.15); this.damage(last, dmg * h.snipe * (h.snipeCrit && !crit ? h.critDmg : 1), h.snipeCrit, !h.snipeCrit); }
+    }
     if (h.life > 0) h.hp = Math.min(h.maxHp, h.hp + dmg * h.life);
     sfx(crit ? 'crit' : 'hit');
     if (crit) {
@@ -237,6 +276,22 @@ export class Battle {
       this.scene.cam.punch = 1;
       vibrate(15);
     }
+  }
+
+  // 連鎖閃電：從最前面開始往後跳
+  chain() {
+    const h = this.g.run.hero;
+    const alive = this.enemies.filter(e => !e.dead).slice(0, h.chainJumps);
+    if (!alive.length) return;
+    const dmg = heroAtk(h) * h.chainMul;
+    let from = h;
+    for (const e of alive) {
+      this.streaks.push({ x1: from.x, z1: from.z, h1: 0.6, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.22, color: '#9fe3ff', wide: true });
+      this.damage(e, dmg, false, true, '#9fe3ff');
+      from = e;
+    }
+    this.text(h.x + 0.5, h.z, 1.3, '連鎖閃電!', '#9fe3ff', 14);
+    sfx('crit');
   }
 
   swordWave() {
@@ -345,20 +400,29 @@ export class Battle {
     this.boss = null;
   }
 
-  damage(e, dmg, crit, small) {
+  damage(e, dmg, crit, small, color) {
+    if (e.dead) return;
     dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷
+    if (e.stun > 0) dmg *= 1 + (this.g.run.hero.stunAmp || 0); // 重擊滿級
     if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
     e.hp -= dmg;
     e.flash = 1;
     e.kb = small ? 0.3 : 1;
     if (e.kind === 'boss' && !e.enraged && e.hp > 0 && e.hp < e.maxHp * 0.5) this.bossEnrage(e);
-    this.text(e.x + rand(-0.15, 0.15), e.z, e.size + 0.25, fmt(Math.max(1, dmg)), crit ? '#ffdd55' : (small ? '#cfd8ff' : '#fff'), crit ? 20 : (small ? 11 : 14));
+    this.text(e.x + rand(-0.15, 0.15), e.z, e.size + 0.25, fmt(Math.max(1, dmg)), crit ? '#ffdd55' : color || (small ? '#cfd8ff' : '#fff'), crit ? 20 : (small ? 11 : 14));
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
       this.g.onKill(e);
       const h = this.g.run.hero;
       if (h.killGrow) { h.maxHp *= 1 + h.killGrow; }
       if (h.killHeal) { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.killHeal); }
+      // 魔力爆發：擊殺時炸全體（爆炸殺掉的不會再連鎖爆炸，避免一次清場）
+      if (h.killBlast && !this.blasting) {
+        this.blasting = true;
+        this.shocks.push({ x: e.x, z: e.z, t: 0, big: false });
+        for (const o of this.enemies) if (o !== e && !o.dead) this.damage(o, heroAtk(h) * h.killBlast, false, true, '#d06bff');
+        this.blasting = false;
+      }
       sfx('kill');
       // 金幣在 3D 空間裡噴出、落地彈跳
       for (let i = 0; i < (settings.lowFx ? 4 : 10); i++) {
@@ -388,9 +452,23 @@ export class Battle {
       }
       return;
     }
-    h.hp -= e.atk;
+    let dmg = e.atk * (1 - h.dr);
+    // 魔力護盾先擋
+    if (h.shield > 0) {
+      const absorbed = Math.min(h.shield, dmg);
+      h.shield -= absorbed;
+      dmg -= absorbed;
+      this.text(h.x, h.z, 1.3, '護盾', '#d06bff', 12);
+      if (h.shield <= 0 && h.shieldBurst) {
+        this.text(h.x + 0.4, h.z, 1.5, '護盾爆裂!', '#d06bff', 16);
+        for (const o of this.enemies) if (!o.dead) this.damage(o, heroAtk(h) * h.shieldBurst, true);
+        this.shake = Math.max(this.shake, 8);
+      }
+      if (dmg <= 0) return;
+    }
+    h.hp -= dmg;
     h.hurt = 1;
-    this.text(h.x + rand(-0.1, 0.1), h.z, 1.15, '-' + fmt(e.atk), '#ff5a5a', 14);
+    this.text(h.x + rand(-0.1, 0.1), h.z, 1.15, '-' + fmt(dmg), '#ff5a5a', 14);
     sfx('hurt');
     if (h.thorns > 0) this.damage(e, e.atk * h.thorns, false, true);
   }
@@ -536,6 +614,11 @@ export class Battle {
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, h.lift || 0);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
+    // 魔力護盾：血條上蓋一條紫色
+    if (h.shield > 0) {
+      ctx.fillStyle = 'rgba(208,107,255,0.85)';
+      ctx.fillRect(p.x - 32, top - 9, 64 * Math.min(1, h.shield / h.maxHp), 3);
+    }
     ctx.font = `11px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;

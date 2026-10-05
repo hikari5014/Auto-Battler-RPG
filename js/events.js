@@ -1,6 +1,6 @@
 // 奇遇事件：第 3、6、9、12 波打完後出現，三選一（也可以跳過）
 // 每個事件：cond = 什麼時候可以出現；apply = 選了之後發生什麼，回傳結果說明
-import { SKILLS } from './data.js';
+import { SKILLS, skillAllowed } from './data.js';
 
 export const EVENT_WAVES = [3, 6, 9, 12];
 
@@ -102,7 +102,7 @@ export function rollEvents(run, board) {
 // 從還沒滿級、這位英雄能用的技能裡隨機挑一個（filter 可再加條件）
 export function makeRandomSkill(run, isMaxed) {
   return filter => {
-    const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === run.hero.def.id) && filter(sk));
+    const pool = SKILLS.filter(sk => !isMaxed(sk) && skillAllowed(sk, run) && filter(sk));
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   };
 }

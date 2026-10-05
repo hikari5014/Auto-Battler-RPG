@@ -35,7 +35,7 @@ export function ensureGear(save) {
 
 function makeItem(gear, slot, rarity, charmType) {
   const r = RARITIES[rarity];
-  const item = { id: gear.nextId++, slot, rarity };
+  const item = { id: gear.nextId++, slot, rarity, fresh: true }; // fresh = 背包裡顯示「新」
   if (slot === 'charm') {
     item.charm = charmType || Object.keys(CHARMS)[Math.floor(Math.random() * 4)];
     item.value = +(CHARMS[item.charm].per * r.mult).toFixed(1);
@@ -178,3 +178,27 @@ export function mergeableCount(save) {
   for (const c of groups.values()) n += Math.floor(c / 3);
   return n;
 }
+
+// 跟身上同欄位的裝備比：這件比較好嗎？（飾品只跟同效果的比；欄位空著就算比較好）
+export function equippedIn(save, slot) {
+  const gear = ensureGear(save);
+  return gear.items.find(x => x.id === gear.equip[slot]) || null;
+}
+export function isBetter(save, it) {
+  const cur = equippedIn(save, it.slot);
+  if (!cur) return true;
+  if (cur.id === it.id) return false;
+  if (it.slot === 'charm' && cur.charm !== it.charm) return false;
+  return it.value > cur.value;
+}
+// 一鍵分解：沒穿、也不比身上好的「普通」裝備
+export function salvageJunk(save) {
+  const gear = ensureGear(save);
+  const worn = new Set(Object.values(gear.equip));
+  const junk = gear.items.filter(it => it.rarity === 0 && !worn.has(it.id) && !isBetter(save, it));
+  gear.items = gear.items.filter(it => !junk.includes(it));
+  const g = junk.reduce((a, it) => a + RARITIES[it.rarity].salvage, 0);
+  save.gold += g;
+  return { n: junk.length, g };
+}
+export const freshCount = save => ensureGear(save).items.filter(it => it.fresh).length;

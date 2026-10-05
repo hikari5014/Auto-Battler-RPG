@@ -238,7 +238,7 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .hero-name { font-size: 12px; margin-top: 2px; }
 .hero-price { font-size: 11px; color: var(--gold); display: flex; align-items: center; gap: 2px; }
 
-.hero-info, .up {
+.hero-info {
   border: 10px solid transparent;
   border-image: url("assets/ui/ancient-tan_inlay.png") 5 fill / 10px stretch;
   image-rendering: pixelated;
@@ -251,10 +251,6 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .hero-info .passive { color: #1e5d8a; font-size: 12px; }
 
 
-.up { display: flex; align-items: center; gap: 10px; padding: 0 2px; text-align: left; }
-.up-text { flex: 1; display: flex; flex-direction: column; }
-.up-text em { font-style: normal; color: #a0522d; }
-.up-text small { color: var(--ink-soft); font-size: 11px; }
 
 /* ---------- 版本、更新、更新日誌 ---------- */
 .top-btns { display: flex; gap: 6px; }
@@ -873,3 +869,43 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .td-info .tag.key { background: #fff2a8; }
 .td-now { font-size: 12px; color: #fff; }
 .td-next { font-size: 11px; color: var(--muted); }
+
+/* 技能分類標籤 */
+.cat-tag { display: inline-block; padding: 0 4px; border-radius: 3px; font-size: 10px; line-height: 15px; background: var(--cc); color: #1a1030; vertical-align: middle; font-weight: normal; }
+.card > .cat-tag { position: absolute; top: 5px; left: 5px; }
+.sk-info .cat-tag { margin-left: 2px; }
+
+/* ---------- 背包 ---------- */
+.gear-btn { position: relative; }
+.gear-btn .badge { position: absolute; top: -6px; right: -6px; }
+.doll { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; align-items: stretch; }
+.doll .slot { min-height: 64px; }
+.doll .slot.sel { outline: 3px solid #fff; outline-offset: 1px; }
+.doll-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; background: radial-gradient(circle, rgba(255, 216, 74, 0.25), transparent 70%); }
+.doll-hero small { font-size: 11px; color: #fdf3d8; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
+.chip { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: rgba(0, 0, 0, 0.4); color: #fdf3d8; box-shadow: inset 0 0 0 1px var(--cc, #666); }
+.chip b { color: var(--cc, #fff); font-weight: normal; }
+.gtabs { display: flex; gap: 4px; margin-bottom: 4px; }
+.gtab, .gsort { flex: 1; padding: 4px 0; border-radius: 8px 8px 0 0; border: 2px solid #000; border-bottom: none; background: rgba(0, 0, 0, 0.35); color: var(--muted); font-size: 13px; }
+.gtab small { margin-left: 3px; font-size: 10px; opacity: 0.7; }
+.gtab.sel { background: var(--glass); color: #fff; box-shadow: inset 0 3px 0 var(--gold); }
+.gsort { flex: 0 0 auto; padding: 4px 8px; border-radius: 8px; color: var(--gold); }
+.cap { position: relative; height: 16px; margin: 0 0 5px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.cap i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #36d6ff, #4dde7a); }
+.cap i.full { background: linear-gradient(90deg, #ff9f43, #ff5a5a); }
+.cap span { position: relative; font-size: 10px; line-height: 16px; color: #fff; text-shadow: 0 1px 0 #000; }
+.items { max-height: 28vh; }
+.item.empty-cell { border: 2px dashed rgba(255, 255, 255, 0.12); background: rgba(0, 0, 0, 0.2); box-shadow: none; }
+.item em.new { background: #ff5a5a; }
+.item .better { position: absolute; bottom: -3px; left: -2px; font-size: 11px; color: #4dff7a; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
+.item-detail { flex-direction: row; align-items: center; text-align: left; gap: 8px; padding: 6px; border-radius: 10px; background: var(--glass); }
+.item-detail > .hint { flex: 1; text-align: center; }
+.gd-ic { width: 46px; height: 46px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 3px solid var(--rc); background: rgba(0, 0, 0, 0.35); }
+.gd-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gd-info .rar { font-style: normal; font-size: 10px; padding: 0 4px; border-radius: 3px; background: var(--rc); color: #000; }
+.gd-info .cmp { font-size: 11px; color: var(--muted); }
+.gd-info .cmp.better { color: #4dff7a; }
+.gd-info .cmp.worse { color: #ff8a8a; }
+.gd-btns { display: flex; flex-direction: column; gap: 4px; }
+.gd-btns .btn { margin: 0; }

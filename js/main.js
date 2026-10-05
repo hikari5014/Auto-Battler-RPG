@@ -1,4 +1,4 @@
-import { HEROES, MONSTERS, SKILLS, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
+import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
 import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
 import { shareResult } from './share.js';
 import { loadSave, writeSave } from './save.js';
@@ -14,7 +14,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, salvageJunk, freshCount } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -322,7 +322,7 @@ function openSkillPanel() {
     return `<div class="sk-row ${isMaxed(sk) ? 'max' : ''}">
       <span class="sk-ic">${iconTag(sk.icon, 28)}</span>
       <span class="sk-info">
-        <b>${sk.name}${sk.hero ? ' <span class="tag excl">專屬</span>' : ''}</b>
+        <b>${sk.name}${sk.hero ? ' <span class="tag excl">專屬</span>' : ' ' + catTag(sk)}</b>
         <small>${sk.desc}</small>
         ${sk.max ? `<small class="${isMaxed(sk) ? 'max-on' : 'max-off'}">${isMaxed(sk) ? '★ 滿級：' : '滿級獎勵：'}${sk.maxDesc}</small>` : ''}
       </span>
@@ -357,7 +357,7 @@ function gainSkill(sk) {
 // 菁英、寶箱怪掉落：隨機一個還沒滿級、這位英雄能用的技能，免費獲得
 function onSkillDrop() {
   const run = game.run;
-  const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === run.hero.def.id));
+  const pool = SKILLS.filter(sk => !isMaxed(sk) && skillAllowed(sk, run));
   if (!pool.length) return;
   const sk = pool[Math.floor(Math.random() * pool.length)];
   gainSkill(sk);
@@ -384,12 +384,17 @@ function celebrateMax(sk, card) {
   toast(`滿級獎勵：${sk.maxDesc}`);
 }
 
+// 技能分類小標籤：通用／近戰／遠程／法術
+const catTag = sk => {
+  const c = skillCat(sk);
+  return c ? `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>` : '';
+};
+
 function rollOffer() {
   const run = game.run;
   const picks = [];
   // 共同技能＋這位英雄的專屬技能；滿級的不再出現
-  const heroId = run.hero.def.id;
-  const pool = SKILLS.filter(sk => !isMaxed(sk) && (!sk.hero || sk.hero === heroId));
+  const pool = SKILLS.filter(sk => !isMaxed(sk) && skillAllowed(sk, run));
   const weight = sk => STAR_WEIGHT[sk.star] * (sk.hero ? 1.6 : 1) * (sk.star > 1 ? 1 + run.tb.luck : 1); // 專屬技能比較常出現；天賦「好運」提高高星
   while (picks.length < 3 && pool.length) {
     const total = pool.reduce((s, k) => s + weight(k), 0);
@@ -406,6 +411,12 @@ function rollOffer() {
 function openShop() {
   const run = game.run;
   run.phase = 'shop';
+  // 利息技能：每波結束拿利息（上限跟著波數變高）
+  const h = run.hero;
+  if (h.interest) {
+    const gain = Math.floor(Math.min(run.coins * h.interest, (40 + run.wave * 25) * h.interestCap));
+    if (gain > 0) { run.coins += gain; toast(`利息 +${gain} 球幣`); }
+  }
   run.rerollCost = Math.round((10 + run.wave * 2) * (1 - run.tb.rerollDisc));
   run.freeReroll = 1 + run.tb.reroll; // 天賦「多看看」多給幾次
   rollOffer();
@@ -461,6 +472,7 @@ function renderShop() {
     return `<div class="card star${sk.star} ${sk.gold ? 'gold' : ''} ${sk.hero ? 'excl' : ''} ${toMax ? 'to-max' : ''} ${o.bought ? 'bought' : ''} ${cant ? 'cant' : ''}" data-i="${i}" data-fx="tilt">
       <div class="card-icon">${iconTag(sk.icon, 44)}</div>
       <div class="card-name">${sk.hero ? '<span class="excl-tag">專屬</span>' : ''}${sk.name}</div>
+      ${catTag(sk)}
       ${levelHtml(sk, lv)}
       <div class="card-desc">${sk.desc}</div>
       ${toMax ? `<div class="maxbonus">滿級獎勵<br>${sk.maxDesc}</div>` : ''}
@@ -709,6 +721,7 @@ function renderHome() {
         </div>
         <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
         <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
+        <small class="cls-line">技能類型：<span class="cat-tag" style="--cc:${CATS[hero.cls].color}">${CATS[hero.cls].name}</span> ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
       </div>
       <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}</small></button>
@@ -1002,7 +1015,8 @@ function gearSummary() {
     return it ? `<span class="gs r${it.rarity}" style="--rc:${RARITIES[it.rarity].color}">${iconTag(itemIcon(it), 22)}</span>` : `<span class="gs empty">${SLOTS[slot].name}</span>`;
   }).join('');
   const m = mergeableCount(save);
-  return `<b>裝備</b>${slots}<small>${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>`;
+  const fresh = freshCount(save);
+  return `<b>背包</b>${slots}<small>${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
 }
 
 let gearSel = null; // 目前點選的裝備 id
@@ -1010,34 +1024,70 @@ function openGear() {
   renderGear();
   showScreen('screen-gear', 'screen-home');
 }
+let gearTab = 'all', gearSort = 'rarity';
+const bonusChips = b => [
+  ['攻擊', b.atk && `+${Math.round(b.atk * 100)}%`, '#ff6b6b'], ['血量', b.hp && `+${Math.round(b.hp * 100)}%`, '#6dff8a'],
+  ['暴擊', b.crit && `+${Math.round(b.crit * 100)}%`, '#ff9f43'], ['掉球', b.ball && `+${b.ball}`, '#36d6ff'],
+  ['開局球幣', b.coin && `+${b.coin}`, '#ffd84a'], ['金幣', b.gold && `+${Math.round(b.gold * 100)}%`, '#ffd84a'],
+].filter(c => c[1]).map(([n, v, c]) => `<span class="chip" style="--cc:${c}">${n} <b>${v}</b></span>`).join('') || '<span class="chip">還沒有穿裝備</span>';
+
 function renderGear() {
   const gear = ensureGear(save);
   const worn = new Set(Object.values(gear.equip));
-  const b = gearBonus(save);
-  const slots = Object.entries(SLOTS).map(([slot, info]) => {
-    const it = gear.items.find(x => x.id === gear.equip[slot]);
-    return `<button class="slot ${it ? 'r' + it.rarity : 'empty'}" data-slot="${slot}" style="--rc:${it ? RARITIES[it.rarity].color : '#555'}">
-      ${it ? iconTag(itemIcon(it), 34) : `<i>${info.name}</i>`}<small>${it ? itemDesc(it) : '空'}</small></button>`;
-  }).join('');
-  const list = gear.items.slice().sort((a, c) => c.rarity - a.rarity || a.slot.localeCompare(c.slot));
-  const items = list.map(it => `
+  const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
+  // 紙娃娃：英雄站中間，三個欄位圍著
+  const slotBtn = slot => {
+    const it = equippedIn(save, slot);
+    return `<button class="slot ${it ? 'r' + it.rarity : 'empty'} ${it && gearSel === it.id ? 'sel' : ''}" data-slot="${slot}" style="--rc:${it ? RARITIES[it.rarity].color : '#555'}">
+      ${it ? iconTag(itemIcon(it), 30) : `<i>${SLOTS[slot].name}</i>`}<small>${it ? itemDesc(it) : '空'}</small></button>`;
+  };
+  let list = gear.items.filter(it => gearTab === 'all' || it.slot === gearTab);
+  list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || a.slot.localeCompare(c.slot) || c.value - a.value);
+  const cells = list.map(it => `
     <button class="item r${it.rarity} ${worn.has(it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
-      ${iconTag(itemIcon(it), 28)}${worn.has(it.id) ? '<em>E</em>' : ''}</button>`).join('');
+      ${iconTag(itemIcon(it), 26)}${worn.has(it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${!worn.has(it.id) && isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
+  // 空格也畫出來，一眼看出背包還剩多少
+  const empties = gearTab === 'all' ? Math.max(0, MAX_ITEMS - gear.items.length) : (6 - list.length % 6) % 6;
+  for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
   const sel = gear.items.find(x => x.id === gearSel);
   const m = mergeableCount(save);
-  $('gear-body').innerHTML = `
-    <h2>裝備</h2>
-    <div class="slots">${slots}</div>
-    <p class="gear-total">目前加成：攻擊 +${Math.round(b.atk * 100)}%・血量 +${Math.round(b.hp * 100)}%${b.crit ? `・暴擊 +${Math.round(b.crit * 100)}%` : ''}${b.ball ? `・掉球 +${b.ball}` : ''}${b.coin ? `・開局球幣 +${b.coin}` : ''}${b.gold ? `・金幣 +${Math.round(b.gold * 100)}%` : ''}</p>
-    <div class="items">${items || '<p class="hint">還沒有裝備，打完一局就會掉落</p>'}</div>
-    <div class="item-detail">${sel ? `
-      <b style="color:${RARITIES[sel.rarity].color}">${RARITIES[sel.rarity].name}・${itemName(sel)}</b><small>${SLOTS[sel.slot].name}：${itemDesc(sel)}</small>
-      <span class="row">
+  const tabs = [['all', '全部'], ['weapon', '武器'], ['armor', '防具'], ['charm', '飾品']].map(([k, n]) => {
+    const c = k === 'all' ? gear.items.length : gear.items.filter(it => it.slot === k).length;
+    return `<button class="gtab ${gearTab === k ? 'sel' : ''}" data-tab="${k}">${n}<small>${c}</small></button>`;
+  }).join('');
+  // 詳細：跟身上那件比較
+  let detail = '<small class="hint">點一件裝備看詳細</small>';
+  if (sel) {
+    const cur = equippedIn(save, sel.slot);
+    const same = cur && cur.id === sel.id;
+    const cmp = !cur || same ? '' : sel.slot === 'charm' && cur.charm !== sel.charm ? `<small class="cmp">身上：${itemName(cur)}（${itemDesc(cur)}），效果不同</small>`
+      : `<small class="cmp ${sel.value > cur.value ? 'better' : sel.value < cur.value ? 'worse' : ''}">身上：${itemDesc(cur)}　${sel.value > cur.value ? '▲ 更好' : sel.value < cur.value ? '▼ 較差' : '一樣'}</small>`;
+    detail = `<span class="gd-ic" style="--rc:${RARITIES[sel.rarity].color}">${iconTag(itemIcon(sel), 34)}</span>
+      <span class="gd-info"><b style="color:${RARITIES[sel.rarity].color}">${itemName(sel)} <i class="rar" style="--rc:${RARITIES[sel.rarity].color}">${RARITIES[sel.rarity].name}</i></b>
+        <small>${SLOTS[sel.slot].name}：${itemDesc(sel)}</small>${cmp}</span>
+      <span class="gd-btns">
         ${worn.has(sel.id) ? `<button class="btn small" id="btn-unequip" data-slot="${sel.slot}">卸下</button>` : `<button class="btn small gift" id="btn-equip">裝備</button>`}
-        <button class="btn small ghost" id="btn-salvage" ${offAttr(worn.has(sel.id), '穿在身上的不能分解')}>分解 +${RARITIES[sel.rarity].salvage}</button>
-      </span>` : '<small>點一件裝備看詳細</small>'}</div>
+        <button class="btn small ghost" id="btn-salvage" ${offAttr(worn.has(sel.id), '穿在身上的不能分解')}>分解 ${iconTag(ICON.gold, 12)}${RARITIES[sel.rarity].salvage}</button>
+      </span>`;
+  }
+  const junk = gear.items.filter(it => it.rarity === 0 && !worn.has(it.id) && !isBetter(save, it)).length;
+  $('gear-body').innerHTML = `
+    <h2>背包</h2>
+    <div class="doll">
+      ${slotBtn('weapon')}
+      <span class="doll-hero">${iconTag(['dg', hero.sprite], 56)}<small>${hero.name.split(' ')[1]}</small></span>
+      ${slotBtn('armor')}
+      ${slotBtn('charm')}
+    </div>
+    <div class="chips">${bonusChips(gearBonus(save))}</div>
+    <div class="gtabs">${tabs}
+      <button class="gsort" id="btn-gsort">${gearSort === 'new' ? '最新' : '稀有度'} ⇅</button></div>
+    <div class="cap"><i style="width:${gear.items.length / MAX_ITEMS * 100}%" class="${gear.items.length >= MAX_ITEMS - 3 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${MAX_ITEMS}${gear.items.length >= MAX_ITEMS - 3 ? '・快滿了，記得分解或合成' : ''}</span></div>
+    <div class="items">${cells.join('') || '<p class="hint">還沒有裝備，打完一局就會掉落</p>'}</div>
+    <div class="item-detail">${detail}</div>
     <div class="row">
       <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同欄位、同稀有度的裝備')}>一鍵合成${m ? `（${m}）` : ''}</button>
+      <button class="btn small ghost" id="btn-junk" ${offAttr(!junk, '沒有可以分解的普通裝備')}>分解普通${junk ? `（${junk}）` : ''}</button>
       <button class="btn small ghost" id="btn-gear-close">關閉</button>
     </div>`;
 }
@@ -1045,19 +1095,30 @@ $('gear-body').addEventListener('click', ev => {
   const t = ev.target.closest('button');
   if (!t || isOff(t)) return;
   sfx('tap');
-  if (t.dataset.item) gearSel = +t.dataset.item;
+  const gear = ensureGear(save);
+  if (t.dataset.item) {
+    gearSel = +t.dataset.item;
+    const it = gear.items.find(x => x.id === gearSel);
+    if (it) it.fresh = false;
+  } else if (t.dataset.tab) gearTab = t.dataset.tab;
+  else if (t.id === 'btn-gsort') gearSort = gearSort === 'new' ? 'rarity' : 'new';
   else if (t.dataset.slot && t.classList.contains('slot')) {
-    const id = ensureGear(save).equip[t.dataset.slot];
+    const id = gear.equip[t.dataset.slot];
     if (id) gearSel = id;
+    else { gearTab = t.dataset.slot; toast(`顯示所有${SLOTS[t.dataset.slot].name}`); }
   } else if (t.id === 'btn-equip') { equip(save, gearSel); sfx('buy'); }
   else if (t.id === 'btn-unequip') unequip(save, t.dataset.slot);
   else if (t.id === 'btn-salvage') { const g = salvage(save, gearSel); toast(`分解獲得 ${g} 金幣`); gearSel = null; }
+  else if (t.id === 'btn-junk') { const r = salvageJunk(save); toast(`分解 ${r.n} 件，獲得 ${r.g} 金幣`); sfx('buy'); }
   else if (t.id === 'btn-merge') {
     const made = mergeAll(save);
     save.stats.merged += made.length;
     save.stats.legendMerged += made.filter(x => x.rarity === 3).length;
     if (made.length) { sfx('wave'); banner(`合成 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
-  } else if (t.id === 'btn-gear-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
+  } else if (t.id === 'btn-gear-close') {
+    for (const it of gear.items) it.fresh = false; // 看過了
+    writeSave(save); renderHome(); showScreen('screen-home'); return;
+  }
   writeSave(save);
   renderGear();
 });
@@ -1309,6 +1370,21 @@ Promise.all([
 // 方便測試用
 window.__game = { game, board, battle, save };
 window.__test = {
+  // 直接獲得技能（測試用）
+  give(id) {
+    const sk = SKILLS.find(k => k.id === id);
+    if (!sk || isMaxed(sk)) return false;
+    gainSkill(sk);
+    if (isMaxed(sk)) celebrateMax(sk, null);
+    renderSkillBar();
+    return true;
+  },
+  // 抽很多次商店，統計出現過的技能
+  sample(n) {
+    const seen = new Set();
+    for (let i = 0; i < n; i++) { rollOffer(); game.run.offer.forEach(o => seen.add(o.sk.id)); }
+    return [...seen];
+  },
   // 讓商店第一張變成指定技能；技能已滿級就回傳 false
   offer(id) {
     const sk = SKILLS.find(k => k.id === id);

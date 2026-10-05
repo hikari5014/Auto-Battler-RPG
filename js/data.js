@@ -4,22 +4,22 @@
 // role = 首頁顯示的定位；crit/block/splash/life/thorns = 天生自帶的能力
 export const HEROES = [
   {
-    id: 'blade', name: '劍士 艾倫', sprite: 96, price: 0, role: '平衡・近戰',
+    id: 'blade', name: '劍士 艾倫', sprite: 96, price: 0, role: '平衡・近戰', cls: 'melee',
     hp: 150, atk: 10, interval: 1.0, range: 60, hits: 1, block: 0.1,
     passive: '劍氣：每第 3 次攻擊揮出劍氣，打中所有敵人；天生 10% 格擋',
   },
   {
-    id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300, role: '高速・遠程',
+    id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300, role: '高速・遠程', cls: 'ranged',
     hp: 110, atk: 5, interval: 0.5, range: 240, hits: 1, crit: 0.15,
     passive: '球雨箭：每接住 20 顆球自動射出強力箭；攻速極快、天生 15% 暴擊，但很脆',
   },
   {
-    id: 'mage', name: '重力法師 諾娃', sprite: 84, price: 700, role: '範圍・遠程',
+    id: 'mage', name: '重力法師 諾娃', sprite: 84, price: 700, role: '範圍・法術', cls: 'spell',
     hp: 90, atk: 17, interval: 1.7, range: 200, hits: 1, splash: 0.5, magnet: 1,
     passive: '重力井：接球杯會吸住附近的小球；攻擊慢但每下都濺射全體 50%',
   },
   {
-    id: 'saw', name: '鏈鋸狂戰 巴克', sprite: 87, price: 1200, role: '坦克・近戰',
+    id: 'saw', name: '鏈鋸狂戰 巴克', sprite: 87, price: 1200, role: '坦克・近戰', cls: 'melee',
     hp: 200, atk: 8, interval: 1.2, range: 60, hits: 1, life: 0.08, thorns: 0.2,
     passive: '鏈鋸：小球每撞釘子 12 次就砍一刀；血超厚、天生吸血 8%、反傷 20%',
   },
@@ -92,7 +92,7 @@ export const SKILLS = [
     maxDesc: '暴擊率再 +15%', maxApply: h => { h.crit += 0.15; } },
   { id: 'critd', icon: ['ic', 576, '#ffd84a'], star: 2, max: 3, name: '致命一擊', desc: '暴擊傷害 +75%', apply: h => { h.critDmg += 0.75; },
     maxDesc: '暴擊時震波打中所有敵人（50% 傷害）', maxApply: h => { h.critSplash = 0.5; } },
-  { id: 'block', icon: ['ic', 233, '#9fe3ff'], star: 2, max: 2, name: '鐵壁', desc: '+30% 機率擋下敵人攻擊', apply: h => { h.block = Math.min(0.75, h.block + 0.3); },
+  { id: 'block', cat: 'melee', icon: ['ic', 233, '#9fe3ff'], star: 2, max: 2, name: '鐵壁', desc: '+30% 機率擋下敵人攻擊', apply: h => { h.block = Math.min(0.75, h.block + 0.3); },
     maxDesc: '格擋時反擊，造成 200% 攻擊力傷害', maxApply: h => { h.counter = 2; } },
   { id: 'dbl', icon: ['ic', 569, '#ffd84a'], star: 1, max: 3, name: '雙重打擊', desc: '+30% 機率連續攻擊兩輪', apply: h => { h.dbl += 0.3; },
     maxDesc: '連擊機率再 +50%', maxApply: h => { h.dbl += 0.5; } },
@@ -103,7 +103,7 @@ export const SKILLS = [
   { id: 'heal', icon: ['ic', 669], star: 1, name: '治療藥水', desc: '立刻回復 60% 血量', apply: h => { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.6); } },
   { id: 'splash', icon: ['ic', 616, '#36d6ff'], star: 2, max: 3, name: '震地波', desc: '每次攻擊濺射 35% 傷害給所有敵人', apply: h => { h.splash += 0.35; },
     maxDesc: '濺射再 +50%', maxApply: h => { h.splash += 0.5; } },
-  { id: 'thorn', icon: ['ic', 184], star: 1, max: 3, name: '荊棘甲', desc: '被打時反彈 60% 傷害', apply: h => { h.thorns += 0.6; },
+  { id: 'thorn', cat: 'melee', icon: ['ic', 184], star: 1, max: 3, name: '荊棘甲', desc: '被打時反彈 60% 傷害', apply: h => { h.thorns += 0.6; },
     maxDesc: '反彈再 +150%', maxApply: h => { h.thorns += 1.5; } },
   { id: 'ball', icon: ['ic', 237], star: 2, max: 5, name: '寶藏獵人', desc: '每殺一隻敵人多掉 2 顆球', apply: h => { h.ballsPerKill += 2; },
     maxDesc: '每殺一隻再多掉 5 顆球', maxApply: h => { h.ballsPerKill += 5; } },
@@ -115,6 +115,38 @@ export const SKILLS = [
     maxDesc: '金色 x3 門變寬 40%、移動變慢', maxApply: (h, run, board) => { board.widenGates('x3', 1.4, 0.5); } },
   { id: 'cup', icon: ['ic', 192], star: 1, max: 3, name: '大肚杯', desc: '接球杯變寬 25%', apply: (h, run, board) => { board.cupW = Math.min(220, board.cupW * 1.25); },
     maxDesc: '接住的球從 x2 變成 x3', maxApply: (h, run, board) => { board.cupMult = 3; } },
+
+
+  // ---------- 近戰技能（劍士、狂戰士等近戰職業才會出現）----------
+  { id: 'c_cleave', cat: 'melee', icon: ['ic', 426, '#ff8a6b'], star: 1, max: 3, name: '橫掃', desc: '攻擊同時砍到第 2 隻敵人（50% 傷害）', apply: h => { h.cleave += 0.5; },
+    maxDesc: '橫掃改成砍到所有敵人', maxApply: h => { h.cleaveAll = true; } },
+  { id: 'c_bash', cat: 'melee', icon: ['ic', 385, '#ffd84a'], star: 2, max: 3, name: '重擊', desc: '+10% 機率擊暈敵人 1 秒', apply: h => { h.stun += 0.1; },
+    maxDesc: '被擊暈的敵人受到傷害 +50%', maxApply: h => { h.stunAmp = 0.5; } },
+  { id: 'c_iron', cat: 'melee', icon: ['ic', 233, '#c0c8d8'], star: 1, max: 3, name: '鋼鐵意志', desc: '受到的傷害 -10%', apply: h => { h.dr = Math.min(0.6, h.dr + 0.1); },
+    maxDesc: '受到的傷害再 -15%', maxApply: h => { h.dr = Math.min(0.7, h.dr + 0.15); } },
+  { id: 'c_charge', cat: 'melee', icon: ['ic', 1058, '#ff8a6b'], star: 2, max: 2, name: '開場衝鋒', desc: '每波第一下攻擊傷害 +300%', apply: h => { h.opener += 3; },
+    maxDesc: '衝鋒時擊暈所有敵人 1.5 秒', maxApply: h => { h.openerStun = true; } },
+  // ---------- 遠程技能 ----------
+  { id: 'r_snipe', cat: 'ranged', icon: ['ic', 712, '#b6ff6d'], star: 2, max: 3, name: '狙擊', desc: '每次攻擊額外射向最後面的敵人（80% 傷害）', apply: h => { h.snipe += 0.8; },
+    maxDesc: '狙擊必定暴擊', maxApply: h => { h.snipeCrit = true; } },
+  { id: 'r_poison', cat: 'ranged', icon: ['ic', 289, '#7dff5a'], star: 1, max: 3, name: '毒箭', desc: '中毒：3 秒內每秒受到 20% 攻擊力傷害', apply: h => { h.dot += 0.2; h.dotColor = '#7dff5a'; },
+    maxDesc: '毒傷加倍', maxApply: h => { h.dot *= 2; } },
+  { id: 'r_quick', cat: 'ranged', icon: ['ic', 1058, '#b6ff6d'], star: 1, max: 3, name: '連弩', desc: '攻擊速度 +25%', apply: h => { h.spdMul += 0.25; },
+    maxDesc: '每第 4 下攻擊必定暴擊', maxApply: h => { h.critEvery = 4; } },
+  { id: 'r_kite', cat: 'ranged', icon: ['ic', 1021, '#b6ff6d'], star: 2, max: 2, name: '拉開距離', desc: '敵人走路速度 -20%', apply: h => { h.slowWalk = Math.min(0.6, h.slowWalk + 0.2); },
+    maxDesc: '敵人攻擊速度也 -20%', maxApply: h => { h.slowAtk = 0.2; } },
+  // ---------- 法術技能 ----------
+  { id: 's_chain', cat: 'spell', icon: ['ic', 616, '#9fe3ff'], star: 2, max: 3, name: '連鎖閃電', desc: '每 3 次攻擊放出閃電，連跳 3 隻敵人（+120% 傷害）', apply: h => { h.chainEvery = 3; h.chainMul += 1.2; },
+    maxDesc: '每 2 次攻擊就放，連跳 6 隻', maxApply: h => { h.chainEvery = 2; h.chainJumps = 6; } },
+  { id: 's_burn', cat: 'spell', icon: ['ic', 616, '#ff9f43'], star: 1, max: 3, name: '灼燒', desc: '點燃：3 秒內每秒受到 25% 攻擊力傷害', apply: h => { h.dot += 0.25; h.dotColor = '#ff9f43'; },
+    maxDesc: '燃燒時間變成 6 秒', maxApply: h => { h.dotTime = 6; } },
+  { id: 's_shield', cat: 'spell', icon: ['ic', 233, '#d06bff'], star: 2, max: 3, name: '魔力護盾', desc: '每波開始獲得 15% 血量的護盾', apply: h => { h.shieldPct += 0.15; h.shield = h.maxHp * h.shieldPct; },
+    maxDesc: '護盾破掉時對全體造成 300% 傷害', maxApply: h => { h.shieldBurst = 3; } },
+  { id: 's_nova', cat: 'spell', icon: ['ic', 1023, '#d06bff'], star: 2, max: 2, name: '魔力爆發', desc: '擊殺敵人時爆炸，對全體造成 40% 傷害', apply: h => { h.killBlast += 0.4; },
+    maxDesc: '爆炸傷害再 +80%', maxApply: h => { h.killBlast += 0.8; } },
+  // ---------- 通用（新）----------
+  { id: 'g_interest', icon: ['ic', 1057, '#ffd84a'], star: 2, max: 3, name: '利息', desc: '每波結束得到 8% 球幣利息（上限隨波數提高）', apply: h => { h.interest += 0.08; },
+    maxDesc: '利息上限加倍', maxApply: h => { h.interestCap = 2; } },
 
   // ---------- 職業專屬技能（只會出現在對應英雄的商店）----------
   // 劍士
@@ -146,6 +178,22 @@ export const SKILLS = [
   { id: 's_feast', hero: 'saw', icon: ['ic', 532, '#ff5a5a'], star: 2, max: 3, name: '嗜血', desc: '每擊殺一隻敵人回復 6% 血量', apply: h => { h.killHeal += 0.06; },
     maxDesc: '擊殺時最大血量永久 +3%', maxApply: h => { h.killGrow = 0.03; } },
 ];
+
+// 技能分類：通用（大家都有）、近戰、遠程、法術（看英雄的職業類型）
+export const CATS = {
+  any: { name: '通用', color: '#b9b2c9' },
+  melee: { name: '近戰', color: '#ff8a6b' },
+  ranged: { name: '遠程', color: '#8fe36b' },
+  spell: { name: '法術', color: '#c38bff' },
+};
+export const skillCat = sk => sk.hero ? null : (sk.cat || 'any');
+// 這個技能能不能出現：專屬技能看英雄，分類技能看職業類型（雙職業時兩邊都算）
+export function skillAllowed(sk, run) {
+  const ids = run.heroIds || [run.hero.def.id];
+  const cls = run.heroCls || [run.hero.def.cls];
+  if (sk.hero) return ids.includes(sk.hero);
+  return !sk.cat || cls.includes(sk.cat);
+}
 
 export const STAR_PRICE = [0, 20, 45, 80];
 export const STAR_WEIGHT = [0, 60, 30, 10];
