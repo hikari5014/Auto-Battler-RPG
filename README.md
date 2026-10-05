@@ -56,7 +56,17 @@ assets/fonts/         像素中文字型
 assets/licenses/      所有素材的授權原文
 js/sprites.js         讀取與繪製像素圖
 js/scene.js           2.5D 場景（有深度的地面、鏡頭、霧）
+js/version.js         版本號與更新日誌
+js/update.js          檢查更新、一鍵更新
 ```
+
+## 發布新版本
+
+1. `js/version.js`：把 `VERSION` 改成新版本號，並在 `CHANGELOG` 最前面加一筆說明。
+2. `sw.js`：把 `VERSION` 改成一樣的版本號。
+3. 推到 `main`，GitHub Pages 會自動部署。兩邊版本號不一致時部署會失敗，避免玩家更新不到。
+
+玩家進首頁時會自動檢查，有新版本時右上角的更新按鈕會出現紅點，點一下就能更新（存檔會保留）。
 
 ## 之後可以加的
 

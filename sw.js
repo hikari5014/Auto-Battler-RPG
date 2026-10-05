@@ -1,5 +1,8 @@
-// 離線快取：改版時把版本號 +1，舊快取就會被清掉
-const CACHE = 'marble-brave-v4';
+// 離線快取（Service Worker）
+// 每個版本有自己的一份快取；新版本下載完會「等待」，玩家按下更新才切換，
+// 這樣不會玩到一半，一部分是舊檔案、一部分是新檔案。
+const VERSION = '1.4.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
+const CACHE = 'marble-brave-' + VERSION;
 const ASSETS = [
   './',
   'index.html',
@@ -13,6 +16,8 @@ const ASSETS = [
   'js/save.js',
   'js/scene.js',
   'js/sprites.js',
+  'js/update.js',
+  'js/version.js',
   'assets/img/icons-1bit.png',
   'assets/img/pixel-platformer-bg.png',
   'assets/img/pixel-platformer.png',
@@ -53,7 +58,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload'：確保拿到伺服器上最新的檔案，而不是瀏覽器暫存的舊檔
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))));
+});
+
+// 遊戲裡按下「立即更新」時會送這個訊息過來
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -64,19 +75,22 @@ self.addEventListener('activate', e => {
   );
 });
 
-// 先用快取（秒開），同時在背景抓新版更新快取
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // 檢查更新用的請求：一定走網路
+  if (url.searchParams.has('fresh')) {
+    e.respondWith(fetch(e.request, { cache: 'no-store' }));
+    return;
+  }
+  // 其他：先用這個版本的快取（秒開、可離線），沒有才上網抓
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const hit = await cache.match(e.request, { ignoreSearch: true });
-      const net = fetch(e.request)
-        .then(res => {
-          if (res.ok && new URL(e.request.url).origin === location.origin) cache.put(e.request, res.clone());
-          return res;
-        })
-        .catch(() => hit);
-      return hit || net;
+      if (hit) return hit;
+      const res = await fetch(e.request);
+      if (res.ok && url.origin === location.origin) cache.put(e.request, res.clone());
+      return res;
     })
   );
 });

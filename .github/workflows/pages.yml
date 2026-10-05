@@ -23,6 +23,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # 遊戲裡的版本號（js/version.js）和離線快取的版本號（sw.js）必須一致，
+      # 否則玩家按「更新」會拿不到新版本
+      - name: Check version numbers match
+        run: |
+          game=$(grep -oP "VERSION = '\\K[^']+" js/version.js)
+          sw=$(grep -oP "VERSION = '\\K[^']+" sw.js)
+          echo "js/version.js = $game, sw.js = $sw"
+          test -n "$game" && test "$game" = "$sw"
       - uses: actions/configure-pages@v5
         with:
           enablement: true

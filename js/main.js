@@ -4,6 +4,8 @@ import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero } from './battle.js';
 import { loadSprites, iconTag, ICON, drawIcon } from './sprites.js';
+import { VERSION, CHANGELOG, compareVersion } from './version.js';
+import { fetchLatest, applyUpdate } from './update.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -325,6 +327,7 @@ const chapterName = n => CHAPTERS[(n - 1) % CHAPTERS.length].name + (n > CHAPTER
 function goHome() {
   game.run = null;
   playMusic('home');
+  checkUpdate(true);
   $('hud').classList.add('hidden');
   renderHome();
   showScreen('screen-home');
@@ -354,7 +357,10 @@ function renderHome() {
     <div class="home-stage">
       <div class="top-row">
         <div class="pill">${iconTag(ICON.gold, 20)} ${fmt(save.gold)}</div>
-        <button class="icon-btn" id="btn-mute">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
+        <span class="top-btns">
+          <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
+          <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
+        </span>
       </div>
       <h1 class="logo">彈珠勇者</h1>
       <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
@@ -379,6 +385,10 @@ function renderHome() {
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}</small></button>
       <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
       <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
+      <div class="version-row">
+        <span>v${VERSION}</span>
+        <button class="link" id="btn-changelog">更新日誌</button>
+      </div>
     </div>`;
 }
 
@@ -404,15 +414,84 @@ $('home-body').addEventListener('click', ev => {
   } else if (t.id === 'ch-prev') save.chapter = Math.max(1, save.chapter - 1);
   else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
+  else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
+  else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
   writeSave(save);
   renderHome();
 });
 
+// ---------- 版本與更新 ----------
+let updateInfo = null;      // 最近一次檢查到的網路版本資訊
+let lastQuietCheck = 0;
+
+// quiet = 進首頁時的自動檢查：不顯示「已是最新」，有新版本才亮紅點並提示
+async function checkUpdate(quiet) {
+  if (quiet && (!navigator.onLine || Date.now() - lastQuietCheck < 10 * 60 * 1000)) return;
+  if (quiet) lastQuietCheck = Date.now();
+  if (!quiet) toast('檢查更新中…');
+  try {
+    updateInfo = await fetchLatest();
+  } catch (e) {
+    if (!quiet) toast('無法連線，請稍後再試');
+    return;
+  }
+  if (!game.run) renderHome();
+  if (updateInfo.newer) {
+    if (quiet) toast(`發現新版本 v${updateInfo.version}，點右上角更新`);
+    else showUpdateDialog();
+  } else if (!quiet) {
+    toast(`已經是最新版本 v${VERSION}`);
+  }
+}
+
+function changelogHtml(list) {
+  return list.map(v => `
+    <div class="log">
+      <div class="log-head"><b>v${v.version}</b><small>${v.date}</small>${v.version === VERSION ? '<span class="tag">目前版本</span>' : ''}</div>
+      <ul>${v.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+    </div>`).join('');
+}
+
+function showChangelog(list, title) {
+  $('info-body').innerHTML = `
+    <h2>${title}</h2>
+    <div class="logs">${changelogHtml(list)}</div>
+    <button class="btn" id="btn-info-close">關閉</button>`;
+  showScreen('screen-info', 'screen-home');
+}
+
+function showUpdateDialog() {
+  const fresh = updateInfo.changelog.filter(v => compareVersion(v.version, VERSION) > 0);
+  $('info-body').innerHTML = `
+    <h2>發現新版本！</h2>
+    <p>v${VERSION} → <b class="good">v${updateInfo.version}</b></p>
+    <div class="logs">${changelogHtml(fresh)}</div>
+    <button class="btn big gift" id="btn-do-update">立即更新</button>
+    <button class="btn ghost" id="btn-info-close">稍後再說</button>
+    <p class="hint">存檔（金幣、英雄、升級）會保留</p>`;
+  showScreen('screen-info', 'screen-home');
+}
+
+$('info-body').addEventListener('click', async ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  sfx('tap');
+  if (t.id === 'btn-info-close') {
+    showScreen('screen-home');
+  } else if (t.id === 'btn-do-update') {
+    t.disabled = true;
+    t.textContent = '下載新版本中…';
+    writeSave(save);
+    try { await applyUpdate(); } catch (e) { location.reload(); }
+  }
+});
+
 // ---------- 小工具 ----------
-function showScreen(id) {
-  for (const el of document.querySelectorAll('.screen')) el.classList.toggle('hidden', el.id !== id);
+// keep = 同時保留顯示的另一個畫面（例如在首頁上方開彈窗）
+function showScreen(id, keep) {
+  for (const el of document.querySelectorAll('.screen')) el.classList.toggle('hidden', el.id !== id && el.id !== keep);
 }
 // 波次進度條：15 格，打過的填滿、目前這格閃爍、精英／魔王格有標記
 function renderWaveBar(wave) {

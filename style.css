@@ -258,6 +258,35 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .up-text em { font-style: normal; color: #a0522d; }
 .up-text small { color: var(--ink-soft); font-size: 11px; }
 
+/* ---------- 版本、更新、更新日誌 ---------- */
+.top-btns { display: flex; gap: 6px; }
+.icon-btn { position: relative; }
+.icon-btn.has-update::after {
+  content: "";
+  position: absolute;
+  top: -4px; right: -4px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #ff3b3b;
+  border: 2px solid #000;
+  animation: blink 1s steps(2) infinite;
+}
+.version-row { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.link { background: none; border: none; padding: 4px; color: var(--gold); font-size: 12px; text-decoration: underline; }
+.logs { max-height: 50vh; overflow-y: auto; text-align: left; margin: 6px 0 8px; touch-action: pan-y; }
+.log {
+  margin-bottom: 8px;
+  padding: 4px 6px;
+  border: 8px solid transparent;
+  border-image: url("assets/ui/ancient-tan_inlay.png") 5 fill / 8px stretch;
+  image-rendering: pixelated;
+  color: var(--ink);
+}
+.log-head { display: flex; align-items: center; gap: 8px; }
+.log-head b { font-size: 16px; }
+.log-head small { color: var(--ink-soft); font-size: 11px; }
+.log ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+
 /* ---------- 技能卡 ---------- */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; perspective: 600px; }
 .card {
