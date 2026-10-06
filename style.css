@@ -1251,3 +1251,6 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .pre-use.empty { color: var(--muted); }
 .pre-save { padding: 4px 6px; border-radius: 0 8px 8px 0; border: 2px solid #000; border-left: none; background: rgba(255, 216, 74, 0.25); color: var(--gold); font-size: 11px; }
 .drop.gemdrop { --rc: #7fffd4; }
+/* 彈窗比畫面高時，不要被切掉上面：用 auto 邊距置中（太高就從頂端開始，可以往下滑） */
+.screen.overlay { align-items: flex-start; }
+.screen.overlay > .panel { margin-top: auto; margin-bottom: auto; flex: none; }
