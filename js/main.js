@@ -574,7 +574,9 @@ function rollOffer() {
     for (; idx < pool.length; idx++) { r -= weight(pool[idx]); if (r <= 0) break; }
     idx = Math.min(idx, pool.length - 1);
     const sk = pool.splice(idx, 1)[0];
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * (run.shopDiscount || 1) * (1 - run.tb.price)), bought: false });
+    // 價格：星數基本價 x 波數成長 x 難度 x（等級越高越貴：每升一級再乘 lvGrow 倍，難度越高倍數越大）
+    const lvMul = Math.pow(run.diff.lvGrow || 1.5, skillLv(sk));
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (1 - run.tb.price)), bought: false });
   }
   run.offer = picks;
 }
@@ -590,6 +592,7 @@ function openShop() {
   }
   run.rerollCost = Math.round((10 + run.wave * 2) * (1 - run.tb.rerollDisc));
   run.freeReroll = 1 + run.tb.reroll; // 天賦「多看看」多給幾次
+  run.rerollsLeft = run.diff.rerolls; // 這一波最多刷新幾次（免費的也算），休閒不限
   rollOffer();
   renderShop();
   showScreen('screen-shop');
@@ -620,7 +623,7 @@ function updateShop() {
     if (o.bought) b.textContent = '已獲得';
     setOff(b, o.bought || cant, o.bought ? '這張已經買過了' : `球幣不足，還差 ${o.price - Math.floor(run.coins)}`);
   });
-  setOff($('btn-reroll'), run.coins < run.rerollCost, '球幣不足，無法刷新');
+  setOff($('btn-reroll'), run.coins < run.rerollCost || run.rerollsLeft <= 0, run.rerollsLeft <= 0 ? '這一波的刷新次數用完了' : '球幣不足，無法刷新');
   $('shop-owned').innerHTML = '已獲得：' + ownedSummary();
   // 買完技能，數值立刻更新並閃一下
   const st = $('shop-stats');
@@ -655,6 +658,7 @@ function renderShop() {
       <div class="card-name">${sk.hero ? '<span class="excl-tag">專屬</span>' : ''}${sk.name}</div>
       ${catTag(sk)}
       ${levelHtml(sk, lv)}
+      ${lv > 0 ? `<div class="lvcost">升級加價 x${Math.round(Math.pow(run.diff.lvGrow || 1.5, lv) * 10) / 10}</div>` : ''}
       <div class="card-desc">${sk.desc}</div>
       ${toMax ? `<div class="maxbonus">滿級獎勵<br>${sk.maxDesc}</div>` : ''}
       <div class="stars">${'★'.repeat(o.sk.star)}${'☆'.repeat(3 - o.sk.star)}</div>
@@ -665,9 +669,10 @@ function renderShop() {
     <h2>選擇新技能</h2>${run.shopDiscount < 1 ? '<p class="discount">流浪商人：全部半價！</p>' : ''}
     <div class="pill" id="shop-coins">${iconTag(ICON.gem, 18)} <b>${fmt(run.coins)}</b></div>
     <div class="cards">${cards || '<p class="all-max">所有技能都已滿級！</p>'}</div>
+    <p class="reroll-left ${run.rerollsLeft <= 1 && run.rerollsLeft !== Infinity ? 'low' : ''}">${run.rerollsLeft === Infinity ? '刷新次數：不限' : `這一波還能刷新 ${run.rerollsLeft} / ${run.diff.rerolls} 次（含免費）`}</p>
     <div class="row">
-      <button class="btn small" id="btn-reroll" ${offAttr(run.coins < run.rerollCost, '球幣不足，無法刷新')}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
-      <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll, '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新${run.freeReroll > 1 ? ' x' + run.freeReroll : ''}</button>
+      <button class="btn small" id="btn-reroll" ${offAttr(run.coins < run.rerollCost || run.rerollsLeft <= 0, run.rerollsLeft <= 0 ? '這一波的刷新次數用完了' : '球幣不足，無法刷新')}>${iconTag(ICON.refresh, 16)} 刷新 ${iconTag(ICON.gem, 16)}${run.rerollCost}</button>
+      <button class="btn small gift" id="btn-free" ${offAttr(!run.freeReroll || run.rerollsLeft <= 0, run.rerollsLeft <= 0 ? '這一波的刷新次數用完了' : '這一波的免費刷新用完了')}>${iconTag(ICON.free, 16)} 免費刷新${run.freeReroll > 1 ? ' x' + run.freeReroll : ''}</button>
     </div>
     <button class="btn big" id="btn-next">下一波 ▶</button>
     <div class="shop-stats" id="shop-stats">${shopStats()}</div>
@@ -694,13 +699,17 @@ $('shop-body').addEventListener('click', ev => {
     renderSkillBar();
     return;
   } else if (t.id === 'btn-reroll') {
+    if (run.rerollsLeft <= 0) return;
     run.coins -= run.rerollCost;
+    run.rerollsLeft--;
     run.rerollCost += Math.round(10 * (1 - run.tb.rerollDisc));
     rollOffer();
     sfx('tap');
   } else if (t.id === 'btn-free') {
     // 正式版這裡接「激勵廣告」：看完廣告才給免費刷新
+    if (run.rerollsLeft <= 0) return;
     run.freeReroll--;
+    run.rerollsLeft--;
     rollOffer();
     sfx('tap');
   } else if (t.id === 'btn-next') {
@@ -1079,7 +1088,7 @@ $('home-body').addEventListener('click', ev => {
   if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
     const d = difficultyOf(save.difficulty);
-    toast(`${d.name}：敵人血量 x${d.hp}、攻擊 x${d.atk}${d.count ? `、每波多 ${d.count} 隻` : ''}${d.traps ? `、${d.traps} 道陷阱門` : ''}，金幣 x${d.gold}`);
+    toast(`${d.name}：敵人血量 x${d.hp}、攻擊 x${d.atk}${d.count ? `、每波多 ${d.count} 隻` : ''}${d.traps ? `、${d.traps} 道陷阱門` : ''}；技能價格 x${d.price}、每升一級再 x${d.lvGrow}、每波刷新${d.rerolls === Infinity ? '不限' : ' ' + d.rerolls + ' 次'}；金幣 x${d.gold}`);
   } else if (t.id === 'ch-prev') save.chapter = Math.max(1, save.chapter - 1);
   else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }

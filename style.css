@@ -1158,3 +1158,5 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .m-hero.maxed b::after { content: ' 完全體'; font-size: 11px; color: #ffd84a; }
 @keyframes m-glow { 50% { filter: drop-shadow(0 0 14px #fff2a8) drop-shadow(0 0 24px #ffb320); } }
 .mmax { color: #ffd84a; font-weight: normal; text-shadow: 0 0 4px #ff9f20; }
+.lvcost { font-size: 9px; color: #ff9f43; margin-top: -1px; }
+.reroll-left { margin: 4px 0 0; font-size: 11px; color: #fdf3d8; } .reroll-left.low { color: #ff8a8a; }

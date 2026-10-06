@@ -3,15 +3,15 @@
 // 倍率門固定在 y = 0.35 與 0.60 兩排，接球杯在 0.84 以下，機關要避開這些高度
 
 // ---------- 難度 ----------
-// hp / atk：敵人血量、攻擊力倍率；count：每波多幾隻；price：技能卡價格倍率
+// hp / atk：敵人血量、攻擊力倍率；count：每波多幾隻；price：技能卡價格倍率；lvGrow：技能每升一級，價格再乘幾倍；rerolls：每一波商店最多刷新幾次（含免費刷新）
 // gold：結算金幣倍率；traps：彈珠台上多幾道紅色陷阱門（x0.5）
 export const DIFFICULTIES = [
-  { id: 'casual', name: '休閒', hp: 1, atk: 1, count: 0, price: 1, gold: 1, traps: 0, color: '#8dff9f' },
-  { id: 'easy', name: '簡單', hp: 1.35, atk: 1.25, count: 0, price: 1.1, gold: 1.3, traps: 0, color: '#9fe3ff' },
-  { id: 'normal', name: '中級', hp: 1.9, atk: 1.6, count: 1, price: 1.2, gold: 1.7, traps: 0, color: '#ffd84a' },
-  { id: 'hard', name: '挑戰', hp: 2.6, atk: 2.0, count: 1, price: 1.35, gold: 2.3, traps: 0, color: '#ff9f43' },
-  { id: 'hell', name: '地獄', hp: 3.8, atk: 2.8, count: 2, price: 1.5, gold: 3.2, traps: 1, color: '#ff5a5a' },
-  { id: 'nightmare', name: '無解', hp: 6, atk: 4, count: 3, price: 1.7, gold: 5, traps: 2, color: '#d06bff' },
+  { id: 'casual', name: '休閒', hp: 1, atk: 1, count: 0, price: 1, lvGrow: 1.5, rerolls: Infinity, gold: 1, traps: 0, color: '#8dff9f' },
+  { id: 'easy', name: '簡單', hp: 1.35, atk: 1.25, count: 0, price: 1.15, lvGrow: 1.6, rerolls: 10, gold: 1.3, traps: 0, color: '#9fe3ff' },
+  { id: 'normal', name: '中級', hp: 1.9, atk: 1.6, count: 1, price: 1.35, lvGrow: 1.7, rerolls: 8, gold: 1.7, traps: 0, color: '#ffd84a' },
+  { id: 'hard', name: '挑戰', hp: 2.6, atk: 2.0, count: 1, price: 1.6, lvGrow: 1.85, rerolls: 6, gold: 2.3, traps: 0, color: '#ff9f43' },
+  { id: 'hell', name: '地獄', hp: 3.8, atk: 2.8, count: 2, price: 1.9, lvGrow: 2.0, rerolls: 4, gold: 3.2, traps: 1, color: '#ff5a5a' },
+  { id: 'nightmare', name: '無解', hp: 6, atk: 4, count: 3, price: 2.3, lvGrow: 2.2, rerolls: 3, gold: 5, traps: 2, color: '#d06bff' },
 ];
 export const difficultyOf = id => DIFFICULTIES.find(d => d.id === id) || DIFFICULTIES[0];
 
