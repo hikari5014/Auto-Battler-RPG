@@ -60,7 +60,30 @@ export function createHero(def, save) {
     lunge: 0, hurt: 0,
   };
   applyJewels(h, gb.skills);
+  applyGearExtra(h, gb);
   return h;
+}
+
+// 套裝效果與傳說特效
+function applyGearExtra(h, gb) {
+  const x = gb.extra, u = gb.uniq;
+  h.hits += x.hits + (u.flurry || 0);
+  h.shieldPct += x.shield;
+  h.dbl += x.dbl;
+  h.splash += x.splash;
+  h.stealCoins += x.midas;
+  if (x.arcane) h.jewels.push({ id: 'arcane', every: 8, mul: x.arcane / 100, t: 0 });
+  if (u.vamp) h.killHeal += 0.04 * u.vamp;
+  if (u.execute) h.exec += 0.6 * u.execute;
+  if (u.storm) { h.chainEvery = h.chainEvery || 5; h.chainMul += 1.5 * u.storm; }
+  if (u.thornmail) h.thorns += 0.8 * u.thornmail;
+  if (u.undying) h.undying = true;
+  if (u.bulwark) { h.block = Math.min(0.8, h.block + 0.12 * u.bulwark); h.blockHeal += 0.02 * u.bulwark; }
+  if (u.haste) h.hasteMax = 6;
+  if (u.phantom) h.dodge = Math.min(0.6, h.dodge + 0.12 * u.phantom);
+  h.greed = 0.15 * (u.greed || 0);
+  h.bounty = 20 * (u.bounty || 0);
+  h.scholar = Math.min(0.3, 0.1 * (u.scholar || 0));
 }
 
 // 飾品技能：有的直接改能力，有的在戰鬥中定時發動
@@ -150,6 +173,8 @@ export class Battle {
     // 每波重置：開場衝鋒、魔力護盾
     const h = run.hero;
     h.openerUsed = false;
+    h.hasteT = h.hasteMax || 0;       // 傳說特效「先發制人」
+    h.undyingReady = !!h.undying;     // 傳說特效「不屈」
     if (h.shieldPct) h.shield = h.maxHp * h.shieldPct;
     this.boss = null;
   }
@@ -190,7 +215,8 @@ export class Battle {
           this.text(h.x + 0.5, h.z, 1.4, '雷霆!', '#ffe066', 15);
           sfx('crit');
           this.enemies = this.enemies.filter(e => !e.dead);
-        } else this.blast(j.mul, '星隕!', '#b9a8ff', { style: 'meteor' });
+        } else if (j.id === 'arcane') this.blast(j.mul, '秘法爆發!', '#d06bff', { style: 'holy' });
+        else this.blast(j.mul, '星隕!', '#b9a8ff', { style: 'meteor' });
       }
     }
 
@@ -242,7 +268,8 @@ export class Battle {
     // 射程要加上敵人的身體半徑：魔王體型大、站得比較遠，近戰也要打得到
     const front = this.enemies[0];
     if (front && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2 + front.size * 0.4) {
-      h.timer += dt * h.spdMul * (raging(h) ? 1 + h.rageSpd : 1);
+      if (h.hasteT > 0) h.hasteT -= dt;
+      h.timer += dt * h.spdMul * (raging(h) ? 1 + h.rageSpd : 1) * (h.hasteT > 0 ? 1.6 : 1);
       if (h.timer >= h.interval && h.hitQueue <= 0) {
         h.timer = 0;
         const rounds = 1 + Math.floor(h.dbl) + (Math.random() < h.dbl % 1 ? 1 : 0);

@@ -90,6 +90,37 @@ export function jewelPower(it) {
   return p >= 10 ? Math.round(p) : Math.round(p * 10) / 10;
 }
 
+// ---------- 套裝 ----------
+// 稀有以上的裝備有機會屬於某個套裝；穿 2 件、4 件同套裝會有額外效果
+export const SETS = {
+  berserk: { name: '狂戰', color: '#ff6b6b', two: [['atk', 10]], four: [['hits', 1]], d2: '攻擊力 +10%', d4: '攻擊次數 +1' },
+  guard: { name: '守護', color: '#6dff8a', two: [['hp', 15]], four: [['shield', 25]], d2: '血量 +15%', d4: '每波開始獲得 25% 血量護盾' },
+  gale: { name: '疾風', color: '#36d6ff', two: [['spd', 10]], four: [['dbl', 20]], d2: '攻擊速度 +10%', d4: '連擊機率 +20%' },
+  fortune: { name: '財神', color: '#ffd84a', two: [['gold', 15]], four: [['coin', 100], ['midas', 3]], d2: '結算金幣 +15%', d4: '開局球幣 +100、每擊敗一隻 +3 球幣' },
+  hunter: { name: '獵王', color: '#ff9f43', two: [['crit', 6]], four: [['bossDmg', 40]], d2: '暴擊率 +6%', d4: '對菁英、魔王傷害 +40%' },
+  arcane: { name: '秘法', color: '#d06bff', two: [['splash', 15]], four: [['arcane', 150]], d2: '每次攻擊濺射全體 15%', d4: '每 8 秒秘法爆發打全體（150%）' },
+};
+const SET_IDS = Object.keys(SETS);
+const SET_CHANCE = [0, 0.45, 0.65, 1, 1];
+
+// ---------- 傳說特效 ----------
+// 傳說、神話裝備會帶一個獨特效果（看裝備種類）
+export const UNIQUES = {
+  vamp: { name: '吸血之刃', types: ['weapon'], desc: '擊敗敵人回復 4% 血量' },
+  execute: { name: '斬首', types: ['weapon'], desc: '對血量 30% 以下的敵人傷害 +60%' },
+  storm: { name: '雷鳴', types: ['weapon'], desc: '每 5 次攻擊放出連鎖閃電（+150% 傷害）' },
+  thornmail: { name: '荊棘鎧', types: ['helm', 'armor'], desc: '被打時反彈 80% 傷害' },
+  undying: { name: '不屈', types: ['helm', 'armor'], desc: '每波第一次受到致命傷時保留 1 點血' },
+  bulwark: { name: '堡壘', types: ['helm', 'armor'], desc: '格擋 +12%，格擋時回復 2% 血量' },
+  haste: { name: '先發制人', types: ['gloves', 'boots'], desc: '每波開始 6 秒內攻擊速度 +60%' },
+  flurry: { name: '亂舞', types: ['gloves', 'boots'], desc: '攻擊次數 +1' },
+  phantom: { name: '幻影', types: ['gloves', 'boots'], desc: '閃避 +12%' },
+  greed: { name: '貪婪', types: ['necklace', 'ring'], desc: '接到的球幣 +15%' },
+  bounty: { name: '賞金', types: ['necklace', 'ring'], desc: '菁英、魔王被擊敗時多掉 20 顆球' },
+  scholar: { name: '學者', types: ['necklace', 'ring'], desc: '技能商店價格 -10%' },
+};
+const uniquesFor = type => Object.keys(UNIQUES).filter(k => UNIQUES[k].types.includes(type));
+
 // ---------- 存檔 ----------
 const rand = (a, b) => a + Math.random() * (b - a);
 const r1 = v => Math.round(v * 10) / 10;
@@ -121,23 +152,28 @@ function migrate(g) {
   g.v = 2;
 }
 
-function makeItem(gear, type, rarity) {
+// ilv = 裝備等級（在第幾章掉的）：每高一級數值 +12%，越後面的章節掉越好的裝備
+export const ilvMul = ilv => 1 + 0.12 * ((ilv || 1) - 1);
+function makeItem(gear, type, rarity, ilv = 1) {
   const T = TYPES[type];
   const r = RARITIES[rarity];
-  const it = { id: gear.nextId++, type, rarity, plus: 0, fresh: true, affixes: [] };
+  const k = r.mult * ilvMul(ilv);
+  const it = { id: gear.nextId++, type, rarity, ilv, plus: 0, fresh: true, affixes: [] };
   it.main = T.main || RING_MAINS[Math.floor(Math.random() * RING_MAINS.length)];
-  it.value = r1((T.main ? T.base : STATS[it.main].base * 1.6) * r.mult);
+  it.value = r1((T.main ? T.base : STATS[it.main].base * 1.6) * k);
+  if (Math.random() < SET_CHANCE[rarity]) it.set = SET_IDS[Math.floor(Math.random() * SET_IDS.length)];
+  if (rarity >= 3) { const u = uniquesFor(type); it.uniq = u[Math.floor(Math.random() * u.length)]; }
   // 副屬性：不重複、不跟主屬性一樣
   const pool = AFFIX_POOL.filter(s => s !== it.main);
   for (let i = 0; i < r.affix; i++) {
-    const k = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-    it.affixes.push({ stat: k, value: r1(STATS[k].base * r.mult * rand(0.6, 1.2)) || 0.1 });
+    const k2 = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    it.affixes.push({ stat: k2, value: r1(STATS[k2].base * k * rand(0.6, 1.2)) || 0.1 });
   }
   if (T.jewel) { it.jlv = 1; it.jexp = 0; it.skill = JEWEL_IDS[Math.floor(Math.random() * JEWEL_IDS.length)]; }
   return it;
 }
 
-export const itemName = it => TYPES[it.type].names[it.rarity] + (it.plus ? ` +${it.plus}` : '');
+export const itemName = it => (it.set ? SETS[it.set].name + '・' : '') + TYPES[it.type].names[it.rarity] + (it.plus ? ` +${it.plus}` : '');
 export const itemIcon = it => ['ic', TYPES[it.type].icons[it.rarity], RARITIES[it.rarity].color];
 // 主屬性實際數值（強化每級 +10%）
 export const mainValue = it => r1(it.value * (1 + 0.1 * (it.plus || 0)));
@@ -158,12 +194,12 @@ function randomRarity(diffIndex) {
   for (; rarity < MAX_RARITY; rarity++) { x -= w[rarity]; if (x <= 0) break; }
   return rarity;
 }
-export function rollDrops(save, cleared, win, diffIndex) {
+export function rollDrops(save, cleared, win, diffIndex, chapter = 1) {
   const gear = ensureGear(save);
   let count = Math.min(7, Math.floor(cleared / 4) + (win ? 2 : 0) + (diffIndex >= 3 ? 1 : 0));
   if (cleared >= 3) count = Math.max(1, count);
   const drops = [];
-  for (let i = 0; i < count; i++) drops.push(makeItem(gear, randomType(), randomRarity(diffIndex)));
+  for (let i = 0; i < count; i++) drops.push(makeItem(gear, randomType(), randomRarity(diffIndex), chapter));
   gear.items.push(...drops);
   // 背包滿了：自動分解最差的、沒穿在身上的
   let salvaged = 0;
@@ -178,9 +214,9 @@ export function rollDrops(save, cleared, win, diffIndex) {
   save.gold += salvaged;
   return { drops, salvaged };
 }
-export function grantItem(save, rarity) {
+export function grantItem(save, rarity, ilv = 1) {
   const gear = ensureGear(save);
-  const it = makeItem(gear, randomType(), rarity);
+  const it = makeItem(gear, randomType(), rarity, ilv);
   gear.items.push(it);
   return it;
 }
@@ -188,7 +224,7 @@ export function grantItem(save, rarity) {
 // ---------- 加成 ----------
 export function gearBonus(save) {
   const gear = ensureGear(save);
-  const b = { skills: {} };
+  const b = { skills: {}, uniq: {}, sets: {}, extra: { hits: 0, shield: 0, dbl: 0, splash: 0, arcane: 0, midas: 0 } };
   for (const k of AFFIX_POOL) b[k] = 0;
   const add = (stat, v) => { b[stat] += STATS[stat].unit === '%' ? v / 100 : v; };
   for (const id of Object.values(gear.equip)) {
@@ -200,6 +236,19 @@ export function gearBonus(save) {
     if (it.skill) {
       const p = jewelPower(it);
       if (p) b.skills[it.skill] = (b.skills[it.skill] || 0) + p;
+    }
+    if (it.uniq) b.uniq[it.uniq] = (b.uniq[it.uniq] || 0) + 1;
+    if (it.set) b.sets[it.set] = (b.sets[it.set] || 0) + 1;
+  }
+  // 套裝效果
+  for (const [id, n] of Object.entries(b.sets)) {
+    const st = SETS[id];
+    for (const [need, list] of [[2, st.two], [4, st.four]]) {
+      if (n < need) continue;
+      for (const [k, v] of list) {
+        if (STATS[k]) add(k, v);
+        else b.extra[k] += k === 'hits' || k === 'midas' || k === 'arcane' ? v : v / 100;
+      }
     }
   }
   return b;
@@ -232,10 +281,23 @@ export const isWorn = (save, id) => Object.values(ensureGear(save).equip).includ
 export function score(it) {
   if (!it) return -1;
   const base = TYPES[it.type].main ? TYPES[it.type].base : STATS[it.main].base * 1.6;
-  let s = mainValue(it) / base;
+  let s = mainValue(it) / base; // 主屬性已經含裝備等級
+  if (it.uniq) s += 0.8;
   for (const a of it.affixes) s += a.value / STATS[a.stat].base * 0.4;
   if (it.ench) s += it.ench.value / STATS[it.ench.stat].base * 0.4;
   return s;
+}
+// 戰力：身上所有裝備的分數加總（含套裝、傳說特效），拿來比較整體強度
+export function gearPower(save) {
+  const gear = ensureGear(save);
+  const b = gearBonus(save);
+  let p = 0;
+  for (const id of Object.values(gear.equip)) {
+    const it = gear.items.find(x => x.id === id);
+    if (it) p += score(it) * 100 + (it.uniq ? 150 : 0) + (it.skill ? jewelPower(it) * 2 : 0);
+  }
+  for (const n of Object.values(b.sets)) p += n >= 4 ? 400 : n >= 2 ? 150 : 0;
+  return Math.round(p);
 }
 export function isBetter(save, it) {
   if (isWorn(save, it.id)) return false;
@@ -357,7 +419,7 @@ export function mergeAll(save) {
       if (list.length < 3) continue;
       const three = list.slice(0, 3);
       gear.items = gear.items.filter(x => !three.includes(x));
-      const up = makeItem(gear, three[0].type, three[0].rarity + 1);
+      const up = makeItem(gear, three[0].type, three[0].rarity + 1, Math.max(...three.map(x => x.ilv || 1)));
       up.plus = Math.max(...three.map(x => x.plus || 0));
       if (up.skill) {
         const best = three.reduce((a, b) => ((a.jlv || 1) >= (b.jlv || 1) ? a : b));

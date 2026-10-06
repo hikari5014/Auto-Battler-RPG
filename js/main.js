@@ -16,7 +16,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -207,6 +207,7 @@ function onKill(e) {
   else if (e.kind !== 'normal') save.stats.elites++;
   // 盜賊王：擊敗直接拿球幣
   if (run.hero.stealCoins) run.coins += run.hero.stealCoins * (run.hero.stealBig && e.kind !== 'normal' ? 10 : 1);
+  if (run.hero.bounty && e.kind !== 'normal') board.pour(run.hero.bounty); // 傳說特效「賞金」
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
@@ -342,7 +343,7 @@ $('event-body').addEventListener('click', ev => {
 
 board.onCatch = (b, mult) => {
   const run = game.run;
-  const gain = b.v * mult * (run.mods.rich ? 1.5 : 1);
+  const gain = b.v * mult * (run.mods.rich ? 1.5 : 1) * (1 + (run.hero.greed || 0));
   run.coins += gain;
   save.stats.coins += gain;
   run.caught++;
@@ -391,7 +392,12 @@ function update(dt) {
   }
 
   if (run.phase === 'fight') {
-    if (run.hero.hp <= 0 && run.hero.phoenix) {
+    if (run.hero.hp <= 0 && run.hero.undyingReady) {
+      // 傳說特效「不屈」：每波第一次致命傷保留 1 點血
+      run.hero.undyingReady = false;
+      run.hero.hp = 1;
+      battle.text(run.hero.x, run.hero.z, 1.5, '不屈!', '#ffd84a', 16);
+    } else if (run.hero.hp <= 0 && run.hero.phoenix) {
       // 天賦「不死鳥」：自動復活一次
       run.hero.phoenix = false;
       run.hero.hp = run.hero.maxHp * 0.5;
@@ -575,7 +581,7 @@ function rollOffer() {
     idx = Math.min(idx, pool.length - 1);
     const sk = pool.splice(idx, 1)[0];
     // 價格：星數基本價 x 波數成長 x 難度 x（等級越高越貴：每升一級再乘 lvGrow 倍，難度越高倍數越大）
-    const lvMul = Math.pow(run.diff.lvGrow || 1.5, skillLv(sk));
+    const lvMul = Math.pow(run.diff.lvGrow || 1.5, skillLv(sk)) * (1 - (run.hero.scholar || 0)); // 傳說特效「學者」
     picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (1 - run.tb.price)), bought: false });
   }
   run.offer = picks;
@@ -749,7 +755,7 @@ function endRun(win) {
   gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + Math.max(...run.heroes.map(h => h.goldBonus)))); // 黃金戒指＋天賦＋盜賊王
   save.gold += gold;
   const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
-  const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex);
+  const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex, run.chapter);
   // 統計
   const st = save.stats;
   st.bestWave = Math.max(st.bestWave, cleared);
@@ -764,7 +770,7 @@ function endRun(win) {
     const ch = todayChallenge(save);
     const g = dailyReward(ch);
     save.gold += g;
-    const it = grantItem(save, 2);
+    const it = grantItem(save, 2, run.chapter);
     drops.push(it);
     save.daily = { date: todayKey(), done: true };
     st.dailyWins++;
@@ -1499,7 +1505,7 @@ function gearSummary() {
   }).join('');
   const m = mergeableCount(save);
   const fresh = freshCount(save);
-  return `<b>背包</b>${slots}<small>${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
+  return `<b>背包</b>${slots}<small>戰力 ${fmt(gearPower(save))}・${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
 }
 
 let gearSel = null; // 目前點選的裝備 id
@@ -1518,11 +1524,23 @@ const bonusChips = b => {
   for (const [id, p] of Object.entries(b.skills || {})) chips.push(`<span class="chip jewel">${JEWEL_SKILLS[id].name}</span>`);
   return chips.join('') || '<span class="chip">還沒有穿裝備</span>';
 };
+// 身上的套裝進度：例如「狂戰 3/4」，達成的效果亮起來
+function setStrip() {
+  const sets = Object.entries(gearBonus(save).sets);
+  if (!sets.length) return '';
+  return `<div class="set-strip">${sets.map(([id, n]) => `<span class="setp ${n >= 4 ? 'full' : n >= 2 ? 'half' : ''}" style="--sc:${SETS[id].color}">${SETS[id].name} ${n}/4</span>`).join('')}</div>`;
+}
 // 一件裝備的完整說明（主屬性、副屬性、附魔、飾品技能）
 function itemLines(it) {
-  let h = `<p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
+  let h = `<p class="il ilv">裝備等級 Lv.${it.ilv || 1}${it.set ? `・<b style="color:${SETS[it.set].color}">${SETS[it.set].name}套裝</b>` : ''}</p><p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
   for (const a of it.affixes) h += `<p class="il">${statText(a.stat, a.value)}</p>`;
   if (it.ench) h += `<p class="il ench">✦ 附魔：${statText(it.ench.stat, it.ench.value)}</p>`;
+  if (it.uniq) h += `<p class="il uniq">★ 傳說特效「${UNIQUES[it.uniq].name}」：${UNIQUES[it.uniq].desc}</p>`;
+  if (it.set) {
+    const n = gearBonus(save).sets[it.set] || 0;
+    const st = SETS[it.set];
+    h += `<p class="il set ${n >= 2 ? 'on' : ''}">(2) ${st.d2}</p><p class="il set ${n >= 4 ? 'on' : ''}">(4) ${st.d4}</p>`;
+  }
   if (it.skill) {
     const sk = JEWEL_SKILLS[it.skill];
     const p = jewelPower(it);
@@ -1545,7 +1563,7 @@ function renderGear() {
   list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || (c.plus || 0) - (a.plus || 0) || a.type.localeCompare(c.type));
   const cells = list.map(it => `
     <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
-      ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
+      ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${it.set ? `<i class="setdot" style="--sc:${SETS[it.set].color}"></i>` : ''}${it.uniq ? '<i class="uq">★</i>' : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
   const empties = gearTab === 'all' ? Math.max(0, MAX_ITEMS - gear.items.length) : (6 - list.length % 6) % 6;
   for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
   const sel = gear.items.find(x => x.id === gearSel);
@@ -1581,13 +1599,14 @@ function renderGear() {
   const junk = gear.items.filter(it => it.rarity === 0 && !it.lock && !it.plus && !isWorn(save, it.id) && !isBetter(save, it)).length;
   $('gear-body').innerHTML = `
     <h2>背包</h2>
-    <div class="gear-top"><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
+    <div class="gear-top"><span class="pill power">戰力 <b>${fmt(gearPower(save))}</b></span><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
     <div class="doll8">
       <div class="dcol">${slotBtn('helm')}${slotBtn('armor')}${slotBtn('gloves')}${slotBtn('boots')}</div>
       <span class="doll-hero">${iconTag(['dg', hero.sprite], 64)}<small>${hero.name.split(' ')[1]}</small></span>
       <div class="dcol">${slotBtn('weapon')}${slotBtn('necklace')}${slotBtn('ring1')}${slotBtn('ring2')}</div>
     </div>
     <div class="chips">${bonusChips(gearBonus(save))}</div>
+    ${setStrip()}
     <div class="item-detail">${detail}</div>
     <div class="gtabs">${tabs}<button class="gsort" id="btn-gsort">${gearSort === 'new' ? '最新' : '稀有度'} ⇅</button></div>
     <div class="cap"><i style="width:${gear.items.length / MAX_ITEMS * 100}%" class="${gear.items.length >= MAX_ITEMS - 4 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${MAX_ITEMS}${gear.items.length >= MAX_ITEMS - 4 ? '・快滿了，記得分解或合成' : ''}</span></div>
