@@ -29,9 +29,9 @@ export function createHero(def, save) {
     atkMul: 1, spdMul: 1 + tb.spd + mb('spd'),
     interval: def.interval, range: def.range / 48, // 換算成世界距離
     hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit + mb('crit'), critDmg: (def.critDmg || 1.5) + tb.critDmg,
-    block: (def.block || 0) + tb.block, dbl: 0, life: (def.life || 0) + tb.life, splash: def.splash || 0, thorns: (def.thorns || 0) + tb.thorns,
+    block: (def.block || 0) + tb.block, dbl: tb.dbl, life: (def.life || 0) + tb.life, splash: (def.splash || 0) + tb.splash, thorns: (def.thorns || 0) + tb.thorns,
     bossDmg: tb.bossDmg, skillDropBonus: tb.skillDrop, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen,
-    magnet: def.magnet || 0,
+    magnet: (def.magnet || 0) + tb.magnet,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
     // 職業專屬技能用到的數值
     swordEvery: 3, swordMul: 1, swordTwice: false, swordCrit: false, blockHeal: 0,
@@ -39,10 +39,10 @@ export function createHero(def, save) {
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
     // 近戰／遠程／法術技能
-    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: 0, opener: 0, openerStun: false, openerUsed: false,
+    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: Math.min(0.6, tb.dr), opener: 0, openerStun: false, openerUsed: false,
     snipe: 0, snipeCrit: false, dot: 0, dotColor: '#7dff5a', dotTime: 3, critEvery: 0, hitCount: 0, slowWalk: 0, slowAtk: 0,
     chainEvery: 0, chainMul: 0, chainJumps: 3, shieldPct: 0, shield: 0, shieldBurst: 0, killBlast: 0,
-    interest: 0, interestCap: 1,
+    interest: tb.interest, interestCap: 1,
     // 新職業的被動與專屬技能
     holyEvery: 5, holyMul: 0.8, holyShield: 0, holyStun: false, regenPs: 0,
     dodge: def.dodge || 0, dodgeCrit: false, nextCrit: false, exec: 0, execAt: 0.3, critDot: 0,

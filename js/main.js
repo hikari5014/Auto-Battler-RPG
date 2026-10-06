@@ -1,5 +1,5 @@
 import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, heroCls, STAR_PRICE, STAR_WEIGHT, CHAPTERS, MAX_WAVE, ENDLESS_CYCLE, isBossWave, stageWave } from './data.js';
-import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach } from './talent.js';
+import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach, infPoints, mastered, bonusLines, BRANCHES as T_BRANCHES, effText } from './talent.js';
 import { shareResult } from './share.js';
 import { statsHtml, refreshStats, dps } from './stats.js';
 import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText } from './mount.js';
@@ -1037,42 +1037,53 @@ function webSvg() {
     return `<line data-link="${a}|${b}" x1="${A.x * 100}" y1="${A.y * 100}" x2="${B.x * 100}" y2="${B.y * 100}"/>`;
   }).join('');
   return `<svg class="web-bg" viewBox="0 0 100 100" aria-hidden="true">
-    <polygon class="ring" points="${hex(0.155)}"/><polygon class="ring" points="${hex(0.28)}"/><polygon class="ring" points="${hex(0.4)}"/>
-    <circle class="ring dash" cx="50" cy="50" r="46.5"/>
+    <polygon class="ring" points="${hex(0.12)}"/><polygon class="ring" points="${hex(0.205)}"/><polygon class="ring" points="${hex(0.29)}"/><polygon class="ring" points="${hex(0.37)}"/>
+    <circle class="ring dash" cx="50" cy="50" r="44"/><circle class="ring inf" cx="50" cy="50" r="46.5"/>
     <g class="links">${links}</g></svg>`;
 }
 
 function renderTalent() {
-  const nodes = TALENTS.map(n => `<button class="tnode ${n.key ? 'key' : ''} ${n.id === 'core' ? 'core' : ''}" data-node="${n.id}" style="left:${n.x * 100}%;top:${n.y * 100}%;--tc:${n.color}" aria-label="${n.name}">
-      ${iconTag(n.icon, n.key ? 22 : 18)}<i class="tlv"></i></button>`).join('');
+  const nodes = TALENTS.map(n => `<button class="tnode k-${n.kind}" data-node="${n.id}" style="left:${n.x * 100}%;top:${n.y * 100}%;--tc:${n.color}" aria-label="${n.name}">
+      ${iconTag(n.icon, n.kind === 'key' ? 20 : 16)}<i class="tlv"></i></button>`).join('');
   $('talent-body').innerHTML = `
     <h2>天賦網</h2>
     <div class="talent-top">
       <div class="pill" id="talent-gold">${iconTag(ICON.gold, 18)} <b>${fmt(save.gold)}</b></div>
-      <small>已點 <b id="talent-pts">${totalPoints(save)}</b> 點<br>每多點一點，全部變貴 4%</small>
+      <small>已點 <b id="talent-pts">${totalPoints(save)}</b> 點・無極 <b id="talent-inf">${infPoints(save)}</b> 級<br>每多點一點，一般天賦變貴 3%</small>
     </div>
-    <div class="tweb">${webSvg()}${nodes}</div>
+    <div class="tweb-wrap ${talentZoom ? 'zoom' : ''}" id="tweb-wrap"><div class="tweb">${webSvg()}${nodes}</div></div>
+    <button class="tzoom" id="btn-tzoom">${talentZoom ? '縮小' : '放大'}</button>
     <div class="tdetail" id="tdetail"></div>
+    <div class="tsum hidden" id="tsum"></div>
     <div class="row">
       <button class="btn small ghost" id="btn-talent-reset">重置（全額退還）</button>
+      <button class="btn small ghost" id="btn-tsum">總加成</button>
       <button class="btn small" id="btn-talent-close">關閉</button>
     </div>`;
   updateTalent();
 }
 
+let talentZoom = false;
+const KIND_TAG = { key: '<i class="tag key">核心・二選一</i>', cross: '<i class="tag cross">混合</i>', inf: '<i class="tag inf">無極・無上限</i>' };
+
 // 只更新狀態（升級按鈕可以按住連點，不能被換掉）
 function updateTalent(changed) {
   $('talent-gold').querySelector('b').textContent = fmt(save.gold);
   $('talent-pts').textContent = totalPoints(save);
+  $('talent-inf').textContent = infPoints(save);
+  const masteredIds = new Set(T_BRANCHES.filter(b => mastered(save, b)).map(b => b.id));
   document.querySelectorAll('.tnode').forEach(el => {
     const n = talentById(el.dataset.node);
     const lv = tLv(save, n.id);
     el.classList.toggle('on', lv > 0);
     el.classList.toggle('max', lv >= n.max && n.id !== 'core');
-    el.classList.toggle('reach', lv === 0 && canReach(save, n));
+    el.classList.toggle('reach', lv === 0 && canReach(save, n) && !(n.excl && tLv(save, n.excl)));
     el.classList.toggle('can', !whyNot(save, n));
     el.classList.toggle('sel', n.id === talentSel);
-    el.querySelector('.tlv').textContent = n.id === 'core' ? '' : n.max > 1 ? `${lv}/${n.max}` : lv ? '★' : '';
+    el.classList.toggle('excluded', !!(n.excl && tLv(save, n.excl) > 0 && !lv));
+    el.classList.toggle('mastered', !!(n.branch && masteredIds.has(n.branch.id) && n.kind === 'node'));
+    // 沒點的格子不顯示數字，畫面比較清爽
+    el.querySelector('.tlv').textContent = n.id === 'core' || (!lv && n.kind !== 'inf') ? '' : n.kind === 'inf' ? (lv ? '∞' + lv : '∞') : n.max > 1 ? `${lv}/${n.max}` : '★';
     if (n.id === changed) pop(el);
   });
   document.querySelectorAll('[data-link]').forEach(l => {
@@ -1087,17 +1098,30 @@ function updateTalent(changed) {
   if (det.dataset.node !== n.id) {
     det.dataset.node = n.id;
     det.innerHTML = `<span class="td-ic" style="--tc:${n.color}">${iconTag(n.icon, 30)}</span>
-      <span class="td-info"><b>${n.name}${n.key ? ' <i class="tag key">核心</i>' : n.branch ? ` <i class="tag" style="--tc:${n.color}">${n.branch.name}</i>` : ''}</b>
-        <small class="td-now"></small><small class="td-next"></small></span>
+      <span class="td-info"><b>${n.name} ${KIND_TAG[n.kind] || (n.branch ? `<i class="tag" style="--tc:${n.color}">${n.branch.name}</i>` : '')}</b>
+        <small class="td-now"></small><small class="td-next"></small><small class="td-extra"></small></span>
       ${n.id === 'core' ? '' : `<button class="btn small" id="btn-tbuy" data-repeat>${iconTag(ICON.gold, 16)}<span class="cost"></span></button>`}`;
   }
-  det.querySelector('.td-now').textContent = n.id === 'core' ? n.fmt() : lv ? `目前 Lv.${lv}/${n.max}：${talentDesc(save, n)}` : `尚未點亮（最高 ${n.max} 級）`;
+  const inf = n.kind === 'inf';
+  det.querySelector('.td-now').textContent = n.id === 'core' ? talentDesc(save, n) : lv ? `目前 Lv.${lv}${inf ? '' : '/' + n.max}：${talentDesc(save, n)}` : `尚未點亮（${inf ? '沒有等級上限' : '最高 ' + n.max + ' 級'}）`;
   det.querySelector('.td-next').textContent = n.id === 'core' ? '從這裡往外點亮天賦' : lv >= n.max ? '已經滿級 ★' : `下一級：${talentDesc(save, n, lv + 1)}`;
+  // 額外說明：二選一、精通、無極開放條件
+  let extra = '';
+  if (n.excl) extra = `和「${talentById(n.excl).name}」只能選一個`;
+  else if (n.kind === 'node') extra = `${n.branch.name}精通（4 格全滿）：${effText(n.branch.mastery)}${mastered(save, n.branch) ? ' ✓' : ''}`;
+  else if (inf && !canReach(save, n)) extra = `把「${n.branch.nodes[3].name}」點滿後開放`;
+  det.querySelector('.td-extra').textContent = extra;
   const b = $('btn-tbuy');
   if (b) {
-    b.querySelector('.cost').textContent = lv >= n.max ? 'MAX' : talentCost(save, n);
+    b.querySelector('.cost').textContent = lv >= n.max ? 'MAX' : fmt(talentCost(save, n));
     setOff(b, !!why, why);
   }
+  if (!$('tsum').classList.contains('hidden')) renderTalentSum();
+}
+function renderTalentSum() {
+  const lines = bonusLines(save);
+  const ms = T_BRANCHES.filter(b => mastered(save, b)).map(b => b.name + '精通');
+  $('tsum').innerHTML = `<b>天賦總加成</b>${ms.length ? `<p class="ms">${ms.join('・')}</p>` : ''}<ul>${lines.map(l => `<li>${l}</li>`).join('') || '<li>還沒有點任何天賦</li>'}</ul>`;
 }
 
 $('talent-body').addEventListener('click', ev => {
@@ -1109,14 +1133,32 @@ $('talent-body').addEventListener('click', ev => {
     updateTalent();
   } else if (t.id === 'btn-tbuy') {
     const n = talentById(talentSel);
+    const wasMastered = n.branch && mastered(save, n.branch);
     if (buyTalent(save, n)) {
       sfx('buy');
       writeSave(save);
       const el = document.querySelector(`.tnode[data-node="${n.id}"]`);
-      if (tLv(save, n.id) >= n.max) { celebrate(el, n.key ? '#fff2a8' : '#ffd84a'); if (n.key) banner(`核心天賦：${n.name}！`); }
+      if (tLv(save, n.id) >= n.max) { celebrate(el, n.kind === 'key' ? '#fff2a8' : '#ffd84a'); if (n.kind === 'key') banner(`核心天賦：${n.name}！`); }
+      if (n.branch && !wasMastered && mastered(save, n.branch)) { banner(`${n.branch.name}精通！`); sfx('win'); }
+      else if (n.kind === 'node' && n.ring === 3 && tLv(save, n.id) >= n.max) toast(`「${n.branch.inf.name}」開放：可以無限強化！`);
+      if (n.kind === 'inf' && tLv(save, n.id) % 10 === 0) { celebrate(el, n.color); toast(`${n.name} 突破 Lv.${tLv(save, n.id)}！`); }
       updateTalent(n.id);
       pop($('talent-gold'));
     }
+  } else if (t.id === 'btn-tzoom') {
+    sfx('tap');
+    talentZoom = !talentZoom;
+    $('tweb-wrap').classList.toggle('zoom', talentZoom);
+    t.textContent = talentZoom ? '縮小' : '放大';
+    // 放大後先捲到選中的格子
+    if (talentZoom) {
+      const w = $('tweb-wrap'), el = w.querySelector('.tnode.sel');
+      if (el) { w.scrollLeft = el.offsetLeft - w.clientWidth / 2; w.scrollTop = el.offsetTop - w.clientHeight / 2; }
+    }
+  } else if (t.id === 'btn-tsum') {
+    sfx('tap');
+    $('tsum').classList.toggle('hidden');
+    if (!$('tsum').classList.contains('hidden')) renderTalentSum();
   } else if (t.id === 'btn-talent-reset') {
     sfx('tap');
     if (!totalPoints(save)) { toast('還沒有點任何天賦'); return; }
