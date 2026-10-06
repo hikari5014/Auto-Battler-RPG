@@ -15,6 +15,7 @@ import * as camp from './campaign.js';
 import * as expd from './expedition.js';
 import * as live from './live.js';
 import * as arcade from './arcade.js';
+import * as evm from './eventmodes.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -148,7 +149,7 @@ function startRun(opts = {}) {
     diff: difficultyOf(spec && spec.diffId ? spec.diffId : opts.daily ? 'easy' : save.difficulty), // 難度
     rules: boardOf(chapter),               // 這一章的彈珠台與特殊規則
   };
-  if (spec) { Object.assign(game.run, spec); game.run.coins += spec.startCoins || 0; if (spec.init) spec.init(game.run); }
+  if (spec) { Object.assign(game.run, spec); game.run.coins += spec.startCoins || 0; }
   // 每日挑戰「玻璃大砲」
   if (mods.glass) {
     for (const h of heroes) {
@@ -163,6 +164,7 @@ function startRun(opts = {}) {
   board.cupW = Math.min(220, board.cupW * (1 + tb.cupW));
   board.cupMult += tb.cupMult;
   for (let i = 0; i < tb.gatePlus; i++) board.addGate('+3');
+  if (spec && spec.init) spec.init(game.run, board); // 模式的特殊規則（要在彈珠台重設之後）
   // 天賦「開局禮包」：免費一個隨機技能
   if (tb.startSkill) {
     const sk = makeRandomSkill(game.run, isMaxed)(k => k.id !== 'heal');
@@ -416,6 +418,12 @@ board.onCatch = (b, mult) => {
   let gain = b.v * mult * (run.mods.rich ? 1.5 : 1) * (1 + (run.hero.greed || 0));
   // 3.12 杯中軍團：一半變成士兵
   if (run.mode === 'army') { run.army = Math.min(200, (run.army || 0) + gain * 0.15); gain *= 0.5; }
+  // 3.13 塔防：接到的球幣累積到 150 就蓋一座砲塔
+  if (run.mode === 'td') {
+    run.tdCoins += gain;
+    const h = run.heroes[0];
+    if (run.tdCoins >= 150 && h.turrets < 8) { run.tdCoins -= 150; for (const x of run.heroes) x.turrets = Math.min(8, x.turrets + 1); toast(`蓋了一座砲塔！（${h.turrets} 座）`); }
+  }
   run.coins += gain;
   save.stats.coins += gain;
   run.caught++;
@@ -474,6 +482,16 @@ function update(dt) {
     if (run.mode === 'army' && run.army >= 1) {
       run.armyT = (run.armyT || 0) + dt;
       if (run.armyT >= 0.6) { run.armyT = 0; battle.strikeFront(arcade.armyHit(run.army), '', '#9fe3ff', 'arrow'); }
+    } else if (run.mode === 'survivor' && battle.mk) {
+      // 3.13 倖存者：敵人越來越強、一直補；每 25 秒送一個技能
+      run.modeHp = run.svModeHp * (1 + (run.tT || 0) / 15);
+      run.modeAtk = 0.55 * (1 + (run.tT || 0) / 50);
+      if (battle.queue.length + battle.enemies.length < 14) {
+        const pool = CHAPTERS[(run.chapter - 1) % CHAPTERS.length].enemies;
+        for (let k = 0; k < 3; k++) battle.queue.push(battle.mk(pool[Math.floor(Math.random() * pool.length)], Math.random() < 0.08 ? 'elite' : 'normal'));
+      }
+      run.svSkillT = (run.svSkillT || 0) + dt;
+      if (run.svSkillT >= 25) { run.svSkillT = 0; const sk = makeRandomSkill(run, isMaxed)(() => true); if (sk) { gainSkill(sk); renderSkillBar(); toast(`升級：${sk.name}`); } }
     } else if (run.mode === 'shooter') {
       run.shotT = (run.shotT || 0) + dt;
       if (run.shotT >= 0.7 && board.balls.length < 8 && board.queue === 0) { run.shotT = 0; board.pour(1); }
@@ -483,7 +501,7 @@ function update(dt) {
   if (run.timer && run.phase === 'fight') {
     run.tT = (run.tT || 0) + dt;
     const left = Math.max(0, Math.ceil(run.timer - run.tT));
-    if (left !== run.tShown) { run.tShown = left; $('hud-wave').innerHTML = `${run.label(1)}　${left} 秒｜傷害 ${fmt(run.bossDmg || 0)}`; }
+    if (left !== run.tShown) { run.tShown = left; $('hud-wave').innerHTML = `${run.label(1)}　${left} 秒｜${run.mode === 'survivor' ? `擊敗 ${run.kills}` : `傷害 ${fmt(run.bossDmg || 0)}`}`; }
     if (run.tT >= run.timer) { endRun(true); return; }
   }
   if (run.phase === 'fight') {
@@ -679,7 +697,7 @@ function rollOffer() {
     const sk = pool.splice(idx, 1)[0];
     // 價格：星數基本價 x 波數成長 x 難度 x（等級越高越貴：每升一級再乘 lvGrow 倍，難度越高倍數越大）
     const lvMul = Math.pow(run.diff.lvGrow || 1.5, skillLv(sk)) * (1 - (run.hero.scholar || 0)); // 傳說特效「學者」
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (run.relicDisc || 1) * (1 - run.tb.price)), bought: false });
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (run.relicDisc || 1) * (run.priceMul || 1) * (1 - run.tb.price)), bought: false });
   }
   run.offer = picks;
 }
@@ -871,6 +889,12 @@ function endModeRun(win) {
     title = win ? '競技場 勝利！' : '競技場 落敗';
     sub = `對手：${run.opp.name}・打倒 ${cleared}/3 個幻影`;
     lines = [`積分 ${d >= 0 ? '+' : ''}${d} → ${save.arena.pts}（${live.rankOf(save.arena.pts).name}）`];
+  } else if (evm.EVENT_MODES[run.mode]) {
+    const M = evm.EVENT_MODES[run.mode], score = run.mode === 'survivor' ? run.kills : cleared;
+    title = win ? `${M.name} 完成！` : `${M.name} 結束`;
+    sub = run.mode === 'survivor' ? `撐了 ${Math.floor(run.tT || 0)} 秒・擊敗 ${run.kills} 隻` : `完成 ${cleared}/${run.maxWave} 波`;
+    const r = evm.evModeReward(save, run.mode, score, win);
+    lines = [`${live.currentEvent().token} +${r.tok}`, r.gem ? `今天第一次：+${r.gem} 寶石、+20 星塵` : '今天的寶石已領過（或表現還不夠）'];
   } else if (run.mode === 'army' || run.mode === 'shooter') {
     const A = arcade.ARCADE[run.mode];
     title = win ? `${A.name} 全破！` : `${A.name} 結束`;
@@ -2226,6 +2250,13 @@ $('modes-body').addEventListener('click', ev => {
 
 // ---------- 3.11 冒險手冊、限時活動 ----------
 let liveTab = 'pass';
+function evModeBox() {
+  const id = evm.currentMode();
+  if (!id) return '';
+  const M = evm.EVENT_MODES[id], e = evm.ensureEvMode(save);
+  return `<div class="evm"><b>活動模式：${M.name}</b><small>${M.desc}</small><small>最佳 ${e.best[id] || 0}・${e.done ? '今天的寶石已領' : '今天第一次過關 +40 寶石'}</small>
+    <button class="btn gift" id="btn-evm-go" data-evm="${id}">開始${M.name}</button></div>`;
+}
 function openLive() { renderLive(); showScreen('screen-live', 'screen-home'); }
 function renderLive() {
   const p = live.ensurePass(save), lv = live.passLv(save), e = live.ensureEvent(save), ev = live.currentEvent();
@@ -2242,6 +2273,7 @@ function renderLive() {
       <button class="btn gift" id="btn-pass-all" ${offAttr(!live.passReady(save), '沒有可以領的')}>全部領取</button>`;
   } else {
     body = `<div class="ev-head" style="--ec:${ev.color}"><b>${ev.name}</b><small>${ev.desc}</small><small>還剩 ${live.eventDaysLeft()} 天・每週換一種活動</small></div>
+      ${evModeBox()}
       <p class="dg-info">${ev.token}：<b>${e.pts}</b>（冒險、挑戰每過一波 +1）</p>
       <div class="q-list">${live.EVENT_SHOP.map(it => { const left = it.limit - (e.bought[it.id] || 0); return `<div class="q-row"><span><b>${it.name}</b><small>剩 ${left} 次</small></span><button class="btn small" data-evbuy="${it.id}" ${offAttr(left <= 0 || e.pts < it.cost, left <= 0 ? '買完了' : `${ev.token}不足`)}>${ev.token} ${it.cost}</button></div>`; }).join('')}</div>`;
   }
@@ -2261,6 +2293,7 @@ $('live-body').addEventListener('click', ev => {
     for (let i = 1; i <= live.passLv(save); i++) { const g = live.claimPass(save, i); if (g) for (const [k, v] of Object.entries(g)) sum[k] = (sum[k] || 0) + v; }
     sfx('jackpot'); celebrate(t, '#ffd84a'); toast('手冊獎勵：' + eco.giftText(sum)); writeSave(save);
   } else if (t.dataset.evbuy) { const it = live.buyEvent(save, t.dataset.evbuy); if (it) { sfx('buy'); toast(`兌換：${it.name}`); writeSave(save); } }
+  else if (t.id === 'btn-evm-go') { writeSave(save); startRun({ chapter: save.chapter, spec: evm.runOf(t.dataset.evm) }); return; }
   else if (t.id === 'btn-live-close') { renderHome(); showScreen('screen-home'); return; }
   renderLive();
 });
@@ -2744,8 +2777,10 @@ const CREDITS = [
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
   ['扭蛋英雄', '0x72「DungeonTileset II」', 'CC0'],
   ['扭蛋膠囊、寶石與道具圖示', 'Airos「Toy Capsules」、SpriteAttack、7Soul1「496 RPG icons」', 'CC0'],
-  ['平原、墓地、火山、天空背景', 'Ansimuz「Tall Forest」「Gothicvania Cemetery」「Mountain at Dusk」', 'CC0'],
-  ['天空神殿背景', 'Ansimuz「Magic Cliffs」', 'CC-BY 3.0'],
+  ['平原、墓地、火山、毒沼、要塞背景', 'Ansimuz「Tall Forest」「Gothicvania Cemetery」「Mountain at Dusk」', 'CC0'],
+  ['天空神殿、星界王座背景', 'Ansimuz「Magic Cliffs」', 'CC-BY 3.0'],
+  ['深淵魔域背景', 'Luis Zuno（@ansimuz）「Warped Caves」', 'CC-BY 3.0'],
+  ['冰封凍原背景', 'Reemax「Ice Planet Landscape」', 'CC0'],
   ['沙漠背景', 'Emcee Flesher「Rocky Desert」', 'CC0'],
   ['技能特效', 'CodeManu「Free Pixel Effects」、13rice「Radial Lightning」', 'CC0'],
   ['背景音樂', 'Juhani Junkala、Abstraction「Three Red Hearts」', 'CC0'],
@@ -3057,7 +3092,8 @@ window.__test = {
     else if (opts.mode === 'trial') { save.trial = { floor: opts.floor || 0 }; spec = modes.trialRun(save); }
     else if (opts.mode === 'expedition') spec = expd.expeditionRun();
     if (opts.fit) opts.chapter = fitCh();
-    if (opts.mode === 'army') spec = arcade.armyRun();
+    if (evm.EVENT_MODES[opts.mode]) spec = evm.runOf(opts.mode);
+    else if (opts.mode === 'army') spec = arcade.armyRun();
     else if (opts.mode === 'shooter') spec = arcade.shooterRun();
     else if (opts.mode === 'worldboss') spec = { ...live.wbRun(), diffId: 'normal' };
     else if (opts.mode === 'arena') spec = { ...live.arenaRun(live.rollOpponents(opts.pts || 0)[opts.opp || 1]), diffId: 'normal' };
@@ -3105,7 +3141,7 @@ window.__test = {
         else endRun(false);
       } else break;
     }
-    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), score: Math.round(run.coins), bdmg: Math.round(run.bossDmg || 0), relics: (run.relics || []).length, dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
+    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), score: Math.round(run.coins), kills: run.kills, tT: Math.round(run.tT || 0), bdmg: Math.round(run.bossDmg || 0), relics: (run.relics || []).length, dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
     game.run = null;
     restore();
     writeSave(save);

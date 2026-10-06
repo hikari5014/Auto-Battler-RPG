@@ -229,7 +229,7 @@ export class Battle {
       const bk = mk(run.bossKey ? run.bossKey(run.wave) : ch.boss, 'boss');
       if (run.noCaptains) q.push(bk); else q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), bk);
     } else {
-      const n = cur.count + diff.count;
+      const n = cur.count + diff.count + (run.extraCount || 0); // 3.13 塔防：每波更多敵人
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
       // 第 3 波起才會有菁英（前兩波讓玩家先熟悉）
       const eliteChance = run.eliteAll ? 0.5 : w < 3 ? 0 : Math.min(0.2, 0.02 + w * 0.012) * ((run.mods || {}).elites ? 3 : 1);

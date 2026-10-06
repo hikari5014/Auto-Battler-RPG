@@ -1495,3 +1495,6 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .ev-head { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px; border-radius: 12px; border: 2px solid var(--ec); background: rgba(0,0,0,.35); text-align: center; }
 .ev-head b { color: var(--ec); font-size: 16px; } .ev-head small { font-size: 12px; opacity: .9; }
 .screen .vtabs:has(> [data-mtab]) { flex-wrap: wrap; }
+/* 3.13 活動模式 */
+.evm { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0; padding: 8px; border-radius: 12px; background: rgba(0,0,0,.35); border: 2px dashed #ffd84a; text-align: center; }
+.evm b { color: #ffd84a; } .evm small { font-size: 12px; opacity: .9; }
