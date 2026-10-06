@@ -2,7 +2,7 @@ import { HEROES, MONSTERS, SKILLS, CATS, skillCat, skillAllowed, heroCls, STAR_P
 import { TALENTS, LINKS, talentById, ensureTalents, tLv, talentCost, whyNot, buyTalent, resetTalents, talentBonus, talentDesc, totalPoints, canReach, infPoints, mastered, bonusLines, BRANCHES as T_BRANCHES, effText } from './talent.js';
 import { shareResult } from './share.js';
 import { statsHtml, refreshStats, dps } from './stats.js';
-import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText, isMaxMount } from './mount.js';
+import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText as mountStatText, isMaxMount } from './mount.js';
 import { loadSave, writeSave } from './save.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -16,7 +16,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, MAX_ITEMS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, salvageJunk, freshCount } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -786,6 +786,9 @@ function endRun(win) {
     win, endless: run.endless, daily: run.daily, cleared, kills: run.kills, chapter: run.chapter,
     hero: run.heroes[0].def, hero2: run.heroes[1] && run.heroes[1].def, diff: run.diff, skills: run.skills.slice(0, 8),
   };
+  // 飾品：戴著冒險累積經驗
+  const jUps = jewelRideExp(save, cleared);
+  const jewelHtml = jUps.map(j => `<p class="ride-exp">${iconTag(itemIcon(j.it), 18)} ${itemName(j.it)} 升到 Lv.${j.it.jlv}${[3, 6, 10].includes(j.it.jlv) ? `（${JEWEL_SKILLS[j.it.skill].name}${jewelTier(j.it.jlv) === 1 ? '解鎖' : '強化'}）` : ''}</p>`).join('');
   // 坐騎：騎著冒險累積經驗
   const ride = rideExp(save, cleared);
   const rideMax = ride && isMaxMount(ride.st) && ride.ups;
@@ -804,7 +807,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${unlocked}${dailyHtml}${rideHtml}
+    ${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
@@ -1313,7 +1316,7 @@ function renderMount() {
   }).join('');
   let body;
   if (!st) {
-    body = `<div class="m-stats"><p>${statText(m, 1)}（Lv.1，之後每級成長）</p><p>坐騎技能「${m.skill}」：${m.skillDesc(1)}（每 ${m.cd} 秒）</p></div>
+    body = `<div class="m-stats"><p>${mountStatText(m, 1)}（Lv.1，之後每級成長）</p><p>坐騎技能「${m.skill}」：${m.skillDesc(1)}（每 ${m.cd} 秒）</p></div>
       <button class="btn big gift" id="btn-mbuy" ${offAttr(save.gold < m.price, `金幣不足，還差 ${m.price - save.gold}`)}>${iconTag(ICON.gold, 18)} ${m.price} 購買</button>`;
   } else {
     const cap = atCap(st);
@@ -1321,7 +1324,7 @@ function renderMount() {
     body = `<div class="m-lv"><b>Lv.${st.lv}</b><small>/ ${lvCap(st.star)}</small><span class="stars">${'★'.repeat(st.star)}${'☆'.repeat(MAX_STAR - st.star)}</span></div>
       <div class="m-exp"><i style="width:${cap ? 100 : st.exp / need * 100}%"></i><span>${cap ? (st.star >= MAX_STAR ? '已經完全長大了！' : '等級到上限了，需要突破') : `經驗 ${st.exp} / ${need}`}</span></div>
       <div class="m-stats">
-        <p>被動：<b>${statText(m, st.lv)}</b></p>
+        <p>被動：<b>${mountStatText(m, st.lv)}</b></p>
         <p>坐騎技能「${m.skill}」：${m.skillDesc(st.star)}（每 ${Math.max(4, m.cd - (st.star - 1))} 秒）</p>
         ${st.star < MAX_STAR ? `<p class="next">升到 ${st.star + 1} 星：${m.skillDesc(st.star + 1)}，冷卻 -1 秒</p>` : ''}
       </div>
@@ -1491,8 +1494,8 @@ $('daily-body').addEventListener('click', ev => {
 function gearSummary() {
   const gear = ensureGear(save);
   const slots = Object.keys(SLOTS).map(slot => {
-    const it = gear.items.find(x => x.id === gear.equip[slot]);
-    return it ? `<span class="gs r${it.rarity}" style="--rc:${RARITIES[it.rarity].color}">${iconTag(itemIcon(it), 22)}</span>` : `<span class="gs empty">${SLOTS[slot].name}</span>`;
+    const it = equippedIn(save, slot);
+    return it ? `<span class="gs r${it.rarity}" style="--rc:${RARITIES[it.rarity].color}">${iconTag(itemIcon(it), 18)}</span>` : '<span class="gs empty"></span>';
   }).join('');
   const m = mergeableCount(save);
   const fresh = freshCount(save);
@@ -1505,68 +1508,92 @@ function openGear() {
   showScreen('screen-gear', 'screen-home');
 }
 let gearTab = 'all', gearSort = 'rarity';
-const bonusChips = b => [
-  ['攻擊', b.atk && `+${Math.round(b.atk * 100)}%`, '#ff6b6b'], ['血量', b.hp && `+${Math.round(b.hp * 100)}%`, '#6dff8a'],
-  ['暴擊', b.crit && `+${Math.round(b.crit * 100)}%`, '#ff9f43'], ['掉球', b.ball && `+${b.ball}`, '#36d6ff'],
-  ['開局球幣', b.coin && `+${b.coin}`, '#ffd84a'], ['金幣', b.gold && `+${Math.round(b.gold * 100)}%`, '#ffd84a'],
-].filter(c => c[1]).map(([n, v, c]) => `<span class="chip" style="--cc:${c}">${n} <b>${v}</b></span>`).join('') || '<span class="chip">還沒有穿裝備</span>';
+const GEAR_TABS = { all: '全部', weapon: '武器', def: '防具', jewel: '飾品' };
+const tabOf = it => it.type === 'weapon' ? 'weapon' : TYPES[it.type].jewel ? 'jewel' : 'def';
+const bonusChips = b => {
+  const chips = Object.keys(STATS).filter(k => b[k]).map(k => {
+    const v = STATS[k].unit === '%' ? Math.round(b[k] * 1000) / 10 + '%' : Math.round(b[k] * 10) / 10;
+    return `<span class="chip">${STATS[k].name} <b>+${v}</b></span>`;
+  });
+  for (const [id, p] of Object.entries(b.skills || {})) chips.push(`<span class="chip jewel">${JEWEL_SKILLS[id].name}</span>`);
+  return chips.join('') || '<span class="chip">還沒有穿裝備</span>';
+};
+// 一件裝備的完整說明（主屬性、副屬性、附魔、飾品技能）
+function itemLines(it) {
+  let h = `<p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
+  for (const a of it.affixes) h += `<p class="il">${statText(a.stat, a.value)}</p>`;
+  if (it.ench) h += `<p class="il ench">✦ 附魔：${statText(it.ench.stat, it.ench.value)}</p>`;
+  if (it.skill) {
+    const sk = JEWEL_SKILLS[it.skill];
+    const p = jewelPower(it);
+    const t = jewelTier(it.jlv);
+    h += `<p class="il jskill ${p ? '' : 'locked'}">◆ ${sk.name}：${p ? sk.desc(p) : 'Lv.3 解鎖'}${t && t < 3 ? `<small>（Lv.${t === 1 ? 6 : 10} 再強化）</small>` : ''}</p>`;
+  }
+  return h;
+}
 
 function renderGear() {
   const gear = ensureGear(save);
-  const worn = new Set(Object.values(gear.equip));
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
-  // 紙娃娃：英雄站中間，三個欄位圍著
+  // 紙娃娃：左邊防具、右邊武器與飾品
   const slotBtn = slot => {
     const it = equippedIn(save, slot);
     return `<button class="slot ${it ? 'r' + it.rarity : 'empty'} ${it && gearSel === it.id ? 'sel' : ''}" data-slot="${slot}" style="--rc:${it ? RARITIES[it.rarity].color : '#555'}">
-      ${it ? iconTag(itemIcon(it), 30) : `<i>${SLOTS[slot].name}</i>`}<small>${it ? itemDesc(it) : '空'}</small></button>`;
+      ${it ? iconTag(itemIcon(it), 26) : `<i>${SLOTS[slot].name}</i>`}${it && it.plus ? `<em class="plus">+${it.plus}</em>` : ''}${it && it.ench ? '<em class="en">✦</em>' : ''}</button>`;
   };
-  let list = gear.items.filter(it => gearTab === 'all' || it.slot === gearTab);
-  list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || a.slot.localeCompare(c.slot) || c.value - a.value);
+  let list = gear.items.filter(it => gearTab === 'all' || tabOf(it) === gearTab);
+  list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || (c.plus || 0) - (a.plus || 0) || a.type.localeCompare(c.type));
   const cells = list.map(it => `
-    <button class="item r${it.rarity} ${worn.has(it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
-      ${iconTag(itemIcon(it), 26)}${worn.has(it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${!worn.has(it.id) && isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
-  // 空格也畫出來，一眼看出背包還剩多少
+    <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
+      ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
   const empties = gearTab === 'all' ? Math.max(0, MAX_ITEMS - gear.items.length) : (6 - list.length % 6) % 6;
   for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
   const sel = gear.items.find(x => x.id === gearSel);
   const m = mergeableCount(save);
-  const tabs = [['all', '全部'], ['weapon', '武器'], ['armor', '防具'], ['charm', '飾品']].map(([k, n]) => {
-    const c = k === 'all' ? gear.items.length : gear.items.filter(it => it.slot === k).length;
+  const tabs = Object.entries(GEAR_TABS).map(([k, n]) => {
+    const c = k === 'all' ? gear.items.length : gear.items.filter(it => tabOf(it) === k).length;
     return `<button class="gtab ${gearTab === k ? 'sel' : ''}" data-tab="${k}">${n}<small>${c}</small></button>`;
   }).join('');
-  // 詳細：跟身上那件比較
-  let detail = '<small class="hint">點一件裝備看詳細</small>';
+  let detail = '<small class="hint">點一件裝備看詳細、強化、附魔</small>';
   if (sel) {
-    const cur = equippedIn(save, sel.slot);
-    const same = cur && cur.id === sel.id;
-    const cmp = !cur || same ? '' : sel.slot === 'charm' && cur.charm !== sel.charm ? `<small class="cmp">身上：${itemName(cur)}（${itemDesc(cur)}），效果不同</small>`
-      : `<small class="cmp ${sel.value > cur.value ? 'better' : sel.value < cur.value ? 'worse' : ''}">身上：${itemDesc(cur)}　${sel.value > cur.value ? '▲ 更好' : sel.value < cur.value ? '▼ 較差' : '一樣'}</small>`;
-    detail = `<span class="gd-ic" style="--rc:${RARITIES[sel.rarity].color}">${iconTag(itemIcon(sel), 34)}</span>
-      <span class="gd-info"><b style="color:${RARITIES[sel.rarity].color}">${itemName(sel)} <i class="rar" style="--rc:${RARITIES[sel.rarity].color}">${RARITIES[sel.rarity].name}</i></b>
-        <small>${SLOTS[sel.slot].name}：${itemDesc(sel)}</small>${cmp}</span>
-      <span class="gd-btns">
-        ${worn.has(sel.id) ? `<button class="btn small" id="btn-unequip" data-slot="${sel.slot}">卸下</button>` : `<button class="btn small gift" id="btn-equip">裝備</button>`}
-        <button class="btn small ghost" id="btn-salvage" ${offAttr(worn.has(sel.id), '穿在身上的不能分解')}>分解 ${iconTag(ICON.gold, 12)}${RARITIES[sel.rarity].salvage}</button>
-      </span>`;
+    const worn = isWorn(save, sel.id);
+    const cur = worn ? null : equippedIn(save, targetSlot(save, sel));
+    const r = RARITIES[sel.rarity];
+    const maxed = (sel.plus || 0) >= MAX_PLUS;
+    detail = `
+      <div class="gd-top">
+        <span class="gd-ic" style="--rc:${r.color}">${iconTag(itemIcon(sel), 34)}</span>
+        <span class="gd-info"><b style="color:${r.color}">${itemName(sel)} <i class="rar" style="--rc:${r.color}">${r.name}${TYPES[sel.type].name}</i></b>
+          ${itemLines(sel)}
+          ${sel.skill ? `<span class="jlv">飾品 Lv.${sel.jlv}/${JEWEL_MAX_LV}${sel.jlv < JEWEL_MAX_LV ? `<i style="width:${(sel.jexp || 0) / jewelExpNeed(sel.jlv) * 100}%"></i>` : ''}</span>` : ''}
+          ${cur ? `<small class="cmp">身上：${itemName(cur)}（${itemDesc(cur)}）${isBetter(save, sel) ? ' <b class="better">▲ 這件比較好</b>' : ''}</small>` : ''}
+        </span>
+      </div>
+      <div class="gd-btns">
+        ${worn ? `<button class="btn small" id="btn-unequip">卸下</button>` : `<button class="btn small gift" id="btn-equip">裝備</button>`}
+        <button class="btn small" id="btn-enhance" data-repeat ${offAttr(maxed || save.gold < enhanceCost(sel), maxed ? '已經強化到 +15' : `金幣不足，還差 ${enhanceCost(sel) - save.gold}`)}>強化${maxed ? ' MAX' : `<small>${iconTag(ICON.gold, 11)}${fmt(enhanceCost(sel))}・${Math.round(enhanceRate(sel) * 100)}%</small>`}</button>
+        <button class="btn small" id="btn-enchant" ${offAttr(gear.shards < enchantCost(sel), `魔晶不足（需要 ${enchantCost(sel)}）`)}>${sel.ench ? '重新附魔' : '附魔'}<small>✦${enchantCost(sel)} 魔晶</small></button>
+        ${sel.skill ? `<button class="btn small" id="btn-refine" data-repeat ${offAttr(sel.jlv >= JEWEL_MAX_LV || gear.shards < REFINE_SHARDS, sel.jlv >= JEWEL_MAX_LV ? '飾品已經滿級' : `魔晶不足（需要 ${REFINE_SHARDS}）`)}>精煉<small>✦${REFINE_SHARDS}・+${REFINE_SHARDS * 15} 經驗</small></button>` : ''}
+        <button class="btn small ghost" id="btn-lock">${sel.lock ? '解鎖' : '上鎖'}</button>
+        <button class="btn small ghost" id="btn-salvage" ${offAttr(worn || sel.lock, worn ? '穿在身上的不能分解' : '上鎖的裝備不能分解')}>分解<small>${iconTag(ICON.gold, 11)}${r.salvage}・✦${r.shard}</small></button>
+      </div>`;
   }
-  const junk = gear.items.filter(it => it.rarity === 0 && !worn.has(it.id) && !isBetter(save, it)).length;
+  const junk = gear.items.filter(it => it.rarity === 0 && !it.lock && !it.plus && !isWorn(save, it.id) && !isBetter(save, it)).length;
   $('gear-body').innerHTML = `
     <h2>背包</h2>
-    <div class="doll">
-      ${slotBtn('weapon')}
-      <span class="doll-hero">${iconTag(['dg', hero.sprite], 56)}<small>${hero.name.split(' ')[1]}</small></span>
-      ${slotBtn('armor')}
-      ${slotBtn('charm')}
+    <div class="gear-top"><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
+    <div class="doll8">
+      <div class="dcol">${slotBtn('helm')}${slotBtn('armor')}${slotBtn('gloves')}${slotBtn('boots')}</div>
+      <span class="doll-hero">${iconTag(['dg', hero.sprite], 64)}<small>${hero.name.split(' ')[1]}</small></span>
+      <div class="dcol">${slotBtn('weapon')}${slotBtn('necklace')}${slotBtn('ring1')}${slotBtn('ring2')}</div>
     </div>
     <div class="chips">${bonusChips(gearBonus(save))}</div>
-    <div class="gtabs">${tabs}
-      <button class="gsort" id="btn-gsort">${gearSort === 'new' ? '最新' : '稀有度'} ⇅</button></div>
-    <div class="cap"><i style="width:${gear.items.length / MAX_ITEMS * 100}%" class="${gear.items.length >= MAX_ITEMS - 3 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${MAX_ITEMS}${gear.items.length >= MAX_ITEMS - 3 ? '・快滿了，記得分解或合成' : ''}</span></div>
-    <div class="items">${cells.join('') || '<p class="hint">還沒有裝備，打完一局就會掉落</p>'}</div>
     <div class="item-detail">${detail}</div>
+    <div class="gtabs">${tabs}<button class="gsort" id="btn-gsort">${gearSort === 'new' ? '最新' : '稀有度'} ⇅</button></div>
+    <div class="cap"><i style="width:${gear.items.length / MAX_ITEMS * 100}%" class="${gear.items.length >= MAX_ITEMS - 4 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${MAX_ITEMS}${gear.items.length >= MAX_ITEMS - 4 ? '・快滿了，記得分解或合成' : ''}</span></div>
+    <div class="items">${cells.join('')}</div>
     <div class="row">
-      <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同欄位、同稀有度的裝備')}>一鍵合成${m ? `（${m}）` : ''}</button>
+      <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同種類、同稀有度的裝備（沒穿、沒上鎖）')}>合成升階${m ? `（${m}）` : ''}</button>
       <button class="btn small ghost" id="btn-junk" ${offAttr(!junk, '沒有可以分解的普通裝備')}>分解普通${junk ? `（${junk}）` : ''}</button>
       <button class="btn small ghost" id="btn-gear-close">關閉</button>
     </div>`;
@@ -1576,31 +1603,48 @@ $('gear-body').addEventListener('click', ev => {
   if (!t || isOff(t)) return;
   sfx('tap');
   const gear = ensureGear(save);
+  const sel = gear.items.find(x => x.id === gearSel);
   if (t.dataset.item) {
     gearSel = +t.dataset.item;
     const it = gear.items.find(x => x.id === gearSel);
     if (it) it.fresh = false;
   } else if (t.dataset.tab) gearTab = t.dataset.tab;
   else if (t.id === 'btn-gsort') gearSort = gearSort === 'new' ? 'rarity' : 'new';
-  else if (t.dataset.slot && t.classList.contains('slot')) {
+  else if (t.dataset.slot) {
     const id = gear.equip[t.dataset.slot];
     if (id) gearSel = id;
-    else { gearTab = t.dataset.slot; toast(`顯示所有${SLOTS[t.dataset.slot].name}`); }
+    else { const ty = SLOTS[t.dataset.slot].type; gearTab = ty === 'weapon' ? 'weapon' : TYPES[ty].jewel ? 'jewel' : 'def'; toast(`顯示所有${SLOTS[t.dataset.slot].name}`); }
   } else if (t.id === 'btn-equip') { equip(save, gearSel); sfx('buy'); }
-  else if (t.id === 'btn-unequip') unequip(save, t.dataset.slot);
-  else if (t.id === 'btn-salvage') { const g = salvage(save, gearSel); toast(`分解獲得 ${g} 金幣`); gearSel = null; }
-  else if (t.id === 'btn-junk') { const r = salvageJunk(save); toast(`分解 ${r.n} 件，獲得 ${r.g} 金幣`); sfx('buy'); }
+  else if (t.id === 'btn-unequip') { for (const [k, v] of Object.entries(gear.equip)) if (v === gearSel) unequip(save, k); }
+  else if (t.id === 'btn-enhance') {
+    const r = enhance(save, gearSel);
+    if (r === 'ok') { sfx('buy'); toast(`強化成功：${itemName(sel)}`); if (sel.plus % 5 === 0) celebrate(t, '#ffd84a'); }
+    else if (r === 'fail') { sfx('lose'); toast('強化失敗…（只扣金幣，等級不會掉）'); }
+  } else if (t.id === 'btn-enchant') {
+    const e = enchant(save, gearSel);
+    if (e) { sfx('wave'); celebrate(t, '#d06bff'); toast(`附魔：${statText(e.stat, e.value)}`); }
+  } else if (t.id === 'btn-refine') {
+    const ups = refine(save, gearSel);
+    if (ups > 0) {
+      sfx('win');
+      const tier = jewelTier(sel.jlv);
+      toast(`${itemName(sel)} 升到 Lv.${sel.jlv}${[3, 6, 10].includes(sel.jlv) ? `：飾品技能「${JEWEL_SKILLS[sel.skill].name}」${tier === 1 ? '解鎖' : '強化'}！` : ''}`);
+      if ([3, 6, 10].includes(sel.jlv)) banner(`飾品技能：${JEWEL_SKILLS[sel.skill].name}！`);
+    } else if (ups === 0) sfx('buy');
+  } else if (t.id === 'btn-lock') { sel.lock = !sel.lock; }
+  else if (t.id === 'btn-salvage') { const r = salvage(save, gearSel); if (r) toast(`分解獲得 ${r.gold} 金幣、${r.shards} 魔晶`); gearSel = null; }
+  else if (t.id === 'btn-junk') { const r = salvageJunk(save); toast(`分解 ${r.n} 件：${r.g} 金幣、${r.shards} 魔晶`); sfx('buy'); }
   else if (t.id === 'btn-merge') {
     const made = mergeAll(save);
     save.stats.merged += made.length;
-    save.stats.legendMerged += made.filter(x => x.rarity === 3).length;
-    if (made.length) { sfx('wave'); banner(`合成 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
+    save.stats.legendMerged += made.filter(x => x.rarity >= 3).length;
+    if (made.length) { sfx('wave'); banner(`合成升階 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
   } else if (t.id === 'btn-gear-close') {
-    for (const it of gear.items) it.fresh = false; // 看過了
+    for (const it of gear.items) it.fresh = false;
     writeSave(save); renderHome(); showScreen('screen-home'); return;
   }
   writeSave(save);
-  renderGear();
+  renderGear(); // 按住連續強化／精煉時，重畫後的新按鈕會接手繼續連點
 });
 
 // ---------- 設定 ----------

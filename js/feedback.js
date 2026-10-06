@@ -108,6 +108,11 @@ function startHold() {
   if (!a.el.hasAttribute('data-repeat')) return;
   let delay = 240;
   const tick = () => {
+    // 畫面重畫後按鈕換成新的一顆：用同樣的 id 找回來，繼續連點
+    if (!a.el.isConnected && a.el.id) {
+      const n = document.getElementById(a.el.id);
+      if (n) { a.el = n; n.classList.add('fx-hold'); }
+    }
     if (active !== a || isOff(a.el) || !a.el.isConnected) return;
     a.repeats++;
     a.el.click();

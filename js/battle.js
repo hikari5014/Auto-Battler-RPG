@@ -26,14 +26,14 @@ export function createHero(def, save) {
   const mt = riding(save);       // 騎著的坐騎
   const mb = k => (mt && mt.stat === k ? mt.bonus : 0);
   const maxHp = def.hp * (1 + tb.hp) * (1 + gb.hp) * (1 + mb('hp'));
-  return {
+  const h = {
     def, maxHp, hp: maxHp,
     baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk) * (1 + mb('atk')),
-    atkMul: 1, spdMul: 1 + tb.spd + mb('spd'),
+    atkMul: 1, spdMul: 1 + tb.spd + mb('spd') + gb.spd,
     interval: def.interval, range: def.range / 48, // 換算成世界距離
-    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit + mb('crit'), critDmg: (def.critDmg || 1.5) + tb.critDmg,
-    block: (def.block || 0) + tb.block, dbl: tb.dbl, life: (def.life || 0) + tb.life, splash: (def.splash || 0) + tb.splash, thorns: (def.thorns || 0) + tb.thorns,
-    bossDmg: tb.bossDmg, skillDropBonus: tb.skillDrop, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen,
+    hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit + mb('crit'), critDmg: (def.critDmg || 1.5) + tb.critDmg + gb.critDmg,
+    block: (def.block || 0) + tb.block + gb.block, dbl: tb.dbl, life: (def.life || 0) + tb.life + gb.life, splash: (def.splash || 0) + tb.splash, thorns: (def.thorns || 0) + tb.thorns,
+    bossDmg: tb.bossDmg + gb.bossDmg, skillDropBonus: tb.skillDrop + (gb.skills.lucky || 0) / 100, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen + gb.regen,
     magnet: (def.magnet || 0) + tb.magnet,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
     // 職業專屬技能用到的數值
@@ -42,7 +42,7 @@ export function createHero(def, save) {
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
     // 近戰／遠程／法術技能
-    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: Math.min(0.6, tb.dr), opener: 0, openerStun: false, openerUsed: false,
+    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: Math.min(0.6, tb.dr + gb.dr), opener: 0, openerStun: false, openerUsed: false,
     snipe: 0, snipeCrit: false, dot: 0, dotColor: '#7dff5a', dotTime: 3, critEvery: 0, hitCount: 0, slowWalk: 0, slowAtk: 0,
     chainEvery: 0, chainMul: 0, chainJumps: 3, shieldPct: 0, shield: 0, shieldBurst: 0, killBlast: 0,
     interest: tb.interest, interestCap: 1,
@@ -59,6 +59,20 @@ export function createHero(def, save) {
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
+  applyJewels(h, gb.skills);
+  return h;
+}
+
+// 飾品技能：有的直接改能力，有的在戰鬥中定時發動
+function applyJewels(h, sk) {
+  if (sk.fury) h.rage += sk.fury / 100;            // 用狂戰士的「狂暴」機制：血量低於一半時加攻擊
+  if (sk.frost) h.frost = Math.min(0.8, h.frost + sk.frost / 100);
+  if (sk.guard) h.shieldPct += sk.guard / 100;
+  if (sk.regen) h.regenPs += sk.regen / 100 / 5;
+  if (sk.midas) h.stealCoins += sk.midas;
+  h.jewels = [];
+  if (sk.thunder) h.jewels.push({ id: 'thunder', every: 6, mul: sk.thunder / 100, t: 0 });
+  if (sk.star) h.jewels.push({ id: 'star', every: 9, mul: sk.star / 100, t: 0 });
 }
 
 // 狂暴：血量低於一半時攻擊力提高
@@ -160,6 +174,24 @@ export class Battle {
     if (h.mount && this.enemies.some(e => !e.dead)) {
       run.mountT = (run.mountT || 0) + dt;
       if (run.mountT >= h.mount.cdNow) { run.mountT = 0; this.mountSkill(h); }
+    }
+    // 飾品技能：雷霆、星隕
+    if (h.jewels && h.jewels.length && this.enemies.some(e => !e.dead)) {
+      for (const j of h.jewels) {
+        j.t += dt;
+        if (j.t < j.every) continue;
+        j.t = 0;
+        if (j.id === 'thunder') {
+          for (const e of this.enemies.filter(o => !o.dead).slice(0, 3)) {
+            this.fx(e.x + 0.3, e.z, 5, e.x, e.z, e.size * 0.5, '#ffe066', 0.3, 'bolt');
+            this.burst(e.x, e.z, e.size * 0.5, '#fff6a0', 6, 2);
+            this.damage(e, heroAtk(h) * j.mul, false, true, '#ffe066');
+          }
+          this.text(h.x + 0.5, h.z, 1.4, '雷霆!', '#ffe066', 15);
+          sfx('crit');
+          this.enemies = this.enemies.filter(e => !e.dead);
+        } else this.blast(j.mul, '星隕!', '#b9a8ff', { style: 'meteor' });
+      }
     }
 
     if (this.queue.length) {
