@@ -1,0 +1,7 @@
+Name: CC0 Gem Icons（彙整）
+Source: https://opengameart.org/content/cc0-gem-icons
+Author: 彙整：Jordan Irwin (AntumDeluge)；原作：rcorre、MELLE、SpriteAttack、7Soul1(Henrique Lazarini)
+License: CC0 1.0
+Attribution: 各原作者（見子資料夾 .txt）（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

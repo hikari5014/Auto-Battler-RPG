@@ -9,7 +9,8 @@ export const SHEETS = {
   pp: { src: 'assets/img/pixel-platformer.png', tile: 18, cols: 20 },
   bg: { src: 'assets/img/pixel-platformer-bg.png', tile: 24, cols: 8 },
   ic: { src: 'assets/img/icons-1bit.png', tile: 16, cols: 49 },
-  tc: { src: 'assets/img/tiny-creatures.png', tile: 16, cols: 10 }, // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
+  tc: { src: 'assets/img/tiny-creatures.png', tile: 16, cols: 10 },
+  it: { src: 'assets/img/items.png', tile: 32, cols: 12 }, // 道具：寶石、召喚券、星塵、寶箱…（SpriteAttack 寶石、7Soul1 496 RPG icons，CC0） // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
 };
 
 // 像素中文字型「俐方體11號」（Cubic 11，免費授權）
@@ -22,6 +23,8 @@ export const ICON = {
   soundOn: ['ic', 822], soundOff: ['ic', 821], trophy: ['ic', 824, '#ffd84a'],
   skull: ['ic', 621], crown: ['ic', 141], warn: ['ic', 1064],
   refresh: ['ic', 1021], free: ['ic', 631], install: ['ic', 1057],
+  diamond: ['it', 0], heroTicket: ['it', 1], gearTicket: ['it', 2], stardust: ['it', 3],
+  chest: ['it', 4], chestOpen: ['it', 5], quest: ['it', 6], vault: ['it', 7], mail: ['it', 10],
 };
 
 let white = {};

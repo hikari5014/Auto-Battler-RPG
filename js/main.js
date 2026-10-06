@@ -6,6 +6,7 @@ import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, 
 import { loadSave, writeSave } from './save.js';
 import { ensureProgress, maxCh, diffUnlocked, unlockText, balChapter, anyChapter, clearChapter } from './progress.js';
 import { savePower, recommended, powerBand } from './power.js';
+import * as eco from './economy.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -29,6 +30,9 @@ ensureMeta(save);
 ensureTalents(save);
 ensureMounts(save);
 ensureProgress(save);
+eco.ensureEconomy(save);
+eco.rollDay(save);
+eco.welcomeMails(save, VERSION, save.progress);
 // 選到還沒解鎖的難度（舊存檔）就退回休閒
 if (!diffUnlocked(save, difficultyOf(save.difficulty))) save.difficulty = 'casual';
 save.chapter = Math.min(save.chapter, maxCh(save));
@@ -209,7 +213,8 @@ function onKill(e) {
   // 裝備可能給小數的掉球數：小數部分用機率決定多不多掉一顆
   // 統計
   save.stats.kills++;
-  if (e.kind === 'boss') save.stats.bosses++;
+  eco.track(save, 'kill');
+  if (e.kind === 'boss') { save.stats.bosses++; eco.track(save, 'boss'); }
   else if (e.kind !== 'normal') save.stats.elites++;
   // 盜賊王：擊敗直接拿球幣
   if (run.hero.stealCoins) run.coins += run.hero.stealCoins * (run.hero.stealBig && e.kind !== 'normal' ? 10 : 1);
@@ -701,6 +706,7 @@ $('shop-body').addEventListener('click', ev => {
     run.coins -= o.price;
     o.bought = true;
     gainSkill(o.sk);
+    eco.track(save, 'skill');
     sfx('buy');
     // 不整個重畫（不然卡片翻轉動畫會重播），只更新數字與狀態
     const card = t.closest('.card');
@@ -781,7 +787,9 @@ function endRun(win) {
     drops.push(it);
     save.daily = { date: todayKey(), done: true };
     st.dailyWins++;
-    dailyHtml = `<p class="good">每日挑戰完成！額外 +${g} 金幣＋史詩裝備</p>`;
+    eco.grant(save, { gem: 20 });
+    eco.track(save, 'daily');
+    dailyHtml = `<p class="good">每日挑戰完成！額外 +${g} 金幣＋史詩裝備＋20 寶石</p>`;
   }
   // 無盡塔：記錄到本機排行榜（前 10 名）
   let recordHtml = '';
@@ -819,6 +827,24 @@ function endRun(win) {
       setTimeout(() => banner(`新難度開放：${r.diff.name}`), 1800);
     }
   }
+  // 3.2 寶石：勝利寶石（每天前 6 勝）、首通、無盡塔
+  eco.track(save, 'run');
+  let gemsWon = 0;
+  const gemNotes = [];
+  if (!run.daily && !run.endless) {
+    const b = eco.battleGems(save, run.diff.id, win, cleared);
+    if (b) { gemsWon += b; gemNotes.push(`戰鬥 +${b}`); }
+    else if (eco.WIN_GEMS[run.diff.id] && win) gemNotes.push(`今天的 ${eco.WIN_GEM_DAILY} 場勝利寶石已領完`);
+    if (win) { const f = eco.firstClear(save, run.diff.id, run.chapter); if (f) { gemsWon += f; gemNotes.push(`首通 +${f}`); } }
+  }
+  if (run.endless) {
+    const eff = eco.effectiveFloors(run.diff.id, cleared);
+    save.weekly.best = Math.max(save.weekly.best || 0, eff);
+    const m = eco.towerMilestones(save, cleared);
+    if (m) { gemsWon += m; gemNotes.push(`層數里程碑 +${m}`); }
+  }
+  if (gemsWon) eco.grant(save, { gem: gemsWon });
+  const gemHtml = gemsWon || gemNotes.length ? `<p class="gem-got">${iconTag(ICON.diamond, 22)} <b>${gemsWon ? '+' + gemsWon : '+0'}</b> 寶石 <small>${gemNotes.join('・')}</small></p>` : '';
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
   $('result-body').innerHTML = `
@@ -826,7 +852,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
+    ${gemHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
@@ -883,6 +909,7 @@ const chapterName = n => CHAPTERS[(n - 1) % CHAPTERS.length].name + (n > CHAPTER
 
 function goHome() {
   game.run = null;
+  eco.rollDay(save);
   playMusic('home');
   checkUpdate(true);
   $('hud').classList.add('hidden');
@@ -971,10 +998,11 @@ function renderHome() {
   $('home-body').innerHTML = `
     <div class="home-stage">
       <div class="top-row">
-        <div class="pill" id="home-gold">${iconTag(ICON.gold, 20)} <b>${fmt(save.gold)}</b></div>
+        <span class="pills"><div class="pill" id="home-gold">${iconTag(ICON.gold, 20)} <b>${fmt(save.gold)}</b></div><div class="pill gem-pill" id="home-gem">${iconTag(ICON.diamond, 20)} <b>${fmt(save.wallet.gem)}</b></div></span>
         <span class="top-btns">
           ${installEvt ? `<button class="icon-btn" id="btn-install" aria-label="安裝到手機">${iconTag(ICON.install, 22)}</button>` : ''}
           <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
+          <button class="icon-btn ${eco.unreadMail(save) ? 'has-update' : ''}" id="btn-mail" aria-label="信箱">${iconTag(ICON.mail, 22)}</button>
           <button class="icon-btn" id="btn-settings" aria-label="設定">${iconTag(['ic', 829], 22)}</button>
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
         </span>
@@ -985,6 +1013,7 @@ function renderHome() {
         ${side('btn-gear', ['ic', 426, '#ffd84a'], '背包', fresh ? 'dot' : '')}
         ${side('btn-talent', ['ic', 1023, '#ffd84a'], '天賦', talentReady() ? 'dot' : '')}
         ${side('btn-mount', ['ic', 371, '#e8b878'], '坐騎')}
+        ${side('btn-quest', ICON.quest, '任務', eco.questBadge(save) ? 'dot' : '')}
       </div>
       <div class="side right">
         ${side('btn-ach', ICON.trophy, '成就', achN ? 'dot' : '')}
@@ -1157,6 +1186,8 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
+  else if (t.id === 'btn-quest') { openQuest(); return; }
+  else if (t.id === 'btn-mail') { openMail(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-talent') { openTalent(); return; }
   else if (t.id === 'btn-mount') { openMount(); return; }
@@ -1466,6 +1497,8 @@ function updateMountNums() {
 }
 
 // ---------- 成就與統計 ----------
+// 3.2：每個成就另外給寶石（金幣的十分之一，至少 20）
+const achGems = a => Math.max(20, Math.round(a.gold / 10 / 5) * 5);
 function openAch() {
   renderAch();
   showScreen('screen-ach', 'screen-home');
@@ -1481,7 +1514,7 @@ function renderAch() {
     return `<div class="ach ${claimed ? 'claimed' : done ? 'ready' : ''}">
       <span class="ach-info"><b>${a.name}${HEROES.some(h => h.unlock === a.id) ? ' <i class="ach-hero">＋隱藏職業</i>' : ''}</b><small>${a.desc}</small>
         <span class="ach-bar"><i style="width:${cur / a.goal * 100}%"></i><em>${fmt(cur)} / ${fmt(a.goal)}</em></span></span>
-      ${claimed ? '<span class="ach-ok">已領取</span>' : `<button class="btn small ${done ? 'gift' : ''}" data-claim="${a.id}" ${offAttr(!done, '還沒達成')}>${iconTag(ICON.gold, 14)}${a.gold}</button>`}
+      ${claimed ? '<span class="ach-ok">已領取</span>' : `<button class="btn small ${done ? 'gift' : ''}" data-claim="${a.id}" ${offAttr(!done, '還沒達成')}>${iconTag(ICON.gold, 14)}${a.gold} ${iconTag(ICON.diamond, 14)}${achGems(a)}</button>`}
     </div>`;
   }).join('');
   $('ach-body').innerHTML = `
@@ -1500,16 +1533,126 @@ $('ach-body').addEventListener('click', ev => {
   if (t.dataset.claim) {
     const a = ACHIEVEMENTS.find(x => x.id === t.dataset.claim);
     save.gold += a.gold;
+    const ag = achGems(a);
+    eco.grant(save, { gem: ag });
     save.claimed.push(a.id);
     sfx('buy');
     celebrate(t, '#ffd84a');
-    toast(`領取「${a.name}」：+${a.gold} 金幣`);
+    toast(`領取「${a.name}」：+${a.gold} 金幣、+${ag} 寶石`);
     writeSave(save);
     renderAch();
   } else if (t.id === 'btn-ach-close') {
     renderHome();
     showScreen('screen-home');
   }
+});
+
+// ---------- 3.2 任務（每日、每週、簽到、冒險寶庫） ----------
+let questTab = 'daily';
+function openQuest() {
+  eco.rollDay(save);
+  renderQuest();
+  showScreen('screen-quest', 'screen-home');
+}
+const giftTag = (gift, px = 14) => Object.entries(gift).filter(([, v]) => v).map(([k, v]) => `<span class="gift-i">${k === 'shards' ? '✦' : iconTag(eco.CUR[k].icon, px)}${fmt(v)}</span>`).join('');
+function renderQuest() {
+  const m = save.missions, w = save.weekly;
+  const tabs = [['daily', '每日任務'], ['weekly', '每週'], ['sign', '簽到'], ['vault', '冒險寶庫']];
+  let body = '';
+  if (questTab === 'daily') {
+    const chests = eco.DAILY_CHESTS.map((c, i) => {
+      const ok = m.act >= c.need, got = m.chests[i];
+      return `<button class="q-chest ${got ? 'got' : ok ? 'ready' : ''}" data-dchest="${i}" ${offAttr(got || !ok, got ? '已經領過了' : `活躍度 ${c.need} 才能開`)}>${iconTag(got ? ICON.chestOpen : ICON.chest, 30)}<small>${c.need}</small></button>`;
+    }).join('');
+    const rows = eco.MISSIONS.map(x => {
+      const cur = m.prog[x.id] || 0, done = cur >= x.goal;
+      return `<div class="q-row ${done ? 'done' : ''}"><span><b>${x.name}</b><span class="ach-bar"><i style="width:${Math.min(1, cur / x.goal) * 100}%"></i><em>${fmt(cur)} / ${fmt(x.goal)}</em></span></span><em class="q-act">${done ? '✓' : '+' + x.act}</em></div>`;
+    }).join('');
+    body = `<div class="q-head">今日活躍度 <b>${m.act}</b> / 100</div>
+      <div class="q-bar"><i style="width:${Math.min(100, m.act)}%"></i></div>
+      <div class="q-chests">${chests}</div>
+      <p class="hint">每個寶箱的內容：${eco.DAILY_CHESTS.map(c => giftTag(c.gift, 12)).join('｜')}</p>
+      <div class="q-list">${rows}</div>
+      <p class="hint">勝利也會給寶石：簡單 ${eco.WIN_GEMS.easy}、中級 ${eco.WIN_GEMS.normal}、挑戰 ${eco.WIN_GEMS.hard}、地獄 ${eco.WIN_GEMS.hell}、無解 ${eco.WIN_GEMS.nightmare}（每天前 ${eco.WIN_GEM_DAILY} 勝；今天已拿 ${save.winGems.day === todayKey() ? save.winGems.n : 0} 次）。休閒難度不給。</p>`;
+  } else if (questTab === 'weekly') {
+    const chests = eco.WEEKLY_CHESTS.map((c, i) => {
+      const ok = w.act >= c.need, got = w.chests[i];
+      return `<button class="q-chest big ${got ? 'got' : ok ? 'ready' : ''}" data-wchest="${i}" ${offAttr(got || !ok, got ? '已經領過了' : `本週活躍度 ${c.need} 才能開`)}>${iconTag(got ? ICON.chestOpen : ICON.chest, 40)}<small>${c.need}</small>${giftTag(c.gift, 12)}</button>`;
+    }).join('');
+    const eff = w.best || 0;
+    body = `<div class="q-head">本週活躍度 <b>${w.act}</b> / 700</div>
+      <div class="q-bar"><i style="width:${Math.min(100, w.act / 7)}%"></i></div>
+      <div class="q-chests">${chests}</div>
+      <p class="hint">每日任務完成的活躍度，也會加到本週活躍度。每週一重置。</p>
+      <div class="q-row"><span><b>無盡塔週結算</b><small>本週最佳有效層數：${eff}（層數 × 難度係數：休閒 0.6 … 無解 1.6）。下週一用信件發 ${iconTag(ICON.diamond, 12)}${eco.towerWeekly(eff)}</small></span></div>`;
+  } else if (questTab === 'sign') {
+    const n = save.calendar.n, can = eco.canSign(save);
+    const cells = Array.from({ length: 28 }, (_, i) => {
+      const k = i + 1, g = eco.calendarGift(k), big = k % 7 === 0;
+      return `<div class="cal ${k <= n ? 'got' : ''} ${k === n + 1 && can ? 'next' : ''} ${big ? 'big' : ''}"><small>${k}</small>${giftTag(g, 12)}</div>`;
+    }).join('');
+    body = `<p class="hint">累計簽到：漏簽不會歸零，每天可以簽 1 格。第 7、14、21、28 格有大獎。</p>
+      <div class="cal-grid">${cells}</div>
+      <button class="btn big ${can ? 'gift' : ''}" id="btn-sign" ${offAttr(!can, '今天已經簽到了，明天再來')}>${can ? `簽到（第 ${n % 28 + 1} 格）` : '今天已簽到 ✓'}</button>`;
+  } else {
+    const h = eco.vaultHours(save), v = eco.vaultContent(save, balChapter(save));
+    body = `<div class="vault">${iconTag(ICON.vault, 64)}<p>離開遊戲時，冒險寶庫會自己累積獎勵<br>最多存 ${eco.VAULT_MAX_H} 小時，記得早晚各領一次</p>
+      <div class="q-bar"><i style="width:${h / eco.VAULT_MAX_H * 100}%"></i></div>
+      <p>已累積 <b>${h.toFixed(1)}</b> / ${eco.VAULT_MAX_H} 小時</p>
+      <div class="vault-gift">${giftTag(v, 18) || '還沒有東西'}</div>
+      <p class="hint">每小時：1 寶石、${fmt(200 * balChapter(save))} 金幣（依平衡難度最高章節）、2 魔晶</p>
+      <button class="btn big ${eco.vaultReady(save) ? 'gift' : ''}" id="btn-vault" ${offAttr(!eco.vaultReady(save), '至少要累積 1 小時')}>領取</button></div>`;
+  }
+  $('quest-body').innerHTML = `
+    <h2>任務</h2>
+    <div class="wallet-row">${['gem', 'heroTicket', 'gearTicket'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(save.wallet[k])}</b></span>`).join('')}</div>
+    <div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${questTab === k ? 'sel' : ''}" data-qtab="${k}">${n}${k === 'sign' && eco.canSign(save) || k === 'vault' && eco.vaultReady(save) ? ' •' : ''}</button>`).join('')}</div>
+    ${body}
+    <button class="btn" id="btn-quest-close">關閉</button>`;
+}
+$('quest-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  let g = null;
+  if (t.dataset.qtab) questTab = t.dataset.qtab;
+  else if (t.dataset.dchest !== undefined) g = eco.claimDailyChest(save, +t.dataset.dchest);
+  else if (t.dataset.wchest !== undefined) g = eco.claimWeeklyChest(save, +t.dataset.wchest);
+  else if (t.id === 'btn-sign') g = eco.sign(save);
+  else if (t.id === 'btn-vault') g = eco.claimVault(save, balChapter(save));
+  else if (t.id === 'btn-quest-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
+  if (g) { sfx('coin'); celebrate(t, '#7fe8ff'); toast('獲得 ' + eco.giftText(g)); writeSave(save); }
+  renderQuest();
+});
+
+// ---------- 3.2 信箱 ----------
+function openMail() {
+  renderMail();
+  showScreen('screen-mail', 'screen-home');
+}
+function renderMail() {
+  const list = save.mail.length ? save.mail.map(m => `<div class="mail ${m.got ? 'got' : ''}">
+      ${iconTag(ICON.mail, 28)}<span><b>${m.title}</b><small>${m.text}</small><span class="mail-gift">${giftTag(m.gift, 14)}</span></span>
+      ${m.got ? '<span class="ach-ok">已領取</span>' : `<button class="btn small gift" data-mail="${m.id}">領取</button>`}
+    </div>`).join('') : '<p class="hint">信箱是空的</p>';
+  $('mail-body').innerHTML = `
+    <h2>信箱</h2>
+    <div class="mail-list">${list}</div>
+    <div class="row">
+      <button class="btn small gift" id="btn-mail-all" ${offAttr(!eco.unreadMail(save), '沒有可以領的信')}>全部領取</button>
+      <button class="btn small" id="btn-mail-close">關閉</button>
+    </div>`;
+}
+$('mail-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.id === 'btn-mail-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
+  const ids = t.id === 'btn-mail-all' ? save.mail.filter(m => !m.got).map(m => m.id) : t.dataset.mail ? [t.dataset.mail] : [];
+  const sum = {};
+  for (const id of ids) { const g = eco.claimMail(save, id); if (g) for (const [k, v] of Object.entries(g)) sum[k] = (sum[k] || 0) + v; }
+  if (ids.length) { sfx('jingle'); celebrate(t, '#7fe8ff'); toast('獲得 ' + eco.giftText(sum)); writeSave(save); }
+  renderMail();
 });
 
 // ---------- 無盡塔 ----------
@@ -1779,11 +1922,12 @@ $('gear-body').addEventListener('click', ev => {
   else if (t.id === 'btn-unequip') { for (const [k, v] of Object.entries(gear.equip)) if (v === gearSel) unequip(save, k); }
   else if (t.id === 'btn-enhance') {
     const r = enhance(save, gearSel);
+    if (r === 'ok' || r === 'fail') eco.track(save, 'gear');
     if (r === 'ok') { sfx('buy'); toast(`強化成功：${itemName(sel)}`); if (sel.plus % 5 === 0) celebrate(t, '#ffd84a'); }
     else if (r === 'fail') { sfx('lose'); toast('強化失敗…（只扣金幣，等級不會掉）'); }
   } else if (t.id === 'btn-enchant') {
     const e = enchant(save, gearSel);
-    if (e) { sfx('wave'); celebrate(t, '#d06bff'); toast(`附魔：${statText(e.stat, e.value)}`); }
+    if (e) { eco.track(save, 'gear'); sfx('wave'); celebrate(t, '#d06bff'); toast(`附魔：${statText(e.stat, e.value)}`); }
   } else if (t.id === 'btn-refine') {
     const ups = refine(save, gearSel);
     if (ups > 0) {
@@ -1799,7 +1943,7 @@ $('gear-body').addEventListener('click', ev => {
     const made = mergeAll(save);
     save.stats.merged += made.length;
     save.stats.legendMerged += made.filter(x => x.rarity >= 3).length;
-    if (made.length) { sfx('wave'); banner(`合成升階 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
+    if (made.length) { eco.track(save, 'gear'); sfx('wave'); banner(`合成升階 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
   } else if (t.id === 'btn-gear-close') {
     for (const it of gear.items) it.fresh = false;
     writeSave(save); renderHome(); showScreen('screen-home'); return;

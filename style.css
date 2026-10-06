@@ -1284,3 +1284,47 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 /* 3.1：彈窗面板換成 Mana Soul GUI（tiopalada，CC0）的紫金邊框 */
 .panel { border-image: url("assets/ui/mana-panel.png") 14 fill / 21px stretch; image-rendering: pixelated; }
 .home { border-image: none; }
+
+/* ---------- 3.2 寶石、任務、信箱 ---------- */
+.top-row .pills { display: flex; gap: 6px; }
+.gem-pill b { color: #7fe8ff; }
+.gem-got { margin: 4px 0; font-size: 15px; }
+.gem-got b { color: #7fe8ff; font-size: 20px; }
+.gem-got small { display: block; color: var(--muted); font-size: 11px; }
+.wallet-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+.q-head { font-size: 14px; margin: 6px 0 4px; }
+.q-head b { color: #7fe8ff; font-size: 18px; }
+.q-bar { height: 10px; background: rgba(0,0,0,0.4); border-radius: 6px; overflow: hidden; margin: 4px 0 8px; }
+.q-bar i { display: block; height: 100%; background: linear-gradient(90deg, #36d6ff, #7fe8ff); }
+.q-chests { display: flex; justify-content: space-around; gap: 4px; margin-bottom: 6px; }
+.q-chest { display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 4px 6px; color: #fff; font: inherit; }
+.q-chest small { font-size: 10px; color: var(--muted); }
+.q-chest.ready { border-color: #ffd84a; box-shadow: 0 0 10px #ffd84a; animation: pulse 1s infinite alternate; }
+.q-chest.got { opacity: 0.45; }
+.q-chest.big { padding: 6px 10px; }
+.q-list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; text-align: left; }
+.q-row { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.25); border-radius: 8px; padding: 6px 8px; text-align: left; }
+.q-row > span { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.q-row b { font-size: 13px; font-weight: normal; }
+.q-row small { font-size: 11px; color: var(--muted); }
+.q-row.done b { color: #8dff9f; }
+.q-act { font-style: normal; color: #7fe8ff; font-size: 13px; min-width: 28px; text-align: right; }
+.gift-i { display: inline-flex; align-items: center; gap: 2px; margin: 0 4px 0 0; font-size: 11px; white-space: nowrap; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0 10px; }
+.cal { background: rgba(0,0,0,0.3); border-radius: 6px; padding: 3px 1px; min-height: 46px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; }
+.cal small { font-size: 9px; color: var(--muted); }
+.cal .gift-i { font-size: 9px; margin: 0; }
+.cal.big { background: rgba(255,216,74,0.18); outline: 1px solid rgba(255,216,74,0.5); }
+.cal.got { opacity: 0.4; }
+.cal.next { outline: 2px solid #7fe8ff; box-shadow: 0 0 8px #7fe8ff; }
+.vault { display: flex; flex-direction: column; align-items: center; }
+.vault p { margin: 6px 0; font-size: 13px; }
+.vault-gift { margin: 4px 0 8px; font-size: 16px; }
+.vault-gift .gift-i { font-size: 15px; margin: 0 6px; }
+.mail-list { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow: auto; margin-bottom: 8px; text-align: left; }
+.mail { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.25); border-radius: 8px; padding: 6px 8px; }
+.mail > span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mail b { font-size: 13px; font-weight: normal; }
+.mail small { font-size: 11px; color: var(--muted); }
+.mail.got { opacity: 0.5; }
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.06); } }

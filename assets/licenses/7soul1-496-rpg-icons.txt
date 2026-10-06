@@ -1,0 +1,7 @@
+Pack: 7soul1-496-rpg-icons
+Source URL: https://opengameart.org/content/496-pixel-art-icons-for-medievalfantasy-rpg
+Author: Henrique Lazarini (7Soul1), submitted by gnola14
+License: CC0 1.0
+Attribution: Not required. Optional: "Icons by Henrique Lazarini (7Soul1)".
+Notes: 34x34 icons. NOTE: another agent also fetched this set at assets-candidates/henrique-lazarini-496-rpg-icons (same content).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)
