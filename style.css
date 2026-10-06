@@ -1407,3 +1407,20 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .il.istar small { color: #cfc; letter-spacing: 0; opacity: .8; }
 .il.uniq.locked { opacity: .55; }
 .g-banner.forge { background: linear-gradient(160deg, #3a2410, #6a3c12 60%, #2a1a0c); }
+/* 3.7 挑戰 */
+.dg-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; }
+.dg-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 10px; border: 2px solid #4a3a6a; background: rgba(0,0,0,.35); color: #fff; font: inherit; }
+.dg-card b { font-size: 12px; } .dg-card small { font-size: 10px; opacity: .75; }
+.dg-card.sel { border-color: #ffd84a; background: rgba(255,216,74,.15); }
+.dg-card.closed { opacity: .4; }
+.dg-tiers { display: flex; align-items: center; gap: 4px; justify-content: center; margin: 6px 0; }
+.dg-tiers span { font-size: 12px; opacity: .8; }
+.dg-tier { min-width: 40px; padding: 4px 6px; border-radius: 8px; border: 2px solid #4a3a6a; background: rgba(0,0,0,.35); color: #fff; font: inherit; font-size: 13px; }
+.dg-tier.sel { border-color: #ffd84a; color: #ffd84a; }
+.dg-info { text-align: center; font-size: 13px; line-height: 1.5; margin: 6px 0; }
+.rush-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 8px 0; }
+.rush-b { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; border-radius: 10px; background: rgba(0,0,0,.35); border: 2px solid #4a3a6a; font-size: 11px; }
+.rush-b.done { border-color: #6dff8a; opacity: .7; }
+.trial-bar { position: relative; height: 22px; border-radius: 11px; background: rgba(0,0,0,.45); overflow: hidden; margin: 8px 0; border: 2px solid #4a3a6a; }
+.trial-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #8a3dff, #ff3df0); }
+.trial-bar span { position: relative; display: block; text-align: center; font-size: 12px; line-height: 18px; }

@@ -1,7 +1,7 @@
 // 自動戰鬥（2.5D）：角色是平面紙片人，站在有深度的 3D 地面上
 // 英雄站在左前方，敵人從右後方的霧裡走出來，排成一斜排往前逼近
 import { sfx } from './audio.js';
-import { CHAPTERS, MONSTERS, TIERS, isBossWave, stageWave } from './data.js';
+import { CHAPTERS, MONSTERS, TIERS, isBossWave, stageWave, BOSS_MOVES, MOVE_NAMES } from './data.js';
 import { drawSprite, drawIcon, drawTinted, FONT } from './sprites.js';
 import { riding } from './mount.js';
 import { fmt } from './board.js';
@@ -210,10 +210,10 @@ export class Battle {
       const hpS = (tier === 'boss' ? bossScale : cur.hp) * chMul;
       const atkS = (tier === 'boss' ? bossAtkScale : cur.atk) * chMul;
       const maxHp = 18 * hpS * mon.hp * t.hp * diffScale(diff.hp, w) * (run.nextHpMul || 1)
-        * (mods.tanky ? 1.4 : 1) * (mods.giant && tier === 'boss' ? 2 : 1);
+        * (mods.tanky ? 1.4 : 1) * (mods.giant && tier === 'boss' ? 2 : 1) * (run.modeHp || 1);
       return {
         key, name: mon.name, sprite: mon.sprite, kind: tier, tier: t,
-        maxHp, hp: maxHp, atk: 2.4 * atkS * mon.atk * t.atk * diffScale(diff.atk, w),
+        maxHp, hp: maxHp, atk: 2.4 * atkS * mon.atk * t.atk * diffScale(diff.atk, w) * (run.modeAtk || 1),
         interval: mon.iv / (mods.speedy ? 1.5 : 1), speed: mon.speed * (mods.speedy ? 1.5 : 1), dodge: mon.dodge || 0, armor: mon.armor || 0,
         slow: 0, timer: rand(0, 0.6), x: 0, z: 0, size: t.size, ballMul: t.balls,
         kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6), enraged: false,
@@ -221,11 +221,12 @@ export class Battle {
       };
     };
     this.mk = mk; // 召喚、分裂要用
-    const randomMon = () => ch.enemies[Math.floor(Math.random() * ch.enemies.length)];
+    const pool = run.enemyPool || ch.enemies; // 3.7 副本有自己的怪物
+    const randomMon = () => pool[Math.floor(Math.random() * pool.length)];
     const q = [];
     if (boss) {
       // 魔王關：兩隻隊長護衛＋魔王
-      q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), mk(ch.boss, 'boss'));
+      q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), mk(run.bossKey ? run.bossKey(run.wave) : ch.boss, 'boss'));
     } else {
       const n = cur.count + diff.count;
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
@@ -406,6 +407,11 @@ export class Battle {
             this.text(e.x, e.z, e.size + 0.7, `越戰越強 x${e.fury}`, '#ff7a3b', 16);
           }
         }
+      }
+      // 3.7 魔王招式：定時施放
+      if (e.move && !this.bossIntro && !e.dead) {
+        e.moveT += dt;
+        if (e.moveT >= e.move.every) { e.moveT = 0; this.castMove(e, e.move); }
       }
       // 中毒／燃燒：每 0.5 秒扣一次血
       if (e.dotT > 0) {
@@ -813,6 +819,60 @@ export class Battle {
     this.scene.cam.punch = Math.max(this.scene.cam.punch, 0.6);
   }
 
+  // 3.7 魔王換階段：換一招，馬上放一次
+  bossPhase(e, p) {
+    e.bp = p;
+    const set = BOSS_MOVES[e.key] || BOSS_MOVES.default;
+    e.move = p === 2 ? set.p2 : set.p3;
+    e.moveT = 0;
+    this.text(e.x, e.z, e.size + 1.2, `第 ${p} 階段・${MOVE_NAMES[e.move.id]}`, '#ffb3ff', 18);
+    this.castMove(e, e.move);
+  }
+  castMove(e, mv) {
+    const b = this.g.board;
+    if (mv.id === 'quake') {
+      if (b) { b.blockRandomGate(5); b.blockRandomGate(5); }
+      this.shocks.push({ x: e.x, z: e.z, t: 0, big: true });
+      this.shake = Math.max(this.shake, 10);
+      this.hitHero(e, 0.5, '震地!');
+    } else if (mv.id === 'shell') {
+      e.shield = Math.max(e.shield || 0, e.maxHp * 0.03);
+      this.text(e.x, e.z, e.size + 0.6, '甲殼!', '#9fe3ff', 16);
+    } else if (mv.id === 'summon' && this.mk && (e.summons || 0) < 6) {
+      for (let k = 0; k < 2; k++) {
+        const m = this.mk('skull', 'normal');
+        m.maxHp *= 0.6; m.hp = m.maxHp; m.ballMul = 0.3; m.minion = true;
+        m.x = e.x + 0.6; m.z = e.z + rand(-0.5, 0.5);
+        this.enemies.push(m);
+      }
+      e.summons = (e.summons || 0) + 2;
+      this.text(e.x, e.z, e.size + 0.6, '召喚亡靈!', '#c38bff', 16);
+    } else if (mv.id === 'drain') {
+      this.hitHero(e, 0.6, '生命吸取!');
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.03);
+      if (!settings.lowFx) this.anim('dark', e.x, e.z, e.size * 0.6, 1.2, '#ff5a8a', 0, 0.5);
+    } else if (mv.id === 'meteor') {
+      const h = this.g.run.hero;
+      if (!settings.lowFx) this.anim('sunburn', h.x, h.z, 0.6, 1.6, null, 0, 0.5);
+      this.hitHero(e, 0.9, '隕石!');
+    } else if (mv.id === 'stone') {
+      if (b) for (let k = 0; k < 3; k++) b.blockRandomGate(4);
+      this.text(e.x, e.z, e.size + 0.6, '落石!', '#c9b18a', 16);
+    }
+    sfx('boom');
+  }
+  // 魔王招式打英雄：躲不掉，但吃減傷、護盾、後排減傷
+  hitHero(e, mul, label) {
+    const h = this.g.run.hero;
+    if (h.hp <= 0) return;
+    let dmg = e.atk * mul * (1 - Math.min(DR_CAP, h.dr)) * (h.def.cls !== 'melee' ? 0.75 : 1);
+    if (h.shield > 0) { const a = Math.min(h.shield, dmg); h.shield -= a; dmg -= a; }
+    h.hp -= dmg;
+    h.hurt = 1;
+    this.text(h.x, h.z, 1.5, label, '#ff8a6b', 15);
+    if (dmg > 0) this.text(h.x + 0.3, h.z, 1.1, '-' + fmt(dmg), '#ff5a5a', 14);
+  }
+
   bossEnrage(e) {
     e.enraged = true;
     e.atk *= 1.3;
@@ -852,7 +912,10 @@ export class Battle {
     e.hp -= dmg;
     e.flash = 1;
     e.kb = small ? 0.3 : 1;
-    if (e.kind === 'boss' && !e.enraged && e.hp > 0 && e.hp < e.maxHp * 0.5) this.bossEnrage(e);
+    if (e.kind === 'boss' && e.hp > 0) {
+      if (!e.bp && e.hp < e.maxHp * 0.66) this.bossPhase(e, 2);
+      if (!e.enraged && e.hp < e.maxHp * 0.33) { this.bossEnrage(e); this.bossPhase(e, 3); }
+    }
     if (crit && !small && !settings.lowFx && Math.random() < 0.6) this.anim('dark', e.x + rand(-0.1, 0.1), e.z, e.size * 0.55, 0.8, '#ffd84a', 0, 0.3);
     this.text(e.x + rand(-0.15, 0.15), e.z, e.size + 0.25, fmt(Math.max(1, dmg)), crit ? '#ffdd55' : color || (small ? '#cfd8ff' : '#fff'), crit ? 20 : (small ? 11 : 14));
     if (e.hp <= 0 && !e.dead) {

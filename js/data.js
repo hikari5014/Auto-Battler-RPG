@@ -506,9 +506,20 @@ function gateLv(board, type, lv) {
 export const STAR_PRICE = [0, 20, 45, 80];
 export const STAR_WEIGHT = [0, 60, 30, 10];
 
+// 3.7 魔王招式：血量 66% 以下進入第 2 階段、33% 以下第 3 階段（狂暴），每階段有固定招式定時施放
+// quake 震地（卡住 2 道門＋傷害）、shell 甲殼護盾、summon 召喚、drain 吸血、meteor 隕石、stone 落石（卡住 3 道門）
+export const BOSS_MOVES = {
+  cyclops: { p2: { id: 'quake', every: 10 }, p3: { id: 'quake', every: 8 } },
+  crabking: { p2: { id: 'shell', every: 14 }, p3: { id: 'stone', every: 8 } },
+  deathknight: { p2: { id: 'summon', every: 12 }, p3: { id: 'drain', every: 9 } },
+  firegiant: { p2: { id: 'meteor', every: 10 }, p3: { id: 'stone', every: 8 } },
+  guardian: { p2: { id: 'shell', every: 12 }, p3: { id: 'meteor', every: 9 } },
+  default: { p2: { id: 'quake', every: 10 }, p3: { id: 'meteor', every: 9 } },
+};
+export const MOVE_NAMES = { quake: '震地', shell: '甲殼', summon: '召喚亡靈', drain: '生命吸取', meteor: '隕石', stone: '落石' };
 export const MAX_WAVE = 15;
 // 無盡塔：每 10 層一個循環（第 10、20、30… 層是魔王），打完魔王進入下一章
 export const ENDLESS_CYCLE = 10;
-export const isBossWave = (run, w) => run.endless ? w % ENDLESS_CYCLE === 0 : w === MAX_WAVE;
+export const isBossWave = (run, w) => run.bossWave ? run.bossWave(w) : run.endless ? w % ENDLESS_CYCLE === 0 : w === MAX_WAVE;
 // 這一層在目前循環裡是第幾波（用來決定怪物數量與強度）
-export const stageWave = (run, w) => run.endless ? ((w - 1) % ENDLESS_CYCLE) + 1 : w;
+export const stageWave = (run, w) => run.stageOf ? run.stageOf(w) : run.endless ? ((w - 1) % ENDLESS_CYCLE) + 1 : w;

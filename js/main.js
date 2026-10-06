@@ -10,6 +10,7 @@ import * as eco from './economy.js';
 import * as heroP from './heroes.js';
 import * as gacha from './gacha.js';
 import * as bondsM from './bonds.js';
+import * as modes from './modes.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -126,7 +127,8 @@ function startRun(opts = {}) {
   const defs = def2 ? [def, def2] : [def];
   const heroes = defs.map(d => createHero(d, save));
   heroes.forEach(h => { h.duo = defs.length > 1; });
-  const chapter = opts.chapter || save.chapter;
+  const spec = opts.spec || null; // 3.7 挑戰模式（副本、魔王連戰、試煉塔）
+  const chapter = spec && spec.chapterOf ? spec.chapterOf(1) : opts.chapter || save.chapter;
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
   const tb = talentBonus(save);
@@ -139,9 +141,10 @@ function startRun(opts = {}) {
     heroIds: defs.map(d => d.id), heroCls: [...new Set(defs.flatMap(heroCls))],
     skills: [], levels: {}, phase: 'fight', revived: false,
     kills: 0, caught: 0, pegHits: 0, rerollCost: 10, offer: [],
-    diff: difficultyOf(opts.daily ? 'easy' : save.difficulty), // 難度
+    diff: difficultyOf(spec && spec.diffId ? spec.diffId : opts.daily ? 'easy' : save.difficulty), // 難度
     rules: boardOf(chapter),               // 這一章的彈珠台與特殊規則
   };
+  if (spec) { Object.assign(game.run, spec); game.run.coins += spec.startCoins || 0; }
   // 每日挑戰「玻璃大砲」
   if (mods.glass) {
     for (const h of heroes) {
@@ -166,10 +169,11 @@ function startRun(opts = {}) {
   game.paused = false;
   showScreen(null);
   $('hud').classList.remove('hidden');
-  nextWave();
+  if (spec && spec.preShop) { renderWaveBar(game.run); openShop(); } // 3.7 副本、魔王連戰：開打前先買技能
+  else nextWave();
   tutorial.onRunStart();
   // 開場提示這一章的特殊規則
-  const intro = opts.daily ? `每日挑戰｜${opts.mods.map(m => MODS[m].name).join('、')}` : `${CHAPTERS[(chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`;
+  const intro = spec ? spec.label(1) : opts.daily ? `每日挑戰｜${opts.mods.map(m => MODS[m].name).join('、')}` : `${CHAPTERS[(chapter - 1) % CHAPTERS.length].name}｜${game.run.rules.rule}`;
   setTimeout(() => game.run && game.run.wave === 1 && toast(intro), 1500);
   if (def2) {
     heroes[1].x = BENCH_POS.x; heroes[1].z = BENCH_POS.z;
@@ -190,6 +194,12 @@ function nextWave() {
     board.setChapter(run.chapter);
     toast(`進入${chapterName(run.chapter)}｜${run.rules.rule}`);
   }
+  if (run.hpOf) run.modeHp = run.hpOf(run.wave); // 魔王連戰：一隻比一隻強
+  // 試煉塔：每 10 層換一章
+  if (run.chapterOf) {
+    const c = run.chapterOf(run.wave);
+    if (c !== run.chapter) { run.chapter = c; run.rules = boardOf(c); board.setChapter(c); }
+  }
   for (const h of run.heroes) {
     // 倒下的副職業休息一波後帶著 30% 血回來
     if (h.hp <= 0) { if (run.wave > 1) h.hp = h.maxHp * 0.3; continue; }
@@ -206,12 +216,12 @@ function nextWave() {
   }
   const boss = isBossWave(run, run.wave);
   const tag = boss ? ' ' + iconTag(ICON.crown, 16) + '魔王' : stageWave(run, run.wave) % 5 === 0 ? ' ' + iconTag(ICON.warn, 16) + '精英' : '';
-  $('hud-wave').innerHTML = run.endless ? `無盡塔 第 ${run.wave} 層${tag}` : `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
+  $('hud-wave').innerHTML = run.label ? run.label(run.wave) + tag : run.endless ? `無盡塔 第 ${run.wave} 層${tag}` : `第 ${run.wave}/${MAX_WAVE} 波${tag}`;
   renderWaveBar(run);
   // 每章有自己的音樂；魔王關等魔王登場才切成魔王音樂
   playMusic(CHAPTERS[(run.chapter - 1) % CHAPTERS.length].music);
   if (run.wave > 1) sfx('wave');
-  banner(boss ? '魔王來襲！' : run.endless ? `第 ${run.wave} 層` : `第 ${run.wave} 波`);
+  banner(boss ? '魔王來襲！' : run.floorOf ? `第 ${run.floorOf(run.wave)} 層` : run.endless ? `第 ${run.wave} 層` : `第 ${run.wave} 波`);
   renderSwitch();
 }
 
@@ -436,8 +446,8 @@ function update(dt) {
       run.phase = 'settle';
     }
   } else if (run.phase === 'settle' && board.isEmpty()) {
-    if (!run.endless && run.wave >= MAX_WAVE) endRun(true);
-    else if (EVENT_WAVES.includes(stageWave(run, run.wave))) openEvent();
+    if (!run.endless && run.wave >= (run.maxWave || MAX_WAVE)) endRun(true);
+    else if (!run.mode && EVENT_WAVES.includes(stageWave(run, run.wave))) openEvent();
     else openShop();
   }
 }
@@ -765,9 +775,56 @@ function onDeath() {
   } else endRun(false);
 }
 
+// 3.7 挑戰模式結算
+function endModeRun(win) {
+  const run = game.run;
+  const cleared = win ? run.maxWave : run.wave - 1;
+  const gold = Math.round(cleared * 25 * run.chapter * run.diff.gold);
+  save.gold += gold;
+  let title = '', sub = '', lines = [];
+  if (run.mode === 'dungeon') {
+    const { id, t } = run.dungeon, dg = modes.DUNGEONS[id];
+    title = win ? `${dg.name} 通關！` : `${dg.name} 失敗`;
+    sub = `${modes.tierName(t)}・完成 ${cleared}/5 波`;
+    if (win) {
+      lines = modes.giveDungeon(save, id, t, run.chapter);
+      save.dungeon.best[id] = Math.max(save.dungeon.best[id] || 0, t);
+      lines.push('這一階之後可以「掃蕩」直接拿獎勵');
+      eco.track(save, 'daily');
+    } else lines = ['沒有通關不給副本獎勵（次數已經用掉）'];
+  } else if (run.mode === 'rush') {
+    title = win ? '魔王連戰 全破！' : '魔王連戰結束';
+    sub = `打倒 ${cleared}/5 隻魔王`;
+    const gem = modes.rushReward(save, cleared);
+    lines = [gem ? `本週新紀錄：+${gem} 寶石、+${gem / 2} 星塵` : `本週最佳 ${save.rush.best}/5（打倒更多隻才有新獎勵）`];
+  } else if (run.mode === 'trial') {
+    const reached = run.trialStart + cleared - 1;
+    title = win ? '試煉塔 登頂！' : '試煉塔結束';
+    sub = cleared ? `爬到第 ${reached} 層` : `第 ${run.trialStart} 層就倒下了`;
+    const r = modes.trialReward(save, reached);
+    lines = [r.gold || r.gem || r.heroTicket || r.gearTicket ? `新層數獎勵：${eco.giftText(r)}` : `最高紀錄 ${save.trial.floor} 層（爬得更高才有新獎勵）`, `下次從第 ${modes.trialStart(save)} 層開始`];
+  }
+  const jUps = jewelRideExp(save, cleared);
+  rideExp(save, cleared);
+  eco.track(save, 'run');
+  writeSave(save);
+  if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
+  $('result-body').innerHTML = `
+    <h2>${iconTag(win ? ICON.trophy : ICON.skull, 28)} ${title}</h2>
+    <p>${sub}・擊敗 ${run.kills} 隻</p>
+    <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
+    ${lines.map(l => `<p class="good">${l}</p>`).join('')}
+    ${jUps.map(j => `<p class="ride-exp">${iconTag(itemIcon(j.it), 18)} ${itemName(j.it)} 升到 Lv.${j.it.jlv}</p>`).join('')}
+    <button class="btn big" id="btn-home">回到主畫面</button>`;
+  $('result-body').className = 'panel center ' + (win ? 'win' : 'lose');
+  showScreen('screen-result');
+  countUp($('gold-count'), gold);
+}
+
 function endRun(win) {
   const run = game.run;
   run.phase = 'over';
+  if (run.mode) return endModeRun(win);
   const cleared = win ? MAX_WAVE : run.wave - 1;
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
@@ -1041,7 +1098,7 @@ function renderHome() {
         ${side('btn-ach', ICON.trophy, '成就', achN ? 'dot' : '')}
         ${side('btn-daily', ['ic', 630, '#ffd84a'], '每日', dailyDone(save) ? '' : 'dot')}
         ${side('btn-gacha', ICON.diamond, '扭蛋', gacha.resFreeLeft(save) > 0 ? 'dot' : '')}
-        ${side('btn-endless', ['ic', 1023, '#d06bff'], '無盡塔', '', offAttr(anyChapter(save) < 2, '通關第 1 章後開放無盡塔'))}
+        ${side('btn-modes', ['ic', 1023, '#d06bff'], '挑戰', modesBadge() ? 'dot' : '', offAttr(anyChapter(save) < 2, '通關第 1 章後開放挑戰模式'))}
       </div>
       <button class="hero-tap" id="btn-heroes" aria-label="選擇職業"></button>
       <div class="hero-plate">
@@ -1284,6 +1341,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-ach') { openAch(); return; }
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
+  else if (t.id === 'btn-modes') { openModes(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') {
     // 戰力不足只提醒一次，不擋
@@ -1903,6 +1961,89 @@ $('endless-body').addEventListener('click', ev => {
   else if (t.id === 'btn-endless-close') showScreen('screen-home');
 });
 
+// ---------- 3.7 挑戰：每日副本、魔王連戰、試煉塔 ----------
+let modesTab = 'dungeon', dgPick = null, dgTier = 1;
+function modesBadge() {
+  if (anyChapter(save) < 2) return false;
+  modes.ensureModes(save);
+  return save.dungeon.left > 0;
+}
+function openModes() {
+  modes.ensureModes(save);
+  renderModes();
+  showScreen('screen-modes', 'screen-home');
+}
+const rushDiff = () => (save.difficulty === 'casual' ? 'easy' : save.difficulty);
+const modeCh = diffId => Math.max(1, maxCh(save, diffId) - 1);
+function renderModes() {
+  modes.ensureModes(save);
+  const tabs = [['dungeon', '每日副本'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['endless', '無盡塔']];
+  let body = '';
+  if (modesTab === 'dungeon') {
+    const ids = Object.keys(modes.DUNGEONS);
+    if (!dgPick || !modes.dungeonOpen(dgPick)) dgPick = ids.find(modes.dungeonOpen);
+    const DAYS = ['日', '一', '二', '三', '四', '五', '六'];
+    const cards = ids.map(id => {
+      const d = modes.DUNGEONS[id], open = modes.dungeonOpen(id);
+      return `<button class="dg-card ${dgPick === id ? 'sel' : ''} ${open ? '' : 'closed'}" data-dg="${id}" ${offAttr(!open, `星期${DAYS[d.day]}和週末開放`)}>${iconTag(d.icon, 28)}<b>${d.name}</b><small>${open ? d.desc : '星期' + DAYS[d.day]}</small></button>`;
+    }).join('');
+    const tiers = [1, 2, 3, 4, 5].map(t => `<button class="dg-tier ${dgTier === t ? 'sel' : ''}" data-dgt="${t}" ${offAttr(!modes.tierOpen(save, t), `先開放「${difficultyOf(modes.D_TIERS[t - 1]).name}」難度`)}>${modes.tierName(t).replace('第 ', '').replace(' 階', '')}${(save.dungeon.best[dgPick] || 0) >= t ? '✓' : ''}</button>`).join('');
+    const ch = modeCh(modes.D_TIERS[dgTier - 1]);
+    const left = save.dungeon.left;
+    body = `<p class="hint">每天 ${modes.DUNGEON_TRIES} 次（掃蕩也算）。星期一～五各開一種，週末全開。5 波，最後一波是魔王。</p>
+      <div class="dg-cards">${cards}</div>
+      ${dgPick ? `<div class="dg-tiers"><span>階級</span>${tiers}</div>
+      <p class="dg-info"><b>${modes.DUNGEONS[dgPick].name}・${modes.tierName(dgTier)}</b>（${difficultyOf(modes.D_TIERS[dgTier - 1]).name}難度・第 ${ch} 章強度）<br>獎勵：${modes.rewardText(modes.dungeonReward(dgPick, dgTier, ch))}</p>
+      <div class="g-btns">
+        <button class="btn gift" id="btn-dg-go" ${offAttr(left <= 0, '今天的次數用完了')}>挑戰<small>剩 ${left} 次</small></button>
+        <button class="btn" id="btn-dg-sweep" ${offAttr(left <= 0 || !modes.canSweep(save, dgPick, dgTier), left <= 0 ? '今天的次數用完了' : '先通關這一階才能掃蕩')}>掃蕩<small>直接拿獎勵</small></button>
+      </div>` : ''}`;
+  } else if (modesTab === 'rush') {
+    const d = difficultyOf(rushDiff());
+    body = `<p class="hint">連打 5 隻魔王，中間可以買技能。每週照打倒的數量給一次寶石（每週一重置）。使用目前難度（${d.name}・第 ${modeCh(d.id)} 章強度）。</p>
+      <div class="rush-row">${modes.RUSH_GEMS.map((g, i) => `<span class="rush-b ${save.rush.best > i ? 'done' : ''}">${iconTag(['dg', 108], 22)}<small>第 ${i + 1} 隻</small><b>${iconTag(ICON.diamond, 12)}${g}</b></span>`).join('')}</div>
+      <p class="dg-info">本週最佳：<b>${save.rush.best}/5</b></p>
+      <button class="btn big gift" id="btn-rush-go">開始魔王連戰</button>`;
+  } else if (modesTab === 'trial') {
+    const f = save.trial.floor || 0, start = modes.trialStart(save);
+    body = `<p class="hint">100 層的試煉。每次從最近的 10 層檢查點開始往上爬，打到倒下為止；每 10 層一隻魔王。新層數給金幣，每 5 層 20 寶石，每 10 層一張召喚券。</p>
+      <div class="trial-bar"><i style="width:${f}%"></i><span>最高 ${f} / ${modes.TRIAL_TOP} 層</span></div>
+      <p class="dg-info">這次從 <b>第 ${start} 層</b> 開始（中級難度・第 ${Math.ceil(start / 10)} 章強度）</p>
+      <button class="btn big gift" id="btn-trial-go" ${offAttr(f >= modes.TRIAL_TOP, '已經登頂了！')}>${f >= modes.TRIAL_TOP ? '已登頂' : '開始挑戰'}</button>`;
+  }
+  $('modes-body').innerHTML = `
+    <h2>挑戰</h2>
+    <div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${modesTab === k ? 'sel' : ''}" data-mtab="${k}">${n}${k === 'dungeon' && save.dungeon.left > 0 ? ' •' : ''}</button>`).join('')}</div>
+    ${body}
+    <button class="btn ghost" id="btn-modes-close">關閉</button>`;
+}
+$('modes-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.dataset.mtab) { if (t.dataset.mtab === 'endless') { openEndless(); return; } modesTab = t.dataset.mtab; }
+  else if (t.dataset.dg) dgPick = t.dataset.dg;
+  else if (t.dataset.dgt) dgTier = +t.dataset.dgt;
+  else if (t.id === 'btn-dg-go') {
+    save.dungeon.left--;
+    writeSave(save);
+    startRun({ chapter: modeCh(modes.D_TIERS[dgTier - 1]), spec: modes.dungeonRun(dgPick, dgTier) });
+    return;
+  } else if (t.id === 'btn-dg-sweep') {
+    const lines = modes.sweep(save, dgPick, dgTier, modeCh(modes.D_TIERS[dgTier - 1]));
+    if (lines) { sfx('jingle'); celebrate(t, '#ffd84a'); toast('掃蕩完成：' + lines.join('、')); eco.track(save, 'daily'); writeSave(save); }
+  } else if (t.id === 'btn-rush-go') {
+    writeSave(save);
+    startRun({ chapter: modeCh(rushDiff()), spec: { ...modes.rushRun(), diffId: rushDiff() } });
+    return;
+  } else if (t.id === 'btn-trial-go') {
+    writeSave(save);
+    startRun({ spec: modes.trialRun(save) });
+    return;
+  } else if (t.id === 'btn-modes-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
+  renderModes();
+});
+
 // ---------- 每日挑戰 ----------
 function openDaily() {
   const ch = todayChallenge(save);
@@ -2347,11 +2488,11 @@ function showScreen(id, keep) {
 // 波次進度條：15 格，打過的填滿、目前這格閃爍、精英／魔王格有標記
 function renderWaveBar(run) {
   // 無盡塔顯示目前這 10 層的進度
-  const len = run.endless ? ENDLESS_CYCLE : MAX_WAVE;
-  const wave = stageWave(run, run.wave);
+  const len = run.mode === 'trial' ? 10 : run.mode ? run.maxWave : run.endless ? ENDLESS_CYCLE : MAX_WAVE;
+  const wave = run.mode === 'trial' ? ((run.floorOf(run.wave) - 1) % 10) + 1 : run.mode ? run.wave : stageWave(run, run.wave);
   let html = '';
   for (let i = 1; i <= len; i++) {
-    const kind = i === len ? 'boss' : i % 5 === 0 ? 'elite' : '';
+    const kind = i === len || run.mode === 'rush' ? 'boss' : !run.mode && i % 5 === 0 ? 'elite' : '';
     const st = i < wave ? 'done' : i === wave ? 'now' : '';
     html += `<i class="${kind} ${st}"></i>`;
   }
@@ -2580,7 +2721,11 @@ window.__test = {
     if (opts.hero2 && !save.owned.includes(opts.hero2)) save.owned.push(opts.hero2);
     if (opts.diff) save.difficulty = opts.diff;
     const aim = opts.aim === undefined ? 0.85 : opts.aim;
-    startRun({ chapter: opts.chapter || 1 });
+    let spec = null;
+    if (opts.mode === 'dungeon') spec = modes.dungeonRun(opts.dg || 'gold', opts.tier || 1);
+    else if (opts.mode === 'rush') spec = { ...modes.rushRun(), diffId: save.difficulty };
+    else if (opts.mode === 'trial') { save.trial = { floor: opts.floor || 0 }; spec = modes.trialRun(save); }
+    startRun({ chapter: opts.chapter || 1, spec });
     const run = game.run;
     const dt = 1 / 30;
     let ticks = 0, deathWave = 0, bossT = 0;
@@ -2616,7 +2761,7 @@ window.__test = {
         else endRun(false);
       } else break;
     }
-    const out = { win: run.phase === 'over' && run.wave >= MAX_WAVE && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
+    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
     game.run = null;
     restore();
     writeSave(save);
