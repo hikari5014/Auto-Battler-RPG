@@ -99,8 +99,19 @@ export const SETS = {
   fortune: { name: '財神', color: '#ffd84a', two: [['gold', 15]], four: [['coin', 100], ['midas', 3]], d2: '結算金幣 +15%', d4: '開局球幣 +100、每擊敗一隻 +3 球幣' },
   hunter: { name: '獵王', color: '#ff9f43', two: [['crit', 6]], four: [['bossDmg', 40]], d2: '暴擊率 +6%', d4: '對菁英、魔王傷害 +40%' },
   arcane: { name: '秘法', color: '#d06bff', two: [['splash', 15]], four: [['arcane', 150]], d2: '每次攻擊濺射全體 15%', d4: '每 8 秒秘法爆發打全體（150%）' },
+  // 3.6 刻印套裝：只有「鍛造召喚」抽得到（傳說），可以升到 5 星
+  phoenix: { name: '不死鳥', pool: 'imprint', color: '#ff8a3b', two: [['hp', 20]], four: [['phoenix', 1], ['regen', 6]], d2: '血量 +20%', d4: '每局一次：倒下時浴火重生；每波回血 +6%' },
+  tempest: { name: '暴風', pool: 'imprint', color: '#7fe8ff', two: [['spd', 12]], four: [['dbl', 30], ['spd', 10]], d2: '攻擊速度 +12%', d4: '連擊機率 +30%、攻擊速度再 +10%' },
+  reaper: { name: '死神', pool: 'imprint', color: '#b9a8ff', two: [['critDmg', 30]], four: [['bossDmg', 50], ['crit', 8]], d2: '暴擊傷害 +30%', d4: '對菁英、魔王傷害 +50%、暴擊率 +8%' },
+  starfall: { name: '星落', pool: 'imprint', color: '#c8b6ff', two: [['splash', 20]], four: [['arcane', 250]], d2: '每次攻擊濺射全體 20%', d4: '每 8 秒星落爆發打全體（250%）' },
+  // 3.6 冒險套裝：挑戰（含）以上難度才會掉（史詩以上）
+  warlord: { name: '軍閥', pool: 'adv', color: '#ff5a5a', two: [['atk', 12]], four: [['hits', 1], ['atk', 10]], d2: '攻擊力 +12%', d4: '攻擊次數 +1、攻擊力再 +10%' },
+  sentinel: { name: '哨兵', pool: 'adv', color: '#9fd6a8', two: [['dr', 6], ['block', 6]], four: [['shield', 35]], d2: '減傷 +6%、格擋 +6%', d4: '每波開始獲得 35% 血量護盾' },
+  stormcall: { name: '喚雷', pool: 'adv', color: '#ffe066', two: [['crit', 6], ['spd', 6]], four: [['storm', 1]], d2: '暴擊率 +6%、攻擊速度 +6%', d4: '每 4 次攻擊放出連鎖閃電（+120% 傷害）' },
 };
-const SET_IDS = Object.keys(SETS);
+const SET_IDS = Object.keys(SETS).filter(k => !SETS[k].pool);
+export const IMPRINT_SETS = Object.keys(SETS).filter(k => SETS[k].pool === 'imprint');
+export const ADV_SETS = Object.keys(SETS).filter(k => SETS[k].pool === 'adv');
 const SET_CHANCE = [0, 0.45, 0.65, 1, 1];
 
 // ---------- 傳說特效 ----------
@@ -120,6 +131,35 @@ export const UNIQUES = {
   scholar: { name: '學者', types: ['necklace', 'ring'], desc: '技能商店價格 -10%' },
 };
 const uniquesFor = type => Object.keys(UNIQUES).filter(k => UNIQUES[k].types.includes(type));
+
+// ---------- 3.6 傳家武器：每位初始英雄一把，「鍛造召喚」抽得到，可以升到 5 星 ----------
+// 帶著對應英雄（主職業）出戰才有特效：攻擊力 +10%（每星再 +3%）＋專屬效果（每星再強一點）
+export const HEIRLOOMS = {
+  blade: { name: '王者之劍', desc: s => `劍氣傷害 +${40 + s * 10}%`, apply: (h, s) => { h.swordMul *= 1.4 + s * 0.1; } },
+  archer: { name: '風神弓', desc: s => `球雨箭需要接球 -${4 + Math.floor(s / 2)}`, apply: (h, s) => { h.arrowNeed = Math.max(6, h.arrowNeed - 4 - Math.floor(s / 2)); } },
+  mage: { name: '黑曜法杖', desc: s => `濺射 +${15 + s * 3}%`, apply: (h, s) => { h.splash += 0.15 + s * 0.03; } },
+  saw: { name: '屠夫鏈鋸', desc: s => `鏈鋸傷害 +${40 + s * 10}%`, apply: (h, s) => { h.sawMul += 0.4 + s * 0.1; } },
+  paladin: { name: '晨曦聖錘', desc: s => `聖光傷害 +${40 + s * 10}%`, apply: (h, s) => { h.holyMul += 0.4 + s * 0.1; } },
+  rogue: { name: '影牙匕首', desc: s => `暴擊傷害 +${40 + s * 10}%`, apply: (h, s) => { h.critDmg += 0.4 + s * 0.1; } },
+  gunner: { name: '龍吼火槍', desc: s => `榴彈傷害 +${50 + s * 10}%`, apply: (h, s) => { h.grenadeMul += 0.5 + s * 0.1; } },
+  elem: { name: '元素權杖', desc: s => `雷元素多跳 1 隻、燃燒 +${15 + s * 3}%`, apply: (h, s) => { h.boltJumps += 1; h.fireDot += 0.15 + s * 0.03; } },
+  dragoon: { name: '屠龍槍', desc: s => `龍息傷害 +${50 + s * 10}%`, apply: (h, s) => { h.breathMul += 0.5 + s * 0.1; } },
+  sage: { name: '星辰之書', desc: s => `星落傷害 +${30 + s * 8}%`, apply: (h, s) => { h.starMul *= 1.3 + s * 0.08; } },
+  thief: { name: '黃金鉤爪', desc: s => `結算金幣 +${10 + s * 2}%、每殺一隻多 1 球幣`, apply: (h, s) => { h.goldBonus += 0.1 + s * 0.02; h.stealCoins += 1; } },
+};
+export function applyHeirloom(h, gb) {
+  const x = gb.heir;
+  if (!x || x.hero !== h.def.id) return;
+  h.baseAtk *= 1.1 + x.star * 0.03;
+  HEIRLOOMS[x.hero].apply(h, x.star);
+}
+
+// ---------- 3.6 裝備星級（熔鑄） ----------
+// 傳說、神話最多 3 星；刻印套裝、傳家武器最多 5 星；每星主屬性與副屬性 +10%
+export const starMax = it => (it.heir || (it.set && SETS[it.set].pool === 'imprint') ? 5 : it.rarity >= 3 ? 3 : 0);
+export const starMul = it => 1 + 0.1 * (it.star || 0);
+export const fuseGold = it => 3000 * ((it.star || 0) + 1) * (it.heir ? 2 : 1);
+const isSpecial = it => !!(it.heir || (it.set && SETS[it.set].pool === 'imprint'));
 
 // ---------- 符石（3.0 前叫寶石；存檔欄位仍是 gems） ----------
 // 裝備上有鑲嵌孔（稀有度越高孔越多），符石有 1～5 級，3 顆同級合成高一級
@@ -195,7 +235,7 @@ function rebalance(g) {
   g.rebalanced = { shards: Math.min(400, 30 + n * 6), gold: 2000 + n * 300 };
   g.v = 3;
 }
-function makeItem(gear, type, rarity, ilv = 1) {
+function makeItem(gear, type, rarity, ilv = 1, opt = {}) {
   const T = TYPES[type];
   const r = RARITIES[rarity];
   const k = r.mult * ilvMul(ilv);
@@ -203,8 +243,10 @@ function makeItem(gear, type, rarity, ilv = 1) {
   const it = { id: gear.nextId++, type, rarity, ilv, plus: 0, fresh: true, affixes: [], sockets: Array(SOCKETS[rarity]).fill(null) };
   it.main = T.main || RING_MAINS[Math.floor(Math.random() * RING_MAINS.length)];
   it.value = r1((T.main ? T.base : STATS[it.main].base * 1.6) * k);
-  if (Math.random() < SET_CHANCE[rarity]) it.set = SET_IDS[Math.floor(Math.random() * SET_IDS.length)];
-  if (rarity >= 3) { const u = uniquesFor(type); it.uniq = u[Math.floor(Math.random() * u.length)]; }
+  if (opt.set) it.set = opt.set;
+  else if (Math.random() < SET_CHANCE[rarity]) it.set = SET_IDS[Math.floor(Math.random() * SET_IDS.length)];
+  if (opt.heir) it.heir = opt.heir;
+  if (rarity >= 3 && !opt.heir) { const u = uniquesFor(type); it.uniq = u[Math.floor(Math.random() * u.length)]; }
   // 副屬性：不重複、不跟主屬性一樣
   const pool = AFFIX_POOL.filter(s => s !== it.main);
   for (let i = 0; i < r.affix; i++) {
@@ -215,11 +257,11 @@ function makeItem(gear, type, rarity, ilv = 1) {
   return it;
 }
 
-export const itemName = it => (it.set ? SETS[it.set].name + '・' : '') + TYPES[it.type].names[it.rarity] + (it.plus ? ` +${it.plus}` : '');
-export const itemIcon = it => ['ic', TYPES[it.type].icons[it.rarity], RARITIES[it.rarity].color];
+export const itemName = it => (it.heir ? HEIRLOOMS[it.heir].name : (it.set ? SETS[it.set].name + '・' : '') + TYPES[it.type].names[it.rarity]) + (it.plus ? ` +${it.plus}` : '');
+export const itemIcon = it => ['ic', TYPES[it.type].icons[it.rarity], it.heir ? '#ffe9a0' : RARITIES[it.rarity].color];
 // 主屬性實際數值（強化每級 +6%）
 export const PLUS_STEP = 0.06;
-export const mainValue = it => r1(it.value * (1 + PLUS_STEP * (it.plus || 0)));
+export const mainValue = it => r1(it.value * (1 + PLUS_STEP * (it.plus || 0)) * starMul(it));
 export const itemDesc = it => statText(it.main, mainValue(it));
 
 // ---------- 掉落 ----------
@@ -244,13 +286,18 @@ export function rollDrops(save, cleared, win, diffIndex, chapter = 1) {
   const drops = [];
   // 休閒難度：裝備等級最高 3、稀有度最高史詩（休閒可以亂玩，但不能拿來刷平衡難度的裝備）
   const ilv = diffIndex === 0 ? Math.min(3, chapter) : chapter;
-  for (let i = 0; i < count; i++) drops.push(makeItem(gear, randomType(), diffIndex === 0 ? Math.min(2, randomRarity(0)) : randomRarity(diffIndex), ilv));
+  for (let i = 0; i < count; i++) {
+    const rarity = diffIndex === 0 ? Math.min(2, randomRarity(0)) : randomRarity(diffIndex);
+    // 挑戰（含）以上：史詩以上有機會是冒險套裝
+    const set = diffIndex >= 3 && rarity >= 2 && Math.random() < 0.35 ? ADV_SETS[Math.floor(Math.random() * ADV_SETS.length)] : null;
+    drops.push(makeItem(gear, randomType(), rarity, ilv, set ? { set } : {}));
+  }
   gear.items.push(...drops);
   // 背包滿了：自動分解最差的、沒穿在身上的
   let salvaged = 0;
   while (gear.items.length > MAX_ITEMS) {
     const worn = new Set(Object.values(gear.equip));
-    const cand = gear.items.filter(it => !worn.has(it.id) && !it.lock).sort((a, b) => a.rarity - b.rarity || (a.plus || 0) - (b.plus || 0))[0];
+    const cand = gear.items.filter(it => !worn.has(it.id) && !it.lock && !isSpecial(it) && !it.star).sort((a, b) => a.rarity - b.rarity || (a.plus || 0) - (b.plus || 0))[0];
     if (!cand) break;
     gear.items.splice(gear.items.indexOf(cand), 1);
     salvaged += RARITIES[cand.rarity].salvage;
@@ -269,14 +316,15 @@ export function grantItem(save, rarity, ilv = 1) {
 // ---------- 加成 ----------
 export function gearBonus(save) {
   const gear = ensureGear(save);
-  const b = { skills: {}, uniq: {}, sets: {}, extra: { hits: 0, shield: 0, dbl: 0, splash: 0, arcane: 0, midas: 0 } };
+  const b = { skills: {}, uniq: {}, sets: {}, heir: null, extra: { hits: 0, shield: 0, dbl: 0, splash: 0, arcane: 0, midas: 0, phoenix: 0, storm: 0 } };
   for (const k of AFFIX_POOL) b[k] = 0;
   const add = (stat, v) => { b[stat] += STATS[stat].unit === '%' ? v / 100 : v; };
   for (const id of Object.values(gear.equip)) {
     const it = gear.items.find(x => x.id === id);
     if (!it) continue;
     add(it.main, mainValue(it));
-    for (const a of it.affixes) add(a.stat, a.value);
+    for (const a of it.affixes) add(a.stat, a.value * starMul(it));
+    if (it.heir) b.heir = { hero: it.heir, star: it.star || 0 };
     if (it.ench) add(it.ench.stat, it.ench.value);
     for (const gk of it.sockets || []) if (gk) add(GEMS[parseGem(gk).id].stat, gemValue(gk));
     if (it.skill) {
@@ -293,7 +341,7 @@ export function gearBonus(save) {
       if (n < need) continue;
       for (const [k, v] of list) {
         if (STATS[k]) add(k, v);
-        else b.extra[k] += k === 'hits' || k === 'midas' || k === 'arcane' ? v : v / 100;
+        else b.extra[k] += ['hits', 'midas', 'arcane', 'phoenix', 'storm'].includes(k) ? v : v / 100;
       }
     }
   }
@@ -329,7 +377,8 @@ export function score(it) {
   const base = TYPES[it.type].main ? TYPES[it.type].base : STATS[it.main].base * 1.6;
   let s = mainValue(it) / base; // 主屬性已經含裝備等級
   if (it.uniq) s += 0.8;
-  for (const a of it.affixes) s += a.value / STATS[a.stat].base * 0.4;
+  for (const a of it.affixes) s += a.value * starMul(it) / STATS[a.stat].base * 0.4;
+  if (it.heir) s += 1.2;
   if (it.ench) s += it.ench.value / STATS[it.ench.stat].base * 0.4;
   return s;
 }
@@ -340,7 +389,7 @@ export function gearPower(save) {
   let p = 0;
   for (const id of Object.values(gear.equip)) {
     const it = gear.items.find(x => x.id === id);
-    if (it) p += score(it) * 100 + (it.uniq ? 150 : 0) + (it.skill ? jewelPower(it) * 2 : 0);
+    if (it) p += score(it) * 100 + (it.uniq || it.heir ? 150 : 0) + (it.skill ? jewelPower(it) * 2 : 0);
   }
   for (const n of Object.values(b.sets)) p += n >= 4 ? 400 : n >= 2 ? 150 : 0;
   return Math.round(p);
@@ -449,7 +498,7 @@ function mergeGroups(save) {
   const gear = ensureGear(save);
   const groups = new Map();
   for (const it of gear.items) {
-    if (isWorn(save, it.id) || it.lock || it.rarity >= MAX_RARITY) continue;
+    if (isWorn(save, it.id) || it.lock || it.rarity >= MAX_RARITY || isSpecial(it) || it.star || (it.set && SETS[it.set].pool)) continue;
     const key = `${it.type}|${it.rarity}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(it);
@@ -598,3 +647,58 @@ export function loadPreset(save, i) {
   for (const [slot, id] of Object.entries(p)) if (ids.has(id)) gear.equip[slot] = id;
   return true;
 }
+
+// ---------- 3.6 熔鑄：吃掉一件同種類、傳說以上的裝備 → 星級 +1 ----------
+// 傳家武器可以吃任何傳說以上的武器
+export function fuseFodder(save, it) {
+  const gear = ensureGear(save);
+  return gear.items.filter(x => x.id !== it.id && x.type === it.type && x.rarity >= 3 && !x.lock && !isWorn(save, x.id) && !isSpecial(x) && !x.star)
+    .sort((a, b) => score(a) - score(b));
+}
+export function whyNoFuse(save, it) {
+  if (!starMax(it)) return '傳說以上才能熔鑄升星';
+  if ((it.star || 0) >= starMax(it)) return `已經 ${starMax(it)} 星滿星`;
+  if (!fuseFodder(save, it).length) return `需要一件沒穿、沒上鎖的傳說以上${TYPES[it.type].name}當材料`;
+  if (save.gold < fuseGold(it)) return `金幣不足（需要 ${fuseGold(it)}）`;
+  return '';
+}
+export function fuse(save, id) {
+  const gear = ensureGear(save);
+  const it = gear.items.find(x => x.id === id);
+  if (!it || whyNoFuse(save, it)) return null;
+  const f = fuseFodder(save, it)[0];
+  save.gold -= fuseGold(it);
+  for (const gk of f.sockets || []) if (gk) gear.gems[gk] = (gear.gems[gk] || 0) + 1;
+  gear.items = gear.items.filter(x => x !== f);
+  it.star = (it.star || 0) + 1;
+  return f;
+}
+
+// ---------- 3.6 強化轉移：把舊裝備的強化等級搬到同種類的新裝備（舊的歸零） ----------
+export const TRANSFER_SHARDS = 10;
+export function transferDonor(save, it) {
+  const gear = ensureGear(save);
+  return gear.items.filter(x => x.id !== it.id && x.type === it.type && (x.plus || 0) > (it.plus || 0)).sort((a, b) => b.plus - a.plus)[0] || null;
+}
+export function transferPlus(save, id) {
+  const gear = ensureGear(save);
+  const it = gear.items.find(x => x.id === id);
+  const d = it && transferDonor(save, it);
+  if (!d || gear.shards < TRANSFER_SHARDS) return null;
+  gear.shards -= TRANSFER_SHARDS;
+  it.plus = d.plus;
+  d.plus = 0;
+  return d;
+}
+
+// ---------- 3.6 鍛造召喚用：做一件指定條件的裝備 ----------
+export function forgeItem(save, rarity, ilv, kind) {
+  const gear = ensureGear(save);
+  let it;
+  if (kind === 'heir') it = makeItem(gear, 'weapon', 3, ilv, { heir: Object.keys(HEIRLOOMS)[Math.floor(Math.random() * 11)] });
+  else if (kind === 'imprint') it = makeItem(gear, randomType(), 3, ilv, { set: IMPRINT_SETS[Math.floor(Math.random() * IMPRINT_SETS.length)] });
+  else it = makeItem(gear, randomType(), rarity, ilv);
+  gear.items.push(it);
+  return it;
+}
+export const bagRoom = save => MAX_ITEMS - ensureGear(save).items.length;

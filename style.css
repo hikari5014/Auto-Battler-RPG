@@ -1401,3 +1401,9 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 #toast.long { white-space: pre-line; text-align: left; font-size: 13px; line-height: 1.5; }
 #toast.long.show { animation-duration: 5s; }
 .duo-mid .bond { margin-top: 2px; font-size: 11px; padding: 2px 6px; white-space: nowrap; }
+/* 3.6 裝備星級、裝備池 */
+.item .istar-b { position: absolute; left: 2px; bottom: 1px; font-style: normal; font-size: 9px; color: #ffd84a; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.il.istar { color: #ffd84a; letter-spacing: 1px; }
+.il.istar small { color: #cfc; letter-spacing: 0; opacity: .8; }
+.il.uniq.locked { opacity: .55; }
+.g-banner.forge { background: linear-gradient(160deg, #3a2410, #6a3c12 60%, #2a1a0c); }

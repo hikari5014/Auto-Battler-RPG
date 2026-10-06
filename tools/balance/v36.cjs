@@ -1,0 +1,44 @@
+const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const S = __dirname;
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  await p.goto('http://localhost:8765/?' + Date.now());
+  await p.evaluate(() => localStorage.setItem('marble-brave-save-v1', JSON.stringify({ tutorialDone: true, gold: 500000, owned: ['blade', 'archer'], selected: 'blade', progress: { easy: 6, normal: 6, hard: 6, hell: 2 }, maxChapter: 5, econStarted: '3.2.0', wallet: { gem: 30000, heroTicket: 0, gearTicket: 10, stardust: 0 }, gear: { v: 3, items: [], equip: {}, nextId: 1, shards: 500 } })));
+  await p.reload(); await p.waitForTimeout(1500);
+  await p.click('#btn-gacha', { force: true }); await p.waitForTimeout(300);
+  await p.click('[data-gtab="forge"]', { force: true }); await p.waitForTimeout(300);
+  await p.screenshot({ path: S + '/v36-forge.png' });
+  await p.click('#btn-ftick10', { force: true }); await p.waitForTimeout(2800);
+  await p.screenshot({ path: S + '/v36-ten.png' });
+  await p.click('#btn-g-again', { force: true });
+  await p.click('#btn-forge10', { force: true }); await p.waitForTimeout(300); await p.click('#btn-g-again', { force: true });
+  await p.click('#btn-forge10', { force: true }); await p.waitForTimeout(300); await p.click('#btn-g-again', { force: true });
+  const sum = await p.evaluate(() => { const g = window.__game.save.gear; return { n: g.items.length, r: g.items.map(i => i.rarity).join(''), heir: g.items.filter(i => i.heir).map(i => i.heir), imp: g.items.filter(i => i.set && ['phoenix', 'tempest', 'reaper', 'starfall'].includes(i.set)).length, ilv: g.items[0].ilv, forge: window.__game.save.gacha.forge }; });
+  console.log(JSON.stringify(sum));
+  // 塞一把傳家劍＋3 把傳說武器來熔鑄
+  await p.evaluate(() => {
+    const s = window.__game.save, g = s.gear;
+    const mk = (o) => ({ id: g.nextId++, type: 'weapon', rarity: 3, ilv: 4, plus: 0, affixes: [{ stat: 'crit', value: 4 }], sockets: [null, null], main: 'atk', value: 25, ...o });
+    g.items = g.items.slice(0, 20);
+    g.items.push(mk({ heir: 'blade' }), mk({ plus: 9 }), mk({}), mk({}));
+    g.equip = {};
+    localStorage.setItem('marble-brave-save-v1', JSON.stringify(s));
+  });
+  await p.reload(); await p.waitForTimeout(1500);
+  const before = await p.evaluate(() => window.__test.power('blade').p);
+  await p.click('#btn-gear', { force: true }); await p.waitForTimeout(400);
+  const hid = await p.evaluate(() => window.__game.save.gear.items.find(i => i.heir).id);
+  await p.click(`[data-item="${hid}"]`, { force: true }); await p.waitForTimeout(200);
+  await p.click('#btn-equip', { force: true }); await p.waitForTimeout(200);
+  await p.click('#btn-transfer', { force: true }); await p.waitForTimeout(200);
+  await p.click('#btn-fuse', { force: true }); await p.waitForTimeout(300);
+  await p.click('#btn-fuse', { force: true }); await p.waitForTimeout(300);
+  await p.screenshot({ path: S + '/v36-gear.png' });
+  const after = await p.evaluate(() => { const it = window.__game.save.gear.items.find(i => i.heir); return { star: it.star, plus: it.plus, n: window.__game.save.gear.items.length }; });
+  console.log('heir', JSON.stringify(after), 'power', before, await p.evaluate(() => window.__test.power('blade').p), 'archer', await p.evaluate(() => window.__test.power('archer').p));
+  console.log('sim', JSON.stringify(await p.evaluate(() => window.__test.sim({ hero: 'blade', diff: 'hard', chapter: 3 }))));
+  console.log('ERRORS', errs);
+  await b.close();
+})();

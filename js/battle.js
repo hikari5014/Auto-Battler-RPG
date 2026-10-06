@@ -9,7 +9,7 @@ import { Scene } from './scene.js';
 import { diffScale, waveCurve, CHAPTER_GROWTH, BOSS_MUL, BOSS_ATK_MUL, ENDLESS_BOSS_MUL, BOSS_FURY_AT, BOSS_FURY_EVERY, BOSS_FURY_MUL } from './levels.js';
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
-import { gearBonus } from './gear.js';
+import { gearBonus, applyHeirloom } from './gear.js';
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -100,6 +100,7 @@ export function createHero(def, save) {
   if (def.init) def.init(h);
   applyJewels(h, gb.skills);
   applyGearExtra(h, gb);
+  applyHeirloom(h, gb); // 3.6 傳家武器
   // 帳號來源的攻擊次數最多 +2、連擊最多 40%（局內技能不受限）
   h.hits = Math.min(h.hits, def.hits + 2);
   h.dbl = Math.min(h.dbl, 0.4);
@@ -129,6 +130,8 @@ function applyGearExtra(h, gb) {
   h.splash += x.splash;
   h.stealCoins += x.midas;
   if (x.arcane) h.jewels.push({ id: 'arcane', every: 8, mul: x.arcane / 100, t: 0 });
+  if (x.phoenix) h.phoenix = true;
+  if (x.storm) { h.chainEvery = h.chainEvery ? Math.min(h.chainEvery, 4) : 4; h.chainMul += 1.2; }
   if (u.vamp) h.killHeal += 0.04 * u.vamp;
   if (u.execute) h.exec += 0.6 * u.execute;
   if (u.storm) { h.chainEvery = h.chainEvery || 5; h.chainMul += 1.5 * u.storm; }

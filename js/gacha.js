@@ -4,7 +4,7 @@
 import { HEROES } from './data.js';
 import { rarityOf, UNLOCK_FRAGS, ensureHeroes, heroState, MAX_STAR } from './heroes.js';
 import { ensureEconomy, grant } from './economy.js';
-import { ensureGear, gemKey } from './gear.js';
+import { ensureGear, gemKey, forgeItem, bagRoom, RARITIES } from './gear.js';
 import { todayKey } from './meta.js';
 import { addExp, ensureMounts } from './mount.js';
 
@@ -20,6 +20,7 @@ export function ensureGacha(save) {
   ensureHeroes(save);
   save.gacha = save.gacha || { hero: { n: 0, sinceElite: 0, sinceLegend: 0, lost: false }, newbie: NEWBIE_PULLS, res: { day: '', free: 0, gold: 0 }, shop: { month: '', bought: {} } };
   save.wallet.anyFrag = save.wallet.anyFrag || 0;
+  save.gacha.forge = save.gacha.forge || { n: 0, sinceLegend: 0 };
   return save.gacha;
 }
 
@@ -239,3 +240,41 @@ export function useAnyFrag(save, def, need) {
   st.anyUsed = (st.anyUsed || 0) + want;
   return want;
 }
+
+// ---------- 3.6 鍛造召喚（裝備池） ----------
+// 最高傳說；傳說裡面有機會是刻印套裝或傳家武器；30 抽保底傳說；十連至少一件史詩
+// 裝備等級 = 平衡難度打到的最高章節 - 1（最少 1）
+export const FORGE_RATES = [
+  { k: 'heir', p: 0.015, name: '傳家武器（傳說）' },
+  { k: 'imprint', p: 0.035, name: '刻印套裝（傳說）' },
+  { k: 'legend', p: 0.05, name: '傳說裝備' },
+  { k: 'epic', p: 0.3, name: '史詩裝備' },
+  { k: 'rare', p: 0.6, name: '稀有裝備' },
+];
+export const FORGE_PITY = 30;
+const FORGE_R = { rare: 1, epic: 2, legend: 3, imprint: 3, heir: 3 };
+const R_NAME = ['normal', 'rare', 'elite', 'legend', 'legend'];
+export const forgeIlv = ch => Math.max(1, Math.min(10, ch - 1));
+function rollForgeOnce(save, ch, guarantee) {
+  const f = save.gacha.forge;
+  f.n++; f.sinceLegend++;
+  let k = 'rare', x = Math.random();
+  for (const r of FORGE_RATES) { x -= r.p; if (x <= 0) { k = r.k; break; } }
+  if (f.sinceLegend >= FORGE_PITY && FORGE_R[k] < 3) k = Math.random() < 0.15 ? 'heir' : Math.random() < 0.4 ? 'imprint' : 'legend';
+  if (guarantee && k === 'rare') k = 'epic';
+  if (FORGE_R[k] >= 3) f.sinceLegend = 0;
+  const it = forgeItem(save, FORGE_R[k], forgeIlv(ch), k === 'heir' || k === 'imprint' ? k : null);
+  return { kind: 'item', it, special: k === 'heir' || k === 'imprint', r: R_NAME[it.rarity] };
+}
+export function pullForge(save, n, pay, ch) {
+  ensureGacha(save);
+  const w = save.wallet;
+  if (bagRoom(save) < n) return 'bag';
+  if (pay === 'ticket') { if (w.gearTicket < n) return null; w.gearTicket -= n; }
+  else { const c = n === 10 ? TEN_COST : PULL_COST * n; if (w.gem < c) return null; w.gem -= c; }
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(rollForgeOnce(save, ch, n === 10 && i === 9 && !out.some(o => o.it.rarity >= 2)));
+  w.stardust += DUST_PER_PULL * n;
+  return out;
+}
+export const forgeRarityColor = it => RARITIES[it.rarity].color;

@@ -22,7 +22,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset, fuse, whyNoFuse, fuseFodder, fuseGold, starMax, transferPlus, transferDonor, TRANSFER_SHARDS, HEIRLOOMS } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -1729,13 +1729,14 @@ function resultCard(o, i) {
   if (o.kind === 'hero') { ic = iconTag(heroRef(o.def), 40); name = o.def.name.split(' ')[1]; sub = o.isNew ? '<b class="new">NEW!</b>' : `轉成碎片 x${o.frag}${o.dust ? `（滿星→星塵 ${o.dust}）` : ''}`; }
   else if (o.kind === 'frag') { ic = iconTag(heroRef(o.def), 32); name = `${o.def.name.split(' ')[1]}碎片`; sub = `x${o.n}${o.dust ? `→星塵 ${o.dust}` : ''}`; }
   else if (o.kind === 'any') { ic = iconTag(ICON.stardust, 32); name = '萬能碎片'; sub = `x${o.n}`; }
+  else if (o.kind === 'item') { ic = iconTag(itemIcon(o.it), 34); name = itemName(o.it); sub = o.it.heir ? '<b class="new">傳家武器</b>' : o.special ? `<b class="new">${SETS[o.it.set].name}刻印</b>` : `${RARITIES[o.it.rarity].name}${TYPES[o.it.type].name}`; }
   else if (o.kind === 'res') { ic = o.gift.gold ? iconTag(ICON.gold, 30) : '<b class="shard-ic">✦</b>'; name = o.gift.gold ? '金幣' : '魔晶'; sub = '+' + fmt(o.gift.gold || o.gift.shards); }
   else { ic = o.big ? iconTag(ICON.chest, 32) : iconTag(ICON.chestOpen, 30); name = o.name; sub = o.gift.def ? o.gift.def.name.split(' ')[1] : ''; }
   return `<div class="g-card r-${r} ${o.kind === 'hero' ? 'hero' : ''}" style="--rc:${col};animation-delay:${0.15 + i * 0.18}s">${capsule(r, true)}<span class="g-ic">${ic}</span><b>${name}</b><small>${sub}</small></div>`;
 }
 function renderGacha() {
   const g = save.gacha, w = save.wallet, ch = balChapter(save);
-  const tabs = [['hero', '角色池'], ...(g.newbie > 0 ? [['newbie', '新手池']] : []), ['res', '資源池'], ['shop', '星塵商店']];
+  const tabs = [['hero', '角色池'], ...(g.newbie > 0 ? [['newbie', '新手池']] : []), ['forge', '裝備池'], ['res', '資源池'], ['shop', '星塵商店']];
   let body = '';
   if (gachaResult) {
     body = `<div class="g-results ${gachaResult.length > 1 ? 'ten' : ''}">${gachaResult.map(resultCard).join('')}</div>
@@ -1760,6 +1761,23 @@ function renderGacha() {
       <button class="link" id="btn-g-rates">${gachaShowRates ? '▲ 收起機率' : '▼ 查看機率'}</button>
       ${gachaShowRates ? `<div class="g-rates">${rates.map(r => `<span>${r.name}</span><b>${(r.p * 100).toFixed(1)}%</b>`).join('')}</div>
         <p class="hint">每抽送 ${gacha.DUST_PER_PULL} 星塵。傳奇英雄 3.8 版加入。滿星英雄的碎片會換成星塵。</p>` : ''}`;
+  } else if (gachaTab === 'forge') {
+    const f = g.forge, room = bagRoomLeft();
+    body = `<div class="g-banner forge">
+        <div class="g-capsules">${['elite', 'legend', 'rare', 'legend', 'elite'].map(r => capsule(r)).join('')}</div>
+        <b>鍛造召喚</b>
+        <small>稀有～傳說裝備，裝備等級 Lv.${gacha.forgeIlv(ch)}（平衡難度最高章節 - 1）；傳說有機會是「刻印套裝」或「傳家武器」（可升到 5 星）</small>
+        <div class="g-pity">每 ${gacha.FORGE_PITY} 抽必出傳說：還差 <b>${gacha.FORGE_PITY - f.sinceLegend}</b> 抽　十連必有史詩以上</div>
+      </div>
+      <div class="g-btns">
+        <button class="btn gift" id="btn-forge1" ${offAttr(w.gem < gacha.PULL_COST || room < 1, room < 1 ? '背包滿了' : '寶石不足')}>單抽<small>${iconTag(ICON.diamond, 14)}${gacha.PULL_COST}</small></button>
+        <button class="btn gift" id="btn-forge10" ${offAttr(w.gem < gacha.TEN_COST || room < 10, room < 10 ? '背包空位不到 10 格' : '寶石不足')}>十連<small>${iconTag(ICON.diamond, 14)}${gacha.TEN_COST}</small></button>
+      </div>
+      <div class="g-btns">
+        <button class="btn" id="btn-ftick1" ${offAttr(w.gearTicket < 1 || room < 1, room < 1 ? '背包滿了' : '沒有裝備召喚券')}>用券單抽<small>${iconTag(ICON.gearTicket, 14)}1</small></button>
+        <button class="btn" id="btn-ftick10" ${offAttr(w.gearTicket < 10 || room < 10, room < 10 ? '背包空位不到 10 格' : '裝備召喚券不到 10 張')}>用券十連<small>${iconTag(ICON.gearTicket, 14)}10</small></button></div>
+      <div class="g-rates">${gacha.FORGE_RATES.map(r => `<span>${r.name}</span><b>${(r.p * 100).toFixed(1)}%</b>`).join('')}</div>
+      <p class="hint">傳家武器：每位初始英雄一把，主職業是那位英雄時才有專屬特效。刻印套裝：不死鳥、暴風、死神、星落。</p>`;
   } else if (gachaTab === 'res') {
     const free = gacha.resFreeLeft(save), gp = gacha.resGoldPrice(save);
     body = `<div class="g-banner res"><b>補給召喚</b><small>金幣、魔晶、符石、坐騎經驗、萬能碎片、召喚券（不會抽到寶石）</small></div>
@@ -1786,18 +1804,22 @@ function renderGacha() {
   }
   $('gacha-body').innerHTML = `
     <h2>扭蛋</h2>
-    <div class="wallet-row">${['gem', 'heroTicket', 'stardust'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(w[k])}</b></span>`).join('')}<span class="pill">萬能碎片 <b>${fmt(w.anyFrag || 0)}</b></span></div>
+    <div class="wallet-row">${['gem', gachaTab === 'forge' ? 'gearTicket' : 'heroTicket', 'stardust'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(w[k])}</b></span>`).join('')}<span class="pill">萬能碎片 <b>${fmt(w.anyFrag || 0)}</b></span></div>
     ${gachaResult ? '' : `<div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${gachaTab === k ? 'sel' : ''}" data-gtab="${k}">${n}${k === 'res' && gacha.resFreeLeft(save) ? ' •' : ''}</button>`).join('')}</div>`}
     ${body}
     ${gachaResult ? '' : '<button class="btn" id="btn-gacha-close">關閉</button>'}`;
 }
 const dustOk = it => { const h = HEROES.find(x => x.id === dustHero); return h && heroP.rarityOf(h) === it.need; };
+const bagRoomLeft = () => MAX_ITEMS - ensureGear(save).items.length;
 function showPull(out) {
+  if (out === 'bag') { toast('背包空位不夠，先分解或合成一些裝備'); return; }
   if (!out) { toast('不夠，無法召喚'); return; }
   writeSave(save); // 先存檔再播動畫
   gachaResult = out;
   const best = out.some(o => o.r === 'legend') ? 'legend' : out.some(o => o.r === 'elite') ? 'elite' : out.some(o => o.r === 'rare') ? 'rare' : null;
   sfx(best === 'legend' || best === 'elite' ? 'jackpot' : 'jingle');
+  const sp = out.find(o => o.kind === 'item' && o.special);
+  if (sp) setTimeout(() => banner(`${sp.it.heir ? '傳家武器' : '刻印套裝'}：${itemName(sp.it)}！`), 900);
   if (out.some(o => o.kind === 'hero' && o.isNew)) setTimeout(() => banner(`新英雄：${out.find(o => o.kind === 'hero' && o.isNew).def.name.split(' ')[1]}！`), 900);
   renderGacha();
 }
@@ -1812,6 +1834,10 @@ $('gacha-body').addEventListener('click', ev => {
   else if (t.id === 'btn-pull10') return showPull(gacha.pullHero(save, 10, 'gem', ch, nb));
   else if (t.id === 'btn-tick1') return showPull(gacha.pullHero(save, 1, 'ticket', ch));
   else if (t.id === 'btn-tick10') return showPull(gacha.pullHero(save, 10, 'ticket', ch));
+  else if (t.id === 'btn-forge1') return showPull(gacha.pullForge(save, 1, 'gem', ch));
+  else if (t.id === 'btn-forge10') return showPull(gacha.pullForge(save, 10, 'gem', ch));
+  else if (t.id === 'btn-ftick1') return showPull(gacha.pullForge(save, 1, 'ticket', ch));
+  else if (t.id === 'btn-ftick10') return showPull(gacha.pullForge(save, 10, 'ticket', ch));
   else if (t.id === 'btn-res-free') return showPull(gacha.pullRes(save, 1, 'free', ch));
   else if (t.id === 'btn-res-gold') return showPull(gacha.pullRes(save, 1, 'gold', ch));
   else if (t.id === 'btn-res1') return showPull(gacha.pullRes(save, 1, 'gem', ch));
@@ -1978,9 +2004,14 @@ function setStrip() {
 }
 // 一件裝備的完整說明（主屬性、副屬性、附魔、飾品技能）
 function itemLines(it, withTools) {
-  let h = `<p class="il ilv">裝備等級 Lv.${it.ilv || 1}${it.set ? `・<b style="color:${SETS[it.set].color}">${SETS[it.set].name}套裝</b>` : ''}</p><p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
-  it.affixes.forEach((a, i) => { h += `<p class="il">${statText(a.stat, a.value)}${withTools ? ` <button class="rf" data-reforge="${i}" aria-label="重鑄">↻</button>` : ''}</p>`; });
+  const sm = starMax(it);
+  let h = `${sm ? `<p class="il istar">${'★'.repeat(it.star || 0)}${'☆'.repeat(sm - (it.star || 0))} <small>每星主、副屬性 +10%</small></p>` : ''}<p class="il ilv">裝備等級 Lv.${it.ilv || 1}${it.set ? `・<b style="color:${SETS[it.set].color}">${SETS[it.set].name}套裝</b>` : ''}</p><p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
+  it.affixes.forEach((a, i) => { h += `<p class="il">${statText(a.stat, Math.round(a.value * (1 + 0.1 * (it.star || 0)) * 10) / 10)}${withTools ? ` <button class="rf" data-reforge="${i}" aria-label="重鑄">↻</button>` : ''}</p>`; });
   if (it.ench) h += `<p class="il ench">✦ 附魔：${statText(it.ench.stat, it.ench.value)}</p>`;
+  if (it.heir) {
+    const hd = HEROES.find(x => x.id === it.heir), on = save.selected === it.heir;
+    h += `<p class="il uniq ${on ? '' : 'locked'}">★ 傳家：${hd.name.split(' ')[1]}當主職業時，攻擊力 +${10 + (it.star || 0) * 3}%、${HEIRLOOMS[it.heir].desc(it.star || 0)}</p>`;
+  }
   if (it.uniq) h += `<p class="il uniq">★ 傳說特效「${UNIQUES[it.uniq].name}」：${UNIQUES[it.uniq].desc}</p>`;
   if (it.set) {
     const n = gearBonus(save).sets[it.set] || 0;
@@ -2009,7 +2040,7 @@ function renderGear() {
   list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || (c.plus || 0) - (a.plus || 0) || a.type.localeCompare(c.type));
   const cells = list.map(it => `
     <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
-      ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${it.set ? `<i class="setdot" style="--sc:${SETS[it.set].color}"></i>` : ''}${it.uniq ? '<i class="uq">★</i>' : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
+      ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${it.set ? `<i class="setdot" style="--sc:${SETS[it.set].color}"></i>` : ''}${it.uniq || it.heir ? '<i class="uq">★</i>' : ''}${it.star ? `<i class="istar-b">${it.star}★</i>` : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
   const empties = gearTab === 'all' ? Math.max(0, MAX_ITEMS - gear.items.length) : (6 - list.length % 6) % 6;
   for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
   const sel = gear.items.find(x => x.id === gearSel);
@@ -2041,6 +2072,8 @@ function renderGear() {
         <button class="btn small" id="btn-enhance" data-repeat ${offAttr(maxed || save.gold < enhanceCost(sel), maxed ? '已經強化到 +15' : `金幣不足，還差 ${enhanceCost(sel) - save.gold}`)}>強化${maxed ? ' MAX' : `<small>${iconTag(ICON.gold, 11)}${fmt(enhanceCost(sel))}・${Math.round(enhanceRate(sel) * 100)}%</small>`}</button>
         <button class="btn small" id="btn-enchant" ${offAttr(gear.shards < enchantCost(sel), `魔晶不足（需要 ${enchantCost(sel)}）`)}>${sel.ench ? '重新附魔' : '附魔'}<small>✦${enchantCost(sel)} 魔晶</small></button>
         ${sel.skill ? `<button class="btn small" id="btn-refine" data-repeat ${offAttr(sel.jlv >= JEWEL_MAX_LV || gear.shards < REFINE_SHARDS, sel.jlv >= JEWEL_MAX_LV ? '飾品已經滿級' : `魔晶不足（需要 ${REFINE_SHARDS}）`)}>精煉<small>✦${REFINE_SHARDS}・+${REFINE_SHARDS * 15} 經驗</small></button>` : ''}
+        ${starMax(sel) ? `<button class="btn small" id="btn-fuse" ${offAttr(!!whyNoFuse(save, sel), whyNoFuse(save, sel))}>熔鑄升星<small>${iconTag(ICON.gold, 11)}${fmt(fuseGold(sel))}${fuseFodder(save, sel)[0] ? '・吃掉 ' + itemName(fuseFodder(save, sel)[0]) : ''}</small></button>` : ''}
+        ${transferDonor(save, sel) ? `<button class="btn small" id="btn-transfer" ${offAttr(gear.shards < TRANSFER_SHARDS, `魔晶不足（需要 ${TRANSFER_SHARDS}）`)}>轉移強化 +${transferDonor(save, sel).plus}<small>✦${TRANSFER_SHARDS}・從 ${itemName(transferDonor(save, sel))}</small></button>` : ''}
         <button class="btn small ghost" id="btn-lock">${sel.lock ? '解鎖' : '上鎖'}</button>
         <button class="btn small ghost" id="btn-salvage" ${offAttr(worn || sel.lock, worn ? '穿在身上的不能分解' : '上鎖的裝備不能分解')}>分解<small>${iconTag(ICON.gold, 11)}${r.salvage}・✦${r.shard}</small></button>
       </div>`;
@@ -2135,6 +2168,8 @@ $('gear-body').addEventListener('click', ev => {
       if ([3, 6, 10].includes(sel.jlv)) banner(`飾品技能：${JEWEL_SKILLS[sel.skill].name}！`);
     } else if (ups === 0) sfx('buy');
   } else if (t.id === 'btn-lock') { sel.lock = !sel.lock; }
+  else if (t.id === 'btn-fuse') { const f = fuse(save, gearSel); if (f) { eco.track(save, 'gear'); sfx('maxup'); celebrate(t, '#ffd84a'); banner(`${itemName(sel)} 升到 ${sel.star} 星！`); } }
+  else if (t.id === 'btn-transfer') { const d = transferPlus(save, gearSel); if (d) { sfx('buy'); toast(`強化 +${sel.plus} 已轉移到 ${itemName(sel)}`); } }
   else if (t.id === 'btn-salvage') { const r = salvage(save, gearSel); if (r) toast(`分解獲得 ${r.gold} 金幣、${r.shards} 魔晶`); gearSel = null; }
   else if (t.id === 'btn-junk') { const r = salvageJunk(save); toast(`分解 ${r.n} 件：${r.g} 金幣、${r.shards} 魔晶`); sfx('buy'); }
   else if (t.id === 'btn-merge') {
