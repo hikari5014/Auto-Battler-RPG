@@ -13,6 +13,9 @@ import { gearBonus } from './gear.js';
 import { talentBonus } from './talent.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
+// 遠程普攻的樣子：法術職業射法球，火槍手射子彈，其他射箭
+const shotStyle = h => h.def.id === 'gunner' ? 'bullet' : [].concat(h.def.cls).includes('spell') && h.def.id !== 'sage' ? 'orb' : 'arrow';
+const shotColor = h => ({ mage: '#c38bff', elem: '#ffb0e0', sage: '#c8b6ff', gunner: '#ffe0a0' })[h.def.id] || '#ffffff';
 const HERO_POS = { x: -1.35, z: 4 };
 export const BENCH_POS = { x: -3.6, z: 4.6 }; // 雙職業：換上場的職業從畫面左邊衝進來
 const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
@@ -81,6 +84,7 @@ export class Battle {
     this.streaks = [];
     this.parts = [];
     this.slashes = [];
+    this.sparks = [];       // 命中光點
     this.shocks = [];       // 魔王砸地的衝擊波
     this.embers = [];       // 魔王身邊飄的火星
     this.boss = null;
@@ -222,7 +226,7 @@ export class Battle {
         if (h.chainEvery && h.swings % h.chainEvery === 0) this.chain();
         const id = h.def.id;
         if (id === 'paladin' && h.swings % h.holyEvery === 0) this.holy();
-        if (id === 'gunner' && h.swings % h.grenadeEvery === 0) this.blast(h.grenadeMul, '榴彈!', '#ffb347', { stun: h.grenadeStun ? 1 : 0, fromHero: true });
+        if (id === 'gunner' && h.swings % h.grenadeEvery === 0) this.blast(h.grenadeMul, '榴彈!', '#ffb347', { stun: h.grenadeStun ? 1 : 0, style: 'grenade' });
         if (id === 'dragoon' && h.swings % h.breathEvery === 0) {
           this.breath();
           if (h.breathTwice) setTimeout(() => this.g.run && this.breath(), 220);
@@ -248,7 +252,7 @@ export class Battle {
     // 墓地：敵人有機率閃避
     if (Math.random() < (this.g.run.rules.dodge || 0) + (t.dodge || 0)) {
       this.text(t.x, t.z, t.size + 0.3, '閃避', '#c9c2d1', 12);
-      if (h.range > 2) this.streak(h, t, '#888', 0.12);
+      if (h.range > 2) this.streak(h, t, '#888', 0.12, shotStyle(h));
       return;
     }
     h.hitCount++;
@@ -270,8 +274,9 @@ export class Battle {
     if (h.stun && Math.random() < h.stun) { t.stun = 1; this.text(t.x, t.z, t.size + 0.5, '暈眩', '#ffd84a', 12); }
     if (h.dot) { t.dotDps = heroAtk(h) * h.dot; t.dotT = h.dotTime; t.dotColor = h.dotColor; }
     if (h.frost > 0) t.slow = h.frost;
-    if (h.range > 2) this.streak(h, t, crit ? '#ffdd55' : '#ffffff', 0.15);
-    else this.slashes.push({ x: t.x, z: t.z, h: t.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit });
+    if (h.range > 2) this.streak(h, t, crit ? '#ffdd55' : shotColor(h), 0.18, shotStyle(h));
+    else this.slashes.push({ x: t.x, z: t.z, h: t.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit, color: h.def.id === 'saw' ? '#ff9f43' : h.def.id === 'paladin' ? '#fff2a8' : h.def.id === 'rogue' ? '#b9a8ff' : null });
+    if (crit) this.burst(t.x, t.z, t.size * 0.5, '#ffdd55', 6, 2.2);
     this.damage(t, dmg, crit);
     if (h.splash > 0) {
       for (const e of this.enemies) if (e !== t && !e.dead) this.damage(e, dmg * h.splash, false, true);
@@ -285,13 +290,13 @@ export class Battle {
       const others = this.enemies.filter(e => !e.dead);
       if (!others.length) break;
       const o = others[Math.floor(Math.random() * others.length)];
-      this.streak(h, o, '#b6ff6d', 0.12);
+      this.streak(h, o, '#b6ff6d', 0.16, 'arrow');
       this.damage(o, dmg * 0.6 * h.multiMul, false, true);
     }
     // 射手：穿透箭打到後面一隻
     if (h.pierce > 0) {
       const behind = this.enemies.filter(e => !e.dead && e !== t)[0];
-      if (behind) { this.streak(t, behind, '#ffd84a', 0.12); this.damage(behind, dmg * h.pierce, false, true); }
+      if (behind) { this.streak(t, behind, '#ffd84a', 0.16, 'arrow'); this.damage(behind, dmg * h.pierce, false, true); }
     }
     // 橫掃：順便砍到第 2 隻（滿級砍全部）
     if (h.cleave > 0) {
@@ -300,13 +305,13 @@ export class Battle {
     }
     // 散彈：第 2、3 隻
     if (h.spread > 0) {
-      for (const e of this.enemies.filter(o => !o.dead && o !== t).slice(0, 2)) { this.streak(h, e, '#ffb347', 0.1); this.damage(e, dmg * h.spread, false, true); }
+      for (const e of this.enemies.filter(o => !o.dead && o !== t).slice(0, 2)) { this.streak(h, e, '#ffb347', 0.12, 'bullet'); this.damage(e, dmg * h.spread, false, true); }
     }
     // 狙擊：最後面那隻
     if (h.snipe > 0) {
       const alive = this.enemies.filter(e => !e.dead && e !== t);
       const last = alive[alive.length - 1];
-      if (last) { this.streak(h, last, '#b6ff6d', 0.15); this.damage(last, dmg * h.snipe * (h.snipeCrit && !crit ? h.critDmg : 1), h.snipeCrit, !h.snipeCrit); }
+      if (last) { this.streak(h, last, '#d8ff8a', 0.2, 'arrow'); this.damage(last, dmg * h.snipe * (h.snipeCrit && !crit ? h.critDmg : 1), h.snipeCrit, !h.snipeCrit); }
     }
     if (h.life > 0) h.hp = Math.min(h.maxHp, h.hp + dmg * h.life);
     sfx(crit ? 'crit' : 'hit');
@@ -324,8 +329,10 @@ export class Battle {
     if (label) this.text(h.x + 0.5, h.z, 1.4, label, color, 16);
     for (const e of this.enemies) {
       if (e.dead) continue;
-      if (o.fromHero) this.streaks.push({ x1: h.x + 0.2, z1: h.z, h1: 0.6, x2: e.x, z2: e.z, h2: e.size * 0.4, life: 0.25, color, wide: true });
-      else this.streaks.push({ x1: e.x + 0.8, z1: e.z, h1: 4, x2: e.x, z2: e.z, h2: 0.2, life: 0.3, color, wide: true });
+      const style = o.style || (o.fromHero ? 'beam' : 'meteor');
+      if (o.fromHero || style === 'grenade' || style === 'fire') this.fx(h.x + 0.2, h.z, 0.6, e.x, e.z, e.size * 0.4, color, style === 'fire' ? 0.35 : 0.32, style);
+      else this.fx(e.x + 0.8, e.z, 4, e.x, e.z, 0.2, color, style === 'holy' ? 0.45 : 0.32, style);
+      this.burst(e.x, e.z, e.size * 0.4, color, style === 'fire' ? 10 : 7, 2.6);
       if (o.stun) e.stun = Math.max(e.stun || 0, o.stun);
       if (o.dot) { e.dotDps = heroAtk(h) * o.dot; e.dotT = h.dotTime; e.dotColor = color; }
       this.shocks.push({ x: e.x, z: e.z, t: 0, big: false });
@@ -347,7 +354,8 @@ export class Battle {
       const crit = Math.random() < h.crit;
       const dmg = heroAtk(h) * h.switchMul * (crit ? h.critDmg : 1);
       this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.25, rot: rand(-0.8, 0.8), crit: true });
-      this.streaks.push({ x1: h.x, z1: h.z, h1: 0.5, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.25, color, wide: true });
+      this.fx(h.x, h.z, 0.5, e.x, e.z, e.size * 0.5, color, 0.25, 'beam');
+      this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.3, rot: rand(0.6, 1.0), crit: true, big: true, color });
       if (h.dot) { e.dotDps = heroAtk(h) * h.dot; e.dotT = h.dotTime; e.dotColor = h.dotColor; }
       if (h.stun && Math.random() < h.stun) e.stun = 1;
       if (h.switchStun) e.stun = Math.max(e.stun || 0, h.switchStun);
@@ -371,7 +379,7 @@ export class Battle {
     if (!front) return;
     if (m.id === 'horse') {
       h.lunge = 2;
-      this.streak(h, front, m.color, 0.2);
+      this.fx(h.x, h.z, 0.4, front.x, front.z, front.size * 0.4, m.color, 0.25, 'dash');
       front.kb = 1.5;
       this.text(h.x + 0.5, h.z, 1.5, '衝刺!', m.color, 16);
       this.damage(front, heroAtk(h) * (2.5 + s), true);
@@ -392,7 +400,7 @@ export class Battle {
       this.g.onMountBalls && this.g.onMountBalls(4 + s * 4);
       sfx('buy');
     } else if (m.id === 'drake') {
-      this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, fromHero: true });
+      this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, style: 'fire' });
     }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
@@ -402,13 +410,13 @@ export class Battle {
     const h = this.g.run.hero;
     h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.08);
     if (h.holyShield) h.shield = (h.shield || 0) + h.maxHp * h.holyShield;
-    this.blast(h.holyMul, '聖光!', '#fff2a8', { stun: h.holyStun ? 1 : 0 });
+    this.blast(h.holyMul, '聖光!', '#fff2a8', { stun: h.holyStun ? 1 : 0, style: 'holy' });
   }
 
   // 龍騎士：龍息
   breath() {
     const h = this.g.run.hero;
-    this.blast(h.breathMul, '龍息!', '#ff5a3d', { dot: 0.3, fromHero: true });
+    this.blast(h.breathMul, '龍息!', '#ff5a3d', { dot: 0.3, style: 'fire' });
   }
 
   // 元素使：每下隨機一種元素
@@ -417,15 +425,17 @@ export class Battle {
     const k = Math.floor(Math.random() * 3);
     if (k === 0) {
       t.dotDps = heroAtk(h) * h.fireDot; t.dotT = h.dotTime; t.dotColor = '#ff7a3d';
+      this.burst(t.x, t.z, t.size * 0.5, '#ff7a3d', 6, 2);
       this.text(t.x, t.z, t.size + 0.5, '火', '#ff7a3d', 12);
     } else if (k === 1) {
       t.slow = Math.max(t.slow, h.iceSlow);
+      this.burst(t.x, t.z, t.size * 0.5, '#cff4ff', 6, 1.8);
       if (h.iceFreeze && Math.random() < h.iceFreeze) { t.stun = 1.5; this.text(t.x, t.z, t.size + 0.6, '凍結', '#9fe3ff', 13); }
       else this.text(t.x, t.z, t.size + 0.5, '冰', '#9fe3ff', 12);
     } else {
       let from = t;
       for (const e of this.enemies.filter(o => !o.dead && o !== t).slice(0, h.boltJumps)) {
-        this.streaks.push({ x1: from.x, z1: from.z, h1: from.size * 0.5, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.2, color: '#ffe066', wide: true });
+        this.fx(from.x, from.z, from.size * 0.5, e.x, e.z, e.size * 0.5, '#ffe066', 0.25, 'bolt');
         this.damage(e, heroAtk(h) * h.boltMul, false, true, '#ffe066');
         from = e;
       }
@@ -441,7 +451,8 @@ export class Battle {
     const dmg = heroAtk(h) * h.chainMul;
     let from = h;
     for (const e of alive) {
-      this.streaks.push({ x1: from.x, z1: from.z, h1: 0.6, x2: e.x, z2: e.z, h2: e.size * 0.5, life: 0.22, color: '#9fe3ff', wide: true });
+      this.fx(from.x, from.z, from === h ? 0.6 : from.size * 0.5, e.x, e.z, e.size * 0.5, '#9fe3ff', 0.28, 'bolt');
+      this.burst(e.x, e.z, e.size * 0.5, '#cff4ff', 5, 2);
       this.damage(e, dmg, false, true, '#9fe3ff');
       from = e;
     }
@@ -454,7 +465,7 @@ export class Battle {
     const dmg = heroAtk(h) * h.swordMul * (h.swordCrit ? h.critDmg : 1);
     this.text(h.x + 0.6, h.z, 1.2, '劍氣!', '#7fd1ff', 15);
     for (const e of this.enemies) if (!e.dead) this.damage(e, dmg, h.swordCrit, !h.swordCrit);
-    this.streaks.push({ x1: h.x, z1: h.z, h1: 0.4, x2: 4, z2: 14, h2: 0.4, life: 0.25, color: '#7fd1ff', wide: true });
+    this.fx(h.x + 0.3, h.z, 0.45, 4, 9, 0.45, '#7fd1ff', 0.4, 'wave');
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
@@ -465,7 +476,8 @@ export class Battle {
     this.text(h.x + 0.5, h.z, 1.4, '隕石術!', '#ff9f43', 16);
     for (const e of this.enemies) {
       if (e.dead) continue;
-      this.streaks.push({ x1: e.x + 0.8, z1: e.z, h1: 4, x2: e.x, z2: e.z, h2: 0.2, life: 0.3, color: '#ff9f43', wide: true });
+      this.fx(e.x + 1.2, e.z, 4.5, e.x, e.z, 0.2, '#ff9f43', 0.35, 'meteor');
+      this.burst(e.x, e.z, 0.2, '#ff7a3d', 10, 3);
       this.damage(e, dmg, true);
     }
     this.shake = Math.max(this.shake, 8);
@@ -475,18 +487,31 @@ export class Battle {
   }
 
   // 給英雄被動用：對最前面的敵人造成傷害
-  strikeFront(mult, label, color) {
+  strikeFront(mult, label, color, style = 'arrow') {
     const t = this.enemies.find(e => !e.dead);
     if (!t) return;
     const h = this.g.run.hero;
-    this.streak(h, t, color, 0.2);
+    this.streak(h, t, color, 0.25, style);
+    this.burst(t.x, t.z, t.size * 0.5, color, 8, 2.5);
     this.damage(t, heroAtk(h) * mult, false);
     this.text(t.x, t.z, t.size + 0.5, label, color, 13);
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
-  streak(h, t, color, life) {
-    this.streaks.push({ x1: h.x + 0.2, z1: h.z, h1: 0.5, x2: t.x, z2: t.z, h2: t.size * 0.5, life, color });
+  streak(h, t, color, life, style = 'beam') {
+    this.fx(h.x + 0.2, h.z, 0.5, t.x, t.z, t.size * 0.5, color, life, style);
+  }
+  // 一個從 A 飛到 B 的特效：arrow 箭、bullet 子彈、orb 法球、bolt 閃電、wave 劍氣、meteor 隕石、
+  // grenade 榴彈（拋物線）、fire 火焰、holy 光柱、dash 衝刺、beam 光束
+  fx(x1, z1, h1, x2, z2, h2, color, life, style = 'beam') {
+    this.streaks.push({ x1, z1, h1, x2, z2, h2, color, life, max: life, style, seed: Math.random() * 1000 });
+  }
+  // 命中時噴出的小光點
+  burst(x, z, h, color, n, speed) {
+    if (settings.lowFx) n = Math.ceil(n / 3);
+    for (let i = 0; i < n; i++) {
+      this.sparks.push({ x, z, h, vx: rand(-1, 1) * speed, vz: rand(-0.6, 0.6) * speed, vh: rand(0.5, 1.6) * speed, life: rand(0.25, 0.5), color });
+    }
   }
 
   // ---------- 魔王演出 ----------
@@ -655,6 +680,13 @@ export class Battle {
         if (list[i].life <= 0) list.splice(i, 1);
       }
     }
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const p = this.sparks[i];
+      p.life -= dt;
+      p.vh -= 6 * dt;
+      p.x += p.vx * dt; p.z += p.vz * dt; p.h = Math.max(0, p.h + p.vh * dt);
+      if (p.life <= 0) this.sparks.splice(i, 1);
+    }
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i];
       p.life -= dt;
@@ -722,6 +754,7 @@ export class Battle {
     if (e.kind === 'elite' || e.kind === 'chest' || e.kind === 'boss') this.drawTierGlow(ctx, e, x, z);
     const rage = e.enraged ? 0.25 + Math.sin(sc.t * 10) * 0.15 : 0;
     const { p, top } = this.drawActor(ctx, e.sprite, x, z, e.size, e.flash, e.phase, lift, rage);
+    this.drawStatus(ctx, e, p, top);
     if (e.teaser || sc.fogAt(z) >= 0.6 || e.kind === 'boss') return; // 魔王用畫面上方的大血條
     const bw = Math.max(24, Math.min(54, e.size * p.s * 0.8));
     this.bar(ctx, p.x - bw / 2, top - 7, bw, e.hp / e.maxHp, '#ff4d4d');
@@ -771,6 +804,7 @@ export class Battle {
 
   drawHero(ctx, h) {
     const x = h.x + h.lunge * 0.25;
+    if (h.wings || h.glow > 0) this.drawGlory(ctx, h, x);
     if (h.maxed > 0) this.drawAura(ctx, h, x);
     // 騎著坐騎：先畫坐騎，英雄坐在上面（跑動時上下顛）
     let lift = h.lift || 0;
@@ -788,6 +822,18 @@ export class Battle {
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
+    // 護盾泡泡
+    if (h.shield > 0) {
+      const t = this.scene.t;
+      ctx.save();
+      ctx.globalAlpha = 0.25 + Math.sin(t * 4) * 0.08;
+      ctx.fillStyle = '#d06bff';
+      ctx.strokeStyle = '#f0c8ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(p.x, (p.y + top) / 2, (p.y - top) * 0.62, (p.y - top) * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.7; ctx.stroke();
+      ctx.restore();
+    }
     // 魔力護盾：血條上蓋一條紫色
     if (h.shield > 0) {
       ctx.fillStyle = 'rgba(208,107,255,0.85)';
@@ -801,6 +847,73 @@ export class Battle {
     ctx.strokeText(label, p.x, top - 13);
     ctx.fillStyle = '#fff';
     ctx.fillText(label, p.x, top - 13);
+  }
+
+  // 3 星技能滿級：英雄身後發金光（滿越多越亮、光芒越多）；全部滿級：長出翅膀＋強烈光芒
+  drawGlory(ctx, h, x) {
+    const sc = this.scene;
+    const p = sc.project(x, h.z);
+    const t = sc.t;
+    const H = HERO_HEIGHT * (h.scale || 1) * p.s;
+    const cy = p.y - H * (h.mount ? 0.95 : 0.5);
+    const g = Math.min(5, h.glow || 0) + (h.wings ? 3 : 0);
+    ctx.save();
+    // 放射狀的光芒（會慢慢轉）
+    if (g >= 2) {
+      const rays = 6 + g * 2;
+      const len = H * (0.9 + g * 0.18);
+      ctx.globalAlpha = Math.min(0.6, 0.15 + g * 0.06) * (0.85 + Math.sin(t * 3) * 0.15);
+      ctx.fillStyle = h.wings ? '#fff1a0' : '#ffc928';
+      for (let i = 0; i < rays; i++) {
+        const a = t * 0.4 + (i / rays) * Math.PI * 2;
+        const w = 0.07;
+        ctx.beginPath();
+        ctx.moveTo(p.x, cy);
+        ctx.lineTo(p.x + Math.cos(a - w) * len, cy + Math.sin(a - w) * len);
+        ctx.lineTo(p.x + Math.cos(a + w) * len, cy + Math.sin(a + w) * len);
+        ctx.fill();
+      }
+    }
+    // 柔和的金色光暈
+    const r = H * (0.55 + g * 0.12) * (1 + Math.sin(t * 4) * 0.04);
+    const grad = ctx.createRadialGradient(p.x, cy, 0, p.x, cy, r);
+    grad.addColorStop(0, `rgba(255,248,200,${Math.min(0.9, 0.35 + g * 0.1)})`);
+    grad.addColorStop(0.5, `rgba(255,210,60,${Math.min(0.6, 0.15 + g * 0.07)})`);
+    grad.addColorStop(1, 'rgba(255,190,40,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    if (h.wings) this.drawWings(ctx, p.x, cy - H * 0.05, H, t);
+  }
+
+  // 天使翅膀：每邊 6 根羽毛從肩膀往外排成扇形，會拍動
+  drawWings(ctx, cx, cy, H, t) {
+    const flap = Math.sin(t * 5) * 0.22;
+    for (const side of [-1, 1]) {
+      const sx = cx + side * H * 0.1;
+      for (let i = 5; i >= 0; i--) {
+        const ang = -1.05 + i * 0.27 - flap * (1 - i * 0.12); // 0 = 水平，負的往上
+        const len = H * (1.0 - i * 0.08);
+        const dx = side * Math.cos(ang), dy = Math.sin(ang);
+        ctx.save();
+        ctx.translate(sx + dx * len * 0.5, cy + dy * len * 0.5);
+        ctx.rotate(Math.atan2(dy, dx));
+        const grad = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
+        grad.addColorStop(0, '#ffe9a0');
+        grad.addColorStop(1, i < 2 ? '#ffffff' : '#fff3c4');
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = 'rgba(170,120,30,0.85)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, len / 2, H * 0.08, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
   // 有技能滿級時，英雄腳下出現金色光環，滿級越多、繞圈的光點越多
@@ -851,19 +964,18 @@ export class Battle {
       ctx.fillRect(q.x - 1.5, q.y - 1.5, 3, 3);
     }
     ctx.globalAlpha = 1;
-    // 遠程攻擊的光束
-    for (const s of this.streaks) {
-      const a = sc.project(s.x1, s.z1, s.h1);
-      const b = sc.project(s.x2, s.z2, s.h2);
-      ctx.globalAlpha = Math.min(1, s.life * 6);
-      ctx.strokeStyle = s.color;
-      ctx.lineCap = 'round';
-      ctx.lineWidth = s.wide ? 9 : 3;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
+    // 技能特效（箭、法球、閃電、劍氣、隕石…）
+    for (const s of this.streaks) this.drawShot(ctx, s);
+    ctx.globalAlpha = 1;
+    // 命中光點
+    for (const p of this.sparks) {
+      const q = sc.project(p.x, p.z, p.h);
+      ctx.globalAlpha = Math.min(1, p.life * 4);
+      ctx.fillStyle = p.color;
+      const r = Math.max(1.5, q.s * 0.035);
+      ctx.fillRect(q.x - r, q.y - r, r * 2, r * 2);
     }
+    ctx.globalAlpha = 1;
     // 近戰的刀光（一道彎月形）
     for (const s of this.slashes) {
       const p = sc.project(s.x, s.z, s.h);
@@ -873,10 +985,17 @@ export class Battle {
       ctx.translate(p.x, p.y);
       ctx.rotate(s.rot);
       ctx.globalAlpha = 1 - k;
-      ctx.strokeStyle = s.crit ? '#ffdd55' : '#ffffff';
-      ctx.lineWidth = 5 * (1 - k) + 1;
+      // 彎月形刀光：外圈亮色、內圈白芯
+      const rr = r * (s.big ? 1.6 : 1);
+      ctx.fillStyle = s.color || (s.crit ? '#ffdd55' : '#e8f4ff');
       ctx.beginPath();
-      ctx.arc(0, 0, r, -Math.PI * 0.85 + k, -Math.PI * 0.15 + k);
+      ctx.arc(0, 0, rr, -Math.PI * 0.9 + k, -Math.PI * 0.1 + k);
+      ctx.arc(rr * 0.18, rr * 0.12, rr * 0.82, -Math.PI * 0.1 + k, -Math.PI * 0.9 + k, true);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr * 0.96, -Math.PI * 0.8 + k, -Math.PI * 0.2 + k);
       ctx.stroke();
       ctx.restore();
     }
@@ -902,6 +1021,241 @@ export class Battle {
       ctx.fillText(t.text, p.x, p.y - t.rise);
     }
     ctx.globalAlpha = 1;
+  }
+
+  // 畫一個技能特效。k = 進度（0 剛出發 → 1 結束）
+  drawShot(ctx, s) {
+    const sc = this.scene;
+    const k = 1 - s.life / s.max;
+    const a = sc.project(s.x1, s.z1, s.h1);
+    const b = sc.project(s.x2, s.z2, s.h2);
+    const lerp = (t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    const u = Math.max(1, b.s / 36); // 依遠近縮放
+    ctx.save();
+    ctx.lineCap = 'round';
+    switch (s.style) {
+      case 'arrow': case 'bullet': {
+        // 飛行物：前 60% 時間飛到目標，之後淡出
+        const t = Math.min(1, k / 0.6);
+        const p = lerp(t);
+        ctx.globalAlpha = k < 0.6 ? 1 : (1 - k) / 0.4;
+        const tail = lerp(Math.max(0, t - 0.35));
+        const tg = ctx.createLinearGradient(tail.x, tail.y, p.x, p.y);
+        tg.addColorStop(0, 'rgba(255,255,255,0)');
+        tg.addColorStop(1, s.color);
+        ctx.strokeStyle = tg;
+        ctx.lineWidth = s.style === 'bullet' ? 2.5 * u : 2 * u;
+        ctx.beginPath(); ctx.moveTo(tail.x, tail.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        ctx.translate(p.x, p.y); ctx.rotate(ang);
+        if (s.style === 'arrow') {
+          // 箭身＋箭頭＋尾羽
+          ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = 1.8 * u;
+          ctx.beginPath(); ctx.moveTo(-12 * u, 0); ctx.lineTo(0, 0); ctx.stroke();
+          ctx.fillStyle = '#e8eef7';
+          ctx.beginPath(); ctx.moveTo(5 * u, 0); ctx.lineTo(-1 * u, -3 * u); ctx.lineTo(-1 * u, 3 * u); ctx.fill();
+          ctx.fillStyle = s.color;
+          ctx.beginPath(); ctx.moveTo(-12 * u, 0); ctx.lineTo(-15 * u, -3 * u); ctx.lineTo(-9 * u, 0); ctx.lineTo(-15 * u, 3 * u); ctx.fill();
+        } else {
+          ctx.fillStyle = '#fff6c0';
+          ctx.beginPath(); ctx.ellipse(0, 0, 4 * u, 1.8 * u, 0, 0, Math.PI * 2); ctx.fill();
+          if (k < 0.15) { ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(-(b.x - a.x) * t, 0, 5 * u, 0, Math.PI * 2); ctx.fill(); }
+        }
+        break;
+      }
+      case 'orb': {
+        const t = Math.min(1, k / 0.65);
+        const p = lerp(t);
+        ctx.globalAlpha = k < 0.65 ? 1 : (1 - k) / 0.35;
+        // 拖尾的小光點
+        for (let i = 1; i <= 4; i++) {
+          const q = lerp(Math.max(0, t - i * 0.06));
+          ctx.globalAlpha *= 0.85;
+          ctx.fillStyle = s.color;
+          ctx.beginPath(); ctx.arc(q.x, q.y, (5 - i) * u, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = k < 0.65 ? 1 : (1 - k) / 0.35;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 9 * u);
+        g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, s.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 9 * u, 0, Math.PI * 2); ctx.fill();
+        if (k > 0.6) { // 命中時炸開一圈
+          ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(b.x, b.y, (k - 0.6) * 40 * u, 0, Math.PI * 2); ctx.stroke();
+        }
+        break;
+      }
+      case 'bolt': {
+        // 閃電：鋸齒折線，每一格畫面都重新抖動
+        ctx.globalAlpha = Math.min(1, s.life / s.max * 2);
+        const pts = [a];
+        const n = 7;
+        for (let i = 1; i < n; i++) {
+          const q = lerp(i / n);
+          const off = (Math.random() - 0.5) * 18 * u;
+          pts.push({ x: q.x - Math.sin(ang) * off, y: q.y + Math.cos(ang) * off });
+        }
+        pts.push(b);
+        for (const [w, c] of [[7 * u, s.color], [2.2 * u, '#ffffff']]) {
+          ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round';
+          ctx.globalAlpha *= w > 3 ? 0.55 : 1;
+          ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
+          ctx.globalAlpha = Math.min(1, s.life / s.max * 2);
+        }
+        break;
+      }
+      case 'wave': {
+        // 劍氣：一道巨大的彎月往前飛
+        const p = lerp(k);
+        ctx.globalAlpha = 1 - k * 0.7;
+        ctx.translate(p.x, p.y);
+        const R = 34 * u * (1 + k * 0.6);
+        const g = ctx.createLinearGradient(-R, 0, R * 0.6, 0);
+        g.addColorStop(0, 'rgba(127,209,255,0)'); g.addColorStop(1, s.color);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.55, R, 0, -Math.PI / 2, Math.PI / 2);
+        ctx.ellipse(-R * 0.25, 0, R * 0.35, R * 0.85, 0, Math.PI / 2, -Math.PI / 2, true);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(0, 0, R * 0.55, R, 0, -Math.PI / 2.4, Math.PI / 2.4); ctx.stroke();
+        break;
+      }
+      case 'meteor': {
+        // 隕石／流星：從天上斜斜落下，拖著火尾，落地爆炸
+        const t = Math.min(1, k / 0.55);
+        const p = lerp(t);
+        if (k < 0.55) {
+          const tail = lerp(Math.max(0, t - 0.3));
+          const g = ctx.createLinearGradient(tail.x, tail.y, p.x, p.y);
+          g.addColorStop(0, 'rgba(255,90,40,0)'); g.addColorStop(1, s.color);
+          ctx.strokeStyle = g; ctx.lineWidth = 9 * u;
+          ctx.beginPath(); ctx.moveTo(tail.x, tail.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+          ctx.fillStyle = '#fff3c0';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 5.5 * u, 0, Math.PI * 2); ctx.fill();
+        } else {
+          const e = (k - 0.55) / 0.45;
+          ctx.globalAlpha = 1 - e;
+          const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 30 * u * (0.5 + e));
+          g.addColorStop(0, '#fff6c0'); g.addColorStop(0.4, s.color); g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.ellipse(b.x, b.y, 30 * u * (0.5 + e), 18 * u * (0.5 + e), 0, 0, Math.PI * 2); ctx.fill();
+        }
+        break;
+      }
+      case 'grenade': {
+        // 榴彈：拋物線飛過去，落地爆炸
+        const t = Math.min(1, k / 0.6);
+        if (k < 0.6) {
+          const p = lerp(t);
+          const lift = Math.sin(t * Math.PI) * 50 * u;
+          ctx.fillStyle = '#3a3a3a';
+          ctx.beginPath(); ctx.arc(p.x, p.y - lift, 4 * u, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffb347';
+          ctx.fillRect(p.x - 1, p.y - lift - 6 * u, 2, 3 * u);
+        } else {
+          const e = (k - 0.6) / 0.4;
+          ctx.globalAlpha = 1 - e;
+          for (const [r, c] of [[26, s.color], [16, '#fff6c0']]) {
+            ctx.fillStyle = c;
+            ctx.beginPath(); ctx.arc(b.x, b.y, r * u * (0.4 + e), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        break;
+      }
+      case 'fire': {
+        // 火焰：一團團火球沿路噴過去
+        const reach = Math.min(1, k / 0.5);
+        ctx.globalAlpha = k < 0.6 ? 1 : (1 - k) / 0.4;
+        for (let i = 0; i < 9; i++) {
+          const t = reach * (i / 8);
+          const q = lerp(t);
+          const wob = Math.sin(s.seed + i * 1.7 + k * 20) * 6 * u;
+          const r = (4 + t * 9) * u;
+          ctx.fillStyle = i % 3 === 0 ? '#fff0a0' : i % 3 === 1 ? '#ff9f43' : s.color;
+          ctx.beginPath(); ctx.arc(q.x, q.y + wob, r, 0, Math.PI * 2); ctx.fill();
+        }
+        break;
+      }
+      case 'holy': {
+        // 光柱：從天而降照在敵人身上
+        ctx.globalAlpha = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
+        const w = 14 * u * (1 - k * 0.5);
+        const g = ctx.createLinearGradient(b.x - w, 0, b.x + w, 0);
+        g.addColorStop(0, 'rgba(255,242,168,0)'); g.addColorStop(0.5, '#fffbe0'); g.addColorStop(1, 'rgba(255,242,168,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(b.x - w, sc.top, w * 2, b.y - sc.top);
+        ctx.fillStyle = s.color;
+        ctx.beginPath(); ctx.ellipse(b.x, b.y, w * 1.6, w * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'saw': {
+        // 鏈鋸：一片旋轉的鋸片飛過去
+        const t = Math.min(1, k / 0.6);
+        const p = lerp(t);
+        ctx.globalAlpha = k < 0.6 ? 1 : (1 - k) / 0.4;
+        ctx.translate(p.x, p.y); ctx.rotate(k * 30);
+        ctx.fillStyle = '#c0c8d8';
+        ctx.beginPath();
+        for (let i = 0; i < 16; i++) { const r = (i % 2 ? 7 : 10) * u; const aa = i / 16 * Math.PI * 2; ctx.lineTo(Math.cos(aa) * r, Math.sin(aa) * r); }
+        ctx.fill();
+        ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(0, 0, 3 * u, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'dash': {
+        // 衝刺：好幾條速度線
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = s.color;
+        for (let i = -2; i <= 2; i++) {
+          ctx.lineWidth = (3 - Math.abs(i)) * 1.5 * u;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y + i * 6 * u); ctx.lineTo(b.x, b.y + i * 3 * u); ctx.stroke();
+        }
+        break;
+      }
+      default: {
+        // 光束：粗的彩色外光＋白芯
+        ctx.globalAlpha = Math.min(1, s.life / s.max * 2);
+        for (const [w, c] of [[10 * u, s.color], [3 * u, '#ffffff']]) {
+          ctx.strokeStyle = c; ctx.lineWidth = w;
+          ctx.globalAlpha *= w > 4 ? 0.6 : 1;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  // 敵人身上的狀態：擊暈星星、中毒／燃燒冒泡、冰霜
+  drawStatus(ctx, e, p, top) {
+    const t = this.scene.t;
+    const u = Math.max(1, p.s / 40);
+    if (e.stun > 0) {
+      for (let i = 0; i < 3; i++) {
+        const a = t * 6 + i * 2.1;
+        const x = p.x + Math.cos(a) * 12 * u, y = top - 4 * u + Math.sin(a) * 4 * u;
+        ctx.fillStyle = '#ffe066';
+        ctx.beginPath();
+        for (let j = 0; j < 10; j++) { const r = (j % 2 ? 1.6 : 4) * u; const aa = j / 10 * Math.PI * 2 - Math.PI / 2; ctx.lineTo(x + Math.cos(aa) * r, y + Math.sin(aa) * r); }
+        ctx.fill();
+      }
+    }
+    if (e.dotT > 0) {
+      ctx.fillStyle = e.dotColor || '#7dff5a';
+      for (let i = 0; i < 4; i++) {
+        const ph = (t * 1.3 + i * 0.25) % 1;
+        ctx.globalAlpha = 1 - ph;
+        ctx.beginPath(); ctx.arc(p.x + Math.sin(i * 2.3 + t * 2) * 10 * u, p.y - ph * (p.y - top), (2.5 - ph) * u + 1, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (e.slow > 0) {
+      ctx.strokeStyle = 'rgba(159,227,255,0.85)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 2; i++) {
+        const x = p.x + (i ? 10 : -12) * u, y = top + (p.y - top) * (0.3 + i * 0.3), r = 3.5 * u;
+        for (let j = 0; j < 3; j++) { const aa = j * Math.PI / 3; ctx.beginPath(); ctx.moveTo(x - Math.cos(aa) * r, y - Math.sin(aa) * r); ctx.lineTo(x + Math.cos(aa) * r, y + Math.sin(aa) * r); ctx.stroke(); }
+      }
+    }
   }
 
   // 魔王關的畫面效果：登場時暗場＋紅色警示條＋名字卡；之後畫面上方顯示大血條

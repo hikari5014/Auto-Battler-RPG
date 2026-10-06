@@ -116,7 +116,7 @@ export const TIERS = {
 export const SKILLS = [
   { id: 'hits1', icon: ['ic', 426, '#e8eef7'], star: 1, max: 5, name: '多重攻擊', desc: '攻擊次數 +1', apply: h => { h.hits += 1; },
     maxDesc: '攻擊次數再 +2', maxApply: h => { h.hits += 2; } },
-  { id: 'hits3', icon: ['ic', 1021, '#7fd1ff'], star: 3, max: 2, name: '狂風連斬', desc: '攻擊次數 +3', apply: h => { h.hits += 3; },
+  { id: 'hits3', icon: ['ic', 1021, '#7fd1ff'], star: 3, max: 2, name: '狂風連斬', desc: '攻擊次數 +3（第 2 級起每級 +1）', apply: (h, run, board, lv) => { h.hits += lv > 1 ? 1 : 3; },
     maxDesc: '+25% 機率再追加一輪攻擊', maxApply: h => { h.dbl += 0.25; } },
   { id: 'atk', icon: ['ic', 424, '#e8eef7'], star: 1, max: 5, name: '磨利刀鋒', desc: '攻擊力 +25%', apply: h => { h.atkMul += 0.25; },
     maxDesc: '攻擊力再 +50%', maxApply: h => { h.atkMul += 0.5; } },
@@ -137,17 +137,17 @@ export const SKILLS = [
   { id: 'hp', icon: ['ic', 532], star: 1, max: 5, name: '強壯體魄', desc: '最大血量 +30% 並補滿', apply: h => { h.maxHp *= 1.3; h.hp = h.maxHp; },
     maxDesc: '每一波開始時血量全滿', maxApply: h => { h.fullHealWave = true; } },
   { id: 'heal', icon: ['ic', 669], star: 1, name: '治療藥水', desc: '立刻回復 60% 血量', apply: h => { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.6); } },
-  { id: 'splash', icon: ['ic', 616, '#36d6ff'], star: 2, max: 3, name: '震地波', desc: '每次攻擊濺射 35% 傷害給所有敵人', apply: h => { h.splash += 0.35; },
+  { id: 'splash', icon: ['ic', 616, '#36d6ff'], star: 2, max: 3, name: '震地波', desc: '每次攻擊濺射 25% 傷害給所有敵人', apply: h => { h.splash += 0.25; },
     maxDesc: '濺射再 +50%', maxApply: h => { h.splash += 0.5; } },
   { id: 'thorn', cat: 'melee', icon: ['ic', 184], star: 1, max: 3, name: '荊棘甲', desc: '被打時反彈 60% 傷害', apply: h => { h.thorns += 0.6; },
     maxDesc: '反彈再 +150%', maxApply: h => { h.thorns += 1.5; } },
   { id: 'ball', icon: ['ic', 237], star: 2, max: 5, name: '寶藏獵人', desc: '每殺一隻敵人多掉 2 顆球', apply: h => { h.ballsPerKill += 2; },
     maxDesc: '每殺一隻再多掉 5 顆球', maxApply: h => { h.ballsPerKill += 5; } },
-  { id: 'gate', icon: ['ic', 1018, '#36d6ff'], star: 3, max: 2, name: '倍率工匠', desc: '彈珠台多一道 x2 倍率門', apply: (h, run, board) => { board.addGate('x2'); },
+  { id: 'gate', icon: ['ic', 1018, '#36d6ff'], star: 3, max: 2, name: '倍率工匠', desc: '彈珠台多一道 x2 門（第 4、7 級再加一道，其他等級 x2 門變寬）', apply: (h, run, board, lv) => { gateLv(board, 'x2', lv); },
     maxDesc: '所有 x2 門變寬 30%', maxApply: (h, run, board) => { board.widenGates('x2', 1.3); } },
-  { id: 'gate3', icon: ['ic', 1016, '#6dff8a'], star: 2, max: 2, name: '分裂門', desc: '彈珠台多一道 +3 門', apply: (h, run, board) => { board.addGate('+3'); },
+  { id: 'gate3', icon: ['ic', 1016, '#6dff8a'], star: 2, max: 2, name: '分裂門', desc: '彈珠台多一道 +3 門（第 4 級再加一道，其他等級 +3 門變寬）', apply: (h, run, board, lv) => { gateLv(board, '+3', lv); },
     maxDesc: '所有 +3 門升級成 +5 門', maxApply: (h, run, board) => { board.upgradeGates('+3', '+5'); } },
-  { id: 'gatex3', icon: ['ic', 1018, '#ffd84a'], star: 3, max: 2, gold: true, name: '黃金倍率', desc: '彈珠台多一道金色 x3 倍率門', apply: (h, run, board) => { board.addGate('x3'); },
+  { id: 'gatex3', icon: ['ic', 1018, '#ffd84a'], star: 3, max: 2, gold: true, name: '黃金倍率', desc: '彈珠台多一道金色 x3 門（第 4、7 級再加一道，其他等級 x3 門變寬）', apply: (h, run, board, lv) => { gateLv(board, 'x3', lv); },
     maxDesc: '金色 x3 門變寬 40%、移動變慢', maxApply: (h, run, board) => { board.widenGates('x3', 1.4, 0.5); } },
   { id: 'cup', icon: ['ic', 192], star: 1, max: 3, name: '大肚杯', desc: '接球杯變寬 25%', apply: (h, run, board) => { board.cupW = Math.min(220, board.cupW * 1.25); },
     maxDesc: '接住的球從 x2 變成 x3', maxApply: (h, run, board) => { board.cupMult = 3; } },
@@ -198,16 +198,16 @@ export const SKILLS = [
   // 射手
   { id: 'a_multi', hero: 'archer', icon: ['ic', 289, '#b6ff6d'], star: 2, max: 3, name: '多重箭', desc: '每次攻擊多射 1 支箭給隨機敵人', apply: h => { h.multiShot += 1; },
     maxDesc: '多重箭傷害 +100%', maxApply: h => { h.multiMul = 2; } },
-  { id: 'a_pierce', hero: 'archer', icon: ['ic', 289, '#ffd84a'], star: 2, max: 2, name: '穿透箭', desc: '箭會穿透，打到後面的敵人（40% 傷害）', apply: h => { h.pierce += 0.4; },
+  { id: 'a_pierce', hero: 'archer', icon: ['ic', 289, '#ffd84a'], star: 2, max: 2, name: '穿透箭', desc: '箭會穿透，打到後面的敵人（30% 傷害）', apply: h => { h.pierce = Math.min(1.5, h.pierce + 0.3); },
     maxDesc: '穿透傷害變成 100%', maxApply: h => { h.pierce = 1; } },
   { id: 'a_rain', hero: 'archer', icon: ['ic', 237, '#b6ff6d'], star: 1, max: 3, name: '箭雨加速', desc: '球雨箭需要的接球數 -4', apply: h => { h.arrowNeed = Math.max(6, h.arrowNeed - 4); },
     maxDesc: '球雨箭一次射 3 支', maxApply: h => { h.arrowCount = 3; } },
   // 法師
-  { id: 'm_meteor', hero: 'mage', icon: ['ic', 616, '#ff9f43'], star: 3, max: 2, name: '隕石術', desc: '每 4 次攻擊召喚隕石打全體（300% 傷害）', apply: h => { h.meteorEvery = 4; h.meteorMul += 3; },
+  { id: 'm_meteor', hero: 'mage', icon: ['ic', 616, '#ff9f43'], star: 3, max: 2, name: '隕石術', desc: '每 4 次攻擊召喚隕石打全體（300% 傷害，之後每級 +100%）', apply: (h, run, board, lv) => { if (!h.meteorEvery) h.meteorEvery = 4; h.meteorMul += lv > 1 ? 1 : 3; },
     maxDesc: '每 3 次攻擊就召喚隕石', maxApply: h => { h.meteorEvery = 3; } },
   { id: 'm_grav', hero: 'mage', icon: ['ic', 1018, '#d06bff'], star: 1, max: 3, name: '重力強化', desc: '接球杯吸力的範圍與力度 +40%', apply: h => { h.magnet += 0.4; },
     maxDesc: '吸力再 +80%', maxApply: h => { h.magnet += 0.8; } },
-  { id: 'm_frost', hero: 'mage', icon: ['ic', 669, '#9fe3ff'], star: 2, max: 2, name: '冰霜', desc: '被打到的敵人攻擊速度 -25%', apply: h => { h.frost += 0.25; },
+  { id: 'm_frost', hero: 'mage', icon: ['ic', 669, '#9fe3ff'], star: 2, max: 2, name: '冰霜', desc: '被打到的敵人攻擊速度 -15%', apply: h => { h.frost = Math.min(0.8, h.frost + 0.15); },
     maxDesc: '冰霜效果加倍', maxApply: h => { h.frost = Math.min(0.8, h.frost * 2); } },
   // 狂戰士
   { id: 's_saw', hero: 'saw', icon: ['ic', 385, '#ff9f43'], star: 1, max: 3, name: '鏈鋸加速', desc: '鏈鋸需要的撞擊數 -3', apply: h => { h.sawNeed = Math.max(3, h.sawNeed - 3); },
@@ -283,6 +283,15 @@ export function skillAllowed(sk, run) {
   if (sk.hero) return ids.includes(sk.hero);
   if (sk.duo) return ids.length > 1; // 換手技能：帶兩位職業才會出現
   return !sk.cat || cls.includes(sk.cat);
+}
+
+// 等級上限看星數：1 星 3 級、2 星 5 級、3 星 9 級（治療藥水沒有上限，可以一直買）
+export const STAR_MAX = [0, 3, 5, 9];
+for (const sk of SKILLS) if (sk.max) sk.max = STAR_MAX[sk.star];
+// 加倍率門的技能：第 1、4、7 級多一道門，其他等級讓同種門變寬（不然門會塞滿彈珠台）
+function gateLv(board, type, lv) {
+  if (lv % 3 === 1) board.addGate(type);
+  else board.widenGates(type, 1.08);
 }
 
 export const STAR_PRICE = [0, 20, 45, 80];

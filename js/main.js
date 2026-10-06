@@ -339,18 +339,18 @@ board.onCatch = (b, mult) => {
   run.caught++;
   const h = run.hero;
   if (h.def.id === 'archer' && run.caught % h.arrowNeed === 0 && run.phase === 'fight') {
-    for (let k = 0; k < h.arrowCount; k++) battle.strikeFront(2.5, '球雨箭!', '#b6ff6d');
+    for (let k = 0; k < h.arrowCount; k++) battle.strikeFront(2.5, '球雨箭!', '#b6ff6d', 'arrow');
   }
   // 星辰賢者：星落
   if (h.def.id === 'sage' && run.caught % h.starNeed === 0 && run.phase === 'fight') {
-    for (let k = 0; k < h.starCount; k++) setTimeout(() => game.run && game.run.phase === 'fight' && battle.blast(h.starMul, k ? '' : '星落!', '#c8b6ff', { crit: h.starCrit }), k * 200);
+    for (let k = 0; k < h.starCount; k++) setTimeout(() => game.run && game.run.phase === 'fight' && battle.blast(h.starMul, k ? '' : '星落!', '#c8b6ff', { crit: h.starCrit, style: 'meteor' }), k * 200);
   }
 };
 board.onPeg = () => {
   const run = game.run;
   if (run.hero.def.id !== 'saw' || run.phase !== 'fight') return;
   run.pegHits++;
-  if (run.pegHits % run.hero.sawNeed === 0) battle.strikeFront(run.hero.sawMul, '鏈鋸!', '#ff9f43');
+  if (run.pegHits % run.hero.sawNeed === 0) battle.strikeFront(run.hero.sawMul, '鏈鋸!', '#ff9f43', 'saw');
 };
 
 let lastCoinText = '', lastCoins = 0, lastBump = 0;
@@ -496,9 +496,11 @@ function forHeroes(sk, fn) {
 }
 function gainSkill(sk) {
   const run = game.run;
-  forHeroes(sk, (h, b) => sk.apply(h, run, b));
+  const lv = skillLv(sk) + 1; // 這次升到第幾級
+  forHeroes(sk, (h, b) => sk.apply(h, run, b, lv));
   if (!run.levels[sk.id]) run.skills.push(sk);
-  run.levels[sk.id] = skillLv(sk) + 1;
+  run.levels[sk.id] = lv;
+  updateGlory();
 }
 
 // 菁英、寶箱怪掉落：隨機一個還沒滿級、這位英雄能用的技能，免費獲得
@@ -513,6 +515,19 @@ function onSkillDrop() {
   toast(`${sk.name} → ${sk.max ? `Lv.${skillLv(sk)}/${sk.max}` : '已使用'}：${sk.desc}`);
   if (isMaxed(sk)) celebrateMax(sk, null);
   renderSkillBar();
+}
+
+// 光環：3 星技能滿級越多，金光越亮；能買的技能全部滿級 → 長出翅膀
+function updateGlory() {
+  const run = game.run;
+  const pool = SKILLS.filter(sk => sk.max && skillAllowed(sk, run));
+  const gold = run.skills.filter(sk => sk.star === 3 && isMaxed(sk)).length;
+  const wings = pool.length > 0 && pool.every(isMaxed);
+  if (wings && !run.wings) { banner('全技能滿級・天使降臨！'); sfx('win'); vibrate([80, 60, 160]); }
+  else if (gold > (run.gold3 || 0)) toast(`3 星技能滿級 ${gold} 個：金光${gold >= 3 ? '耀眼' : '加強'}！`);
+  run.gold3 = gold;
+  run.wings = wings;
+  for (const h of run.heroes) { h.glow = gold; h.wings = wings; }
 }
 
 // 升到滿級：金色爆發＋橫幅＋滿級獎勵生效

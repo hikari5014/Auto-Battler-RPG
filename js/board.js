@@ -794,7 +794,7 @@ export class Board {
       ctx.setLineDash([4, 6]);
       ctx.lineDashOffset = -this.t * 40;
       ctx.beginPath();
-      ctx.moveTo(x, y + 18);
+      ctx.moveTo(x, y + 26);
       ctx.lineTo(x, this.cupY - 10);
       ctx.stroke();
       ctx.restore();
@@ -811,7 +811,8 @@ export class Board {
       ctx.shadowColor = '#ffd84a';
       ctx.shadowBlur = 14 * Math.min(1, g);
     }
-    cupShape(ctx, 34, 26, 1);
+    ctx.translate(0, -16); // 讓壺身整個露在彈珠台上，壺口對準出球的位置
+    urnShape(ctx, this.t, this.queue > 0);
     ctx.restore();
 
     ctx.textAlign = 'center';
@@ -873,7 +874,7 @@ export class Board {
     ctx.fillRect(cx - w, y - 10, w * 2, h + 30);
     ctx.save();
     ctx.translate(cx, y);
-    cupShape(ctx, w, h, 0.76);
+    potShape(ctx, w, h, 0.76, this.t, this.cupMult, coins);
     ctx.restore();
     ctx.textAlign = 'center';
     ctx.font = `16px ${FONT}`;
@@ -891,45 +892,164 @@ export class Board {
   }
 }
 
-// 紅色派對杯：漸層杯身＋白色杯口＋左側反光
-function cupShape(ctx, w, h, bottomRatio) {
+const OUTLINE = '#1a1020';
+
+// 倒球器：倒過來的魔法寶壺（銅色壺身、金色壺口、中間一顆會發光的寶石）
+// 座標已經轉了 180 度，所以「往下」畫的壺口其實朝下
+function urnShape(ctx, t, pouring) {
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = OUTLINE;
+  // 壺身（圓肚）
+  const body = ctx.createRadialGradient(-6, 18, 2, 0, 14, 22);
+  body.addColorStop(0, '#f2b670');
+  body.addColorStop(0.55, '#b8662c');
+  body.addColorStop(1, '#5c2a12');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(0, 14, 19, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // 金色腰帶
+  ctx.fillStyle = '#ffd84a';
+  ctx.fillRect(-18, 10, 36, 4);
+  ctx.strokeRect(-18, 10, 36, 4);
+  // 兩邊的耳朵
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(s * 21, 12, 4, 6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#c98a3a';
+    ctx.fill();
+    ctx.stroke();
+  }
+  // 壺口（朝下倒球的那一端）：金色寬邊
+  const neck = ctx.createLinearGradient(-10, 0, 10, 0);
+  neck.addColorStop(0, '#fff2a8');
+  neck.addColorStop(0.5, '#ffc928');
+  neck.addColorStop(1, '#b4770f');
+  ctx.fillStyle = neck;
+  ctx.beginPath();
+  ctx.moveTo(-9, 2);
+  ctx.lineTo(9, 2);
+  ctx.lineTo(13, -6);
+  ctx.lineTo(-13, -6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#2a1408';
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 11, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 正中間的寶石：倒球時閃得更快
+  const pulse = 0.6 + Math.sin(t * (pouring ? 12 : 4)) * 0.4;
+  ctx.fillStyle = `rgba(208,107,255,${0.35 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(0, 21, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#b44dff';
+  ctx.beginPath();
+  ctx.moveTo(0, 15); ctx.lineTo(5, 21); ctx.lineTo(0, 27); ctx.lineTo(-5, 21);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#f3dcff';
+  ctx.fillRect(-2, 18, 2, 2);
+  // 壺身反光
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(-9, 20, 3, 6, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 接球杯：聚寶盆（金色寬邊、深紅絨布盆身、金色箍帶與鉚釘、正中央寶石；倍率越高越金亮）
+function potShape(ctx, w, h, bottomRatio, t, mult, coins) {
   const bw = w * bottomRatio;
+  const rich = mult > 2;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = OUTLINE;
+  // 盆身
   const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-  body.addColorStop(0, '#ff6b5e');
-  body.addColorStop(0.35, '#e8392f');
-  body.addColorStop(1, '#9e1f1a');
+  body.addColorStop(0, rich ? '#c0392b' : '#b8323a');
+  body.addColorStop(0.4, rich ? '#8e1d4a' : '#7d1a2c');
+  body.addColorStop(1, '#3d0a18');
   ctx.fillStyle = body;
   ctx.beginPath();
   ctx.moveTo(-w / 2, 0);
   ctx.lineTo(w / 2, 0);
-  ctx.lineTo(bw / 2, h);
+  ctx.quadraticCurveTo(w / 2 - 2, h * 0.7, bw / 2, h);
   ctx.lineTo(-bw / 2, h);
+  ctx.quadraticCurveTo(-w / 2 + 2, h * 0.7, -w / 2, 0);
   ctx.closePath();
   ctx.fill();
-  // 杯身的橫紋
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 2;
-  for (const f of [0.35, 0.7]) {
+  ctx.stroke();
+  // 金色箍帶＋鉚釘
+  const band = y => {
+    const f = y / h;
     const ww = w + (bw - w) * f;
+    const g = ctx.createLinearGradient(0, y - 3, 0, y + 3);
+    g.addColorStop(0, '#fff2a8'); g.addColorStop(0.5, '#ffc928'); g.addColorStop(1, '#a8650c');
+    ctx.fillStyle = g;
+    ctx.fillRect(-ww / 2 + 1, y - 3, ww - 2, 6);
+    ctx.strokeRect(-ww / 2 + 1, y - 3, ww - 2, 6);
+    ctx.fillStyle = '#fff6c8';
+    for (let i = 1; i < 6; i++) ctx.fillRect(-ww / 2 + (ww * i) / 6 - 1, y - 1, 2, 2);
+  };
+  band(h * 0.2);
+  band(h * 0.9);
+  // 正中央的寶石（在兩條箍帶之間，數字會蓋在上面所以放在左右兩側）
+  for (const s of [-1, 1]) {
+    const gx = s * w * 0.4, gy = h * 0.55;
+    ctx.fillStyle = s < 0 ? '#36d6ff' : '#6dff8a';
     ctx.beginPath();
-    ctx.moveTo(-ww / 2 + 2, h * f);
-    ctx.lineTo(ww / 2 - 2, h * f);
+    ctx.moveTo(gx, gy - 4); ctx.lineTo(gx + 3.5, gy); ctx.lineTo(gx, gy + 4); ctx.lineTo(gx - 3.5, gy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 1;
     ctx.stroke();
+    ctx.lineWidth = 2;
   }
-  // 反光
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  // 盆口裡面：暗色，有球幣時冒出一堆金幣
+  ctx.fillStyle = '#1a0710';
   ctx.beginPath();
-  ctx.moveTo(-w / 2 + 6, 6);
-  ctx.lineTo(-w / 2 + 11, 6);
-  ctx.lineTo(-bw / 2 + 9, h - 5);
-  ctx.lineTo(-bw / 2 + 5, h - 5);
+  ctx.ellipse(0, 0, w / 2 - 3, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (coins > 0) {
+    const pile = Math.min(5, 1 + Math.log10(coins + 1));
+    ctx.fillStyle = '#ffd84a';
+    for (let i = 0; i < 7; i++) {
+      const cx = (i - 3) * (w / 9);
+      const cy = -1 - Math.max(0, pile - Math.abs(i - 3) * 1.3);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 4, 2.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // 金色寬邊（盆口）＋掃過的亮光
+  const rim = ctx.createLinearGradient(0, -5, 0, 5);
+  rim.addColorStop(0, '#fffbe0'); rim.addColorStop(0.45, rich ? '#ffe066' : '#ffc928'); rim.addColorStop(1, '#9a5a08');
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w / 2 + 4, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, w / 2 - 3, 3.5, 0, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w / 2 + 4, 6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  const sx = ((t * 70) % (w + 80)) - w / 2 - 40;
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w / 2 + 4, 6, 0, 0, Math.PI * 2);
+  ctx.clip();
+  const sweep = ctx.createLinearGradient(sx - 12, 0, sx + 12, 0);
+  sweep.addColorStop(0, 'rgba(255,255,255,0)'); sweep.addColorStop(0.5, 'rgba(255,255,255,0.85)'); sweep.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sweep;
+  ctx.fillRect(sx - 12, -7, 24, 14);
+  ctx.restore();
+  // 盆身左邊的反光
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 8, 8); ctx.lineTo(-w / 2 + 13, 8); ctx.lineTo(-bw / 2 + 10, h - 6); ctx.lineTo(-bw / 2 + 6, h - 6);
   ctx.closePath();
   ctx.fill();
-  // 杯口
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(-w / 2 - 3, -3, w + 6, 6);
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ctx.fillRect(-w / 2 - 3, 2, w + 6, 1);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
