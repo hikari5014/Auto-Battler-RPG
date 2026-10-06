@@ -1148,3 +1148,13 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 #screen-home.collapsed .side, #screen-home.collapsed .hero-plate, #screen-home.collapsed .hero-tap, #screen-home.collapsed .logo, #screen-home.collapsed .version-row { pointer-events: none; }
 #screen-home.launching .home-more { opacity: 0; transition: opacity 0.3s; }
 .home-content { position: relative; z-index: 1; clip-path: inset(var(--clip, 0px) 0 0 0); }
+/* 坐騎星數與滿級 */
+.m-hero.star2 img { filter: drop-shadow(0 0 6px var(--mc)); }
+.m-hero.star3 img { filter: drop-shadow(0 0 10px #fff2a8) drop-shadow(0 0 4px var(--mc)); }
+.m-hero.maxed { position: relative; background: radial-gradient(circle, rgba(255, 214, 74, 0.55), transparent 70%); }
+.m-hero.maxed img { filter: drop-shadow(0 0 8px #ffd84a) drop-shadow(0 0 16px #ff9f20); animation: m-bob 0.9s ease-in-out infinite, m-glow 1.4s ease-in-out infinite; }
+.m-hero.maxed::before { content: ''; position: absolute; left: 50%; top: 40%; width: 160px; height: 160px; translate: -50% -50%; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 230, 120, 0.35) 0 10deg, transparent 10deg 30deg); animation: inf-spin 6s linear infinite; z-index: -1; }
+.m-hero.maxed b::after { content: ' 完全體'; font-size: 11px; color: #ffd84a; }
+@keyframes m-glow { 50% { filter: drop-shadow(0 0 14px #fff2a8) drop-shadow(0 0 24px #ffb320); } }
+.mmax { color: #ffd84a; font-weight: normal; text-shadow: 0 0 4px #ff9f20; }

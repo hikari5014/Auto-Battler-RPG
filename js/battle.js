@@ -806,18 +806,22 @@ export class Battle {
     const x = h.x + h.lunge * 0.25;
     if (h.wings || h.glow > 0) this.drawGlory(ctx, h, x);
     if (h.maxed > 0) this.drawAura(ctx, h, x);
-    // 騎著坐騎：先畫坐騎，英雄坐在上面（跑動時上下顛）
+    // 騎著坐騎：坐騎比英雄大一倍、往前站一點（頭和尾巴都露出來），英雄坐在牠背上；跑動時上下顛
     let lift = h.lift || 0;
     if (h.mount) {
       const sc = this.scene;
-      const size = HERO_HEIGHT * 1.35 * (h.scale || 1);
-      const bob = Math.abs(Math.sin(sc.t * 9)) * 0.05;
-      const mp = sc.project(x + 0.12, h.z, lift + bob);
-      sc.shadow(ctx, x, h.z, size * 0.8);
+      const m = h.mount;
+      const size = HERO_HEIGHT * (h.showcase ? 2.1 : 1.55) * (h.scale || 1);
+      const bob = Math.abs(Math.sin(sc.t * 9)) * 0.06;
+      const mx = x + 0.28 * (h.scale || 1);
+      const mp = sc.project(mx, h.z, lift + bob);
+      sc.shadow(ctx, mx, h.z, size * 0.75);
+      const px = size * mp.s;
+      this.drawMountAura(ctx, m, mp.x, mp.y, px, sc.t);
       ctx.globalAlpha = 1 - sc.fogAt(h.z) * 0.85;
-      drawTinted(ctx, h.mount.icon, h.mount.color, mp.x, mp.y + 1, size * mp.s);
+      drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
       ctx.globalAlpha = 1;
-      lift += size * 0.36 + bob;
+      lift += size * (h.showcase ? 0.5 : 0.42) + bob;
     }
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
@@ -847,6 +851,43 @@ export class Battle {
     ctx.strokeText(label, p.x, top - 13);
     ctx.fillStyle = '#fff';
     ctx.fillText(label, p.x, top - 13);
+  }
+
+  // 坐騎光環：2 星有彩色光暈，3 星更亮；滿級（3 星 30 級）金色火焰＋繞圈的星光
+  drawMountAura(ctx, m, cx, footY, px, t) {
+    if (m.star < 2 && !m.maxed) return;
+    const cy = footY - px * 0.45;
+    ctx.save();
+    const r = px * (m.maxed ? 0.85 : 0.62) * (1 + Math.sin(t * 3) * 0.05);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const col = m.maxed ? '255,214,74' : m.star >= 3 ? '255,240,180' : '255,255,255';
+    g.addColorStop(0, `rgba(${col},${m.maxed ? 0.55 : m.star >= 3 ? 0.4 : 0.25})`);
+    g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    if (m.maxed) {
+      // 腳下往上竄的金色火焰
+      for (let i = 0; i < 10; i++) {
+        const ph = (t * 0.9 + i / 10) % 1;
+        const fx = cx + Math.sin(i * 2.4 + t * 2) * px * 0.38;
+        const fy = footY - ph * px * 0.9;
+        ctx.globalAlpha = (1 - ph) * 0.9;
+        ctx.fillStyle = ph < 0.4 ? '#fff6c0' : '#ffb320';
+        const s = px * 0.05 * (1 - ph * 0.6);
+        ctx.beginPath(); ctx.moveTo(fx, fy - s * 2); ctx.quadraticCurveTo(fx + s, fy, fx, fy + s); ctx.quadraticCurveTo(fx - s, fy, fx, fy - s * 2); ctx.fill();
+      }
+      // 繞圈的星光
+      ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < 6; i++) {
+        const a = t * 1.8 + i * Math.PI / 3;
+        const sx = cx + Math.cos(a) * px * 0.55, sy = cy + Math.sin(a) * px * 0.18;
+        const tw = 1.5 + Math.sin(t * 8 + i) * 1;
+        ctx.globalAlpha = 0.9;
+        ctx.fillRect(sx - tw, sy - 0.6, tw * 2, 1.2);
+        ctx.fillRect(sx - 0.6, sy - tw, 1.2, tw * 2);
+      }
+    }
+    ctx.restore();
   }
 
   // 3 星技能滿級：英雄身後發金光（滿越多越亮、光芒越多）；全部滿級：長出翅膀＋強烈光芒

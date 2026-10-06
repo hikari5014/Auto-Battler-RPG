@@ -105,6 +105,9 @@ export function riding(save) {
   const st = ms.ride && ms.owned[ms.ride];
   if (!st) return null;
   const m = mountById(ms.ride);
-  return { ...m, lv: st.lv, star: st.star, bonus: m.per * st.lv, cdNow: Math.max(4, m.cd - (st.star - 1)) };
+  return { ...m, lv: st.lv, star: st.star, maxed: isMaxMount(st), bonus: m.per * st.lv, cdNow: Math.max(4, m.cd - (st.star - 1)) };
 }
 export const statText = (m, lv) => m.stat === 'ball' ? `${m.statName} +${(m.per * lv).toFixed(1)}` : `${m.statName} +${(m.per * lv * 100).toFixed(1)}%`;
+
+// 完全長大：3 星而且 30 級
+export const isMaxMount = st => !!st && st.star >= MAX_STAR && st.lv >= lvCap(MAX_STAR);
