@@ -200,7 +200,7 @@ export class Board {
 
     // 倒球：排隊越多倒越快
     if (this.queue > 0) {
-      const rate = Math.min(150, 20 + this.queue * 1.5);
+      const rate = this.slowPour ? 3 : Math.min(150, 20 + this.queue * 1.5); // 謎題：一顆一顆慢慢掉
       this.emitAcc += rate * dt;
       while (this.emitAcc >= 1 && this.queue > 0) {
         this.emitAcc -= 1;

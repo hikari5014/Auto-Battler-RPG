@@ -12,6 +12,7 @@ import * as gacha from './gacha.js';
 import * as bondsM from './bonds.js';
 import * as modes from './modes.js';
 import * as camp from './campaign.js';
+import * as expd from './expedition.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -170,7 +171,9 @@ function startRun(opts = {}) {
   game.paused = false;
   showScreen(null);
   $('hud').classList.remove('hidden');
-  if (spec && spec.preShop) { renderWaveBar(game.run); openShop(); } // 3.7 副本、魔王連戰：開打前先買技能
+  board.slowPour = !!(spec && spec.slowPour);
+  if (spec && spec.noFight) startPuzzle(game.run, spec);
+  else if (spec && spec.preShop) { renderWaveBar(game.run); openShop(); } // 3.7 副本、魔王連戰：開打前先買技能
   else nextWave();
   tutorial.onRunStart();
   // 開場提示這一章的特殊規則
@@ -184,10 +187,38 @@ function startRun(opts = {}) {
   save.stats.runs++;
 }
 
+// 3.10 彈珠謎題：沒有敵人，固定的門，幾顆球
+function startPuzzle(run, spec) {
+  const pz = expd.PUZZLES[spec.puzzle];
+  run.coins = 0;
+  run.wave = 1;
+  run.phase = 'settle';
+  board.gates = [];
+  const put = ([type, row, fx, sp], trap) => {
+    board.addGate(type, row, false, trap);
+    const g = board.gates[board.gates.length - 1];
+    g.x = 4 + fx * (board.W - g.w - 8);
+    g.vx = sp * (Math.random() < 0.5 ? -1 : 1);
+  };
+  for (const g of pz.gates) put(g, false);
+  for (const g of pz.traps || []) put(g, true);
+  board.pour(pz.balls);
+  $('hud-wave').innerHTML = `謎題 ${spec.puzzle + 1}｜★ ${pz.goal.join('/')}`;
+  $('wavebar').innerHTML = '';
+  banner(`${pz.name}：${pz.balls} 顆球`);
+  setTimeout(() => game.run && toast(`拖曳瞄準，讓小球穿過倍率門；接到的球幣就是分數（${pz.goal.join(' / ')} 分 = 1～3 星）`), 1500);
+}
+
 function nextWave() {
   const run = game.run;
   run.wave++;
   run.phase = 'fight';
+  // 3.10 遠征：精英路線、金蛋遺物
+  if (run.mode === 'expedition') {
+    run.eliteAll = !!run.nextElite;
+    run.nextElite = false;
+    if (run.relicCoins) run.coins += run.relicCoins;
+  }
   // 無盡塔：每打完一個循環（魔王）就進入下一章
   if (run.endless && run.wave > 1 && (run.wave - 1) % ENDLESS_CYCLE === 0) {
     run.chapter++;
@@ -453,7 +484,9 @@ function update(dt) {
       run.phase = 'settle';
     }
   } else if (run.phase === 'settle' && board.isEmpty()) {
-    if (!run.endless && run.wave >= (run.maxWave || MAX_WAVE)) endRun(true);
+    if (run.mode === 'puzzle') endRun(true);
+    else if (!run.endless && run.wave >= (run.maxWave || MAX_WAVE)) endRun(true);
+    else if (run.mode === 'expedition') openRoute();
     else if (!run.mode && EVENT_WAVES.includes(stageWave(run, run.wave))) openEvent();
     else openShop();
   }
@@ -618,7 +651,7 @@ function rollOffer() {
     const sk = pool.splice(idx, 1)[0];
     // 價格：星數基本價 x 波數成長 x 難度 x（等級越高越貴：每升一級再乘 lvGrow 倍，難度越高倍數越大）
     const lvMul = Math.pow(run.diff.lvGrow || 1.5, skillLv(sk)) * (1 - (run.hero.scholar || 0)); // 傳說特效「學者」
-    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (1 - run.tb.price)), bought: false });
+    picks.push({ sk, price: Math.round(STAR_PRICE[sk.star] * Math.pow(1.17, run.wave - 1) * run.diff.price * lvMul * (run.shopDiscount || 1) * (run.relicDisc || 1) * (1 - run.tb.price)), bought: false });
   }
   run.offer = picks;
 }
@@ -799,6 +832,18 @@ function endModeRun(win) {
       lines.push('這一階之後可以「掃蕩」直接拿獎勵');
       eco.track(save, 'daily');
     } else lines = ['沒有通關不給副本獎勵（次數已經用掉）'];
+  } else if (run.mode === 'expedition') {
+    title = win ? '遠征 全破！' : '遠征結束';
+    sub = `完成 ${cleared}/12 波・遺物 ${(run.relics || []).length} 個`;
+    const gem = expd.expReward(save, cleared);
+    lines = [gem ? `今天第一次遠征：+${gem} 寶石、+${Math.floor(gem / 2)} 星塵` : '今天的遠征寶石已經領過了（明天再來）'];
+    if ((run.relics || []).length) lines.push('遺物：' + run.relics.map(id => expd.relicById(id).name).join('、'));
+  } else if (run.mode === 'puzzle') {
+    const pz = expd.PUZZLES[run.puzzle], score = Math.round(run.coins), n = expd.puzzleStars(pz, score);
+    title = n ? `謎題完成 ${'★'.repeat(n)}` : '謎題失敗';
+    sub = `${pz.name}・分數 ${score}（目標 ${pz.goal.join(' / ')}）`;
+    const gem = expd.puzzleReward(save, run.puzzle, n);
+    lines = [gem ? `新的星星：+${gem} 寶石` : n ? '再拿更多星星才有新獎勵' : '至少拿 1 星才能開下一關'];
   } else if (run.mode === 'side') {
     const { ch, k } = run.side;
     title = win ? `${camp.SIDES[k].name} 通關！` : `${camp.SIDES[k].name} 失敗`;
@@ -2004,7 +2049,7 @@ const rushDiff = () => (save.difficulty === 'casual' ? 'easy' : save.difficulty)
 const modeCh = diffId => Math.max(1, maxCh(save, diffId) - 1);
 function renderModes() {
   modes.ensureModes(save);
-  const tabs = [['dungeon', '每日副本'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['endless', '無盡塔']];
+  const tabs = [['dungeon', '每日副本'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['exp', '遠征'], ['puzzle', '謎題'], ['endless', '無盡塔']];
   let body = '';
   if (modesTab === 'dungeon') {
     const ids = Object.keys(modes.DUNGEONS);
@@ -2031,6 +2076,16 @@ function renderModes() {
       <div class="rush-row">${modes.RUSH_GEMS.map((g, i) => `<span class="rush-b ${save.rush.best > i ? 'done' : ''}">${iconTag(['dg', 108], 22)}<small>第 ${i + 1} 隻</small><b>${iconTag(ICON.diamond, 12)}${g}</b></span>`).join('')}</div>
       <p class="dg-info">本週最佳：<b>${save.rush.best}/5</b></p>
       <button class="btn big gift" id="btn-rush-go">開始魔王連戰</button>`;
+  } else if (modesTab === 'exp') {
+    const e = expd.ensureExp(save);
+    body = `<p class="hint">12 波的冒險（第 12 波是魔王）。每打完一波選一條路：戰鬥、精英（打贏選遺物）、營火（回血）、寶箱（選遺物）、商人（技能 6 折）。遺物只在這次遠征有效。使用目前難度與章節。</p>
+      <div class="relic-grid">${expd.RELICS.map(r => `<span class="relic-own" data-tip="${r.name}：${r.desc}">${iconTag(r.icon, 22)}</span>`).join('')}</div>
+      <p class="dg-info">${e.done ? '今天的遠征寶石已領（還是可以再玩）' : '今天第一次遠征：每過一波 +8 寶石（全破 96）'}<br>最佳紀錄 ${e.best}/12 波</p>
+      <button class="btn big gift" id="btn-exp-go">出發遠征</button>`;
+  } else if (modesTab === 'puzzle') {
+    const ps = save.puzzles || {};
+    body = `<p class="hint">沒有敵人，只有固定的彈珠台和幾顆球。拖曳瞄準，接到的球幣就是分數。每顆新星星 +10 寶石；拿到 1 星開下一關。</p>
+      <div class="pz-grid">${expd.PUZZLES.map((p, i) => `<button class="pz ${ps[i] ? 'done' : ''}" data-pz="${i}" ${offAttr(!expd.puzzleOpen(save, i), '上一關先拿 1 星')}><b>${i + 1}</b><small>${p.name}</small>${starTag(ps[i] || 0)}</button>`).join('')}</div>`;
   } else if (modesTab === 'trial') {
     const f = save.trial.floor || 0, start = modes.trialStart(save);
     body = `<p class="hint">100 層的試煉。每次從最近的 10 層檢查點開始往上爬，打到倒下為止；每 10 層一隻魔王。新層數給金幣，每 5 層 20 寶石，每 10 層一張召喚券。</p>
@@ -2063,12 +2118,66 @@ $('modes-body').addEventListener('click', ev => {
     writeSave(save);
     startRun({ chapter: modeCh(rushDiff()), spec: { ...modes.rushRun(), diffId: rushDiff() } });
     return;
+  } else if (t.id === 'btn-exp-go') {
+    writeSave(save);
+    startRun({ chapter: save.chapter, spec: expd.expeditionRun() });
+    return;
+  } else if (t.dataset.pz) {
+    writeSave(save);
+    const pz = expd.PUZZLES[+t.dataset.pz];
+    startRun({ chapter: pz.ch, spec: expd.puzzleRun(+t.dataset.pz) });
+    return;
   } else if (t.id === 'btn-trial-go') {
     writeSave(save);
     startRun({ spec: modes.trialRun(save) });
     return;
   } else if (t.id === 'btn-modes-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
   renderModes();
+});
+
+// ---------- 3.10 遠征路線 ----------
+function openRoute() {
+  const run = game.run;
+  run.phase = 'route';
+  run.route = expd.rollRoute(run);
+  // 精英波打贏：先選遺物
+  if (run.eliteAll) { run.relicChoice = expd.pickRelics(run); run.eliteAll = false; }
+  renderRoute();
+  showScreen('screen-route');
+}
+function renderRoute() {
+  const run = game.run;
+  const owned = (run.relics || []).map(id => { const r = expd.relicById(id); return `<span class="relic-own" title="${r.desc}">${iconTag(r.icon, 18)}</span>`; }).join('');
+  let body;
+  if (run.relicChoice) {
+    body = `<h2>選一個遺物</h2><div class="route-cards">${run.relicChoice.map(r => `<button class="route-card relic" data-relic="${r.id}">${iconTag(r.icon, 32)}<b>${r.name}</b><small>${r.desc}</small></button>`).join('')}</div>`;
+  } else {
+    body = `<h2>選擇路線</h2><p class="hint">第 ${run.wave + 1} 波${run.wave + 1 === run.maxWave ? '是魔王！' : ''}</p>
+      <div class="route-cards">${run.route.map(k => `<button class="route-card" data-node="${k}">${iconTag(expd.NODES[k].icon, 32)}<b>${expd.NODES[k].name}</b><small>${expd.NODES[k].desc}</small></button>`).join('')}</div>`;
+  }
+  $('route-body').innerHTML = `${body}<div class="relic-bar">${owned || '<small>還沒有遺物</small>'}</div>`;
+}
+$('route-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  const run = game.run;
+  if (!t || !run) return;
+  sfx('tap');
+  if (t.dataset.relic) {
+    const r = expd.gainRelic(run, board, t.dataset.relic);
+    run.relicChoice = null;
+    sfx('jingle');
+    toast(`獲得遺物：${r.name}（${r.desc}）`);
+    openShop();
+    return;
+  }
+  const k = t.dataset.node;
+  if (!k) return;
+  if (k === 'fight') run.coins += 60;
+  else if (k === 'elite') { run.nextElite = true; toast('下一波都是精英！打贏可以選遺物'); }
+  else if (k === 'rest') { for (const h of run.heroes) h.hp = Math.min(h.maxHp, Math.max(h.hp, 0) + h.maxHp * 0.4); renderSwitch(); toast('營火：全員回復 40% 血量'); }
+  else if (k === 'chest') { run.relicChoice = expd.pickRelics(run); renderRoute(); return; }
+  else if (k === 'shop') run.shopDiscount = 0.6;
+  openShop();
 });
 
 // ---------- 3.9 戰役地圖 ----------
@@ -2773,6 +2882,7 @@ Promise.all([
 // 方便測試用
 window.__game = { game, board, battle, save };
 window.__test = {
+  openRoute: () => openRoute(),
   // 直接獲得技能（測試用）
   give(id) {
     const sk = SKILLS.find(k => k.id === id);
@@ -2814,6 +2924,8 @@ window.__test = {
     if (opts.mode === 'dungeon') spec = modes.dungeonRun(opts.dg || 'gold', opts.tier || 1);
     else if (opts.mode === 'rush') spec = { ...modes.rushRun(), diffId: save.difficulty };
     else if (opts.mode === 'trial') { save.trial = { floor: opts.floor || 0 }; spec = modes.trialRun(save); }
+    else if (opts.mode === 'expedition') spec = expd.expeditionRun();
+    else if (opts.mode === 'puzzle') spec = expd.puzzleRun(opts.puzzle || 0);
     startRun({ chapter: opts.chapter || 1, spec });
     const run = game.run;
     const dt = 1 / 30;
@@ -2830,6 +2942,13 @@ window.__test = {
         }
         update(dt);
         if (isBossWave(run, run.wave) && run.phase === 'fight') bossT += dt;
+      } else if (run.phase === 'route') {
+        if (run.relicChoice) { expd.gainRelic(run, board, run.relicChoice[0].id); run.relicChoice = null; openShop(); }
+        else {
+          const k = run.route.includes('elite') ? 'elite' : run.route[0];
+          if (k === 'chest') { expd.gainRelic(run, board, expd.pickRelics(run)[0].id); openShop(); }
+          else { if (k === 'elite') run.nextElite = true; if (k === 'rest') for (const h of run.heroes) h.hp = Math.min(h.maxHp, Math.max(0, h.hp) + h.maxHp * 0.4); if (k === 'fight') run.coins += 60; if (k === 'shop') run.shopDiscount = 0.6; openShop(); }
+        }
       } else if (run.phase === 'event') {
         const e = run.events[Math.floor(Math.random() * run.events.length)];
         e.apply({ run, board, randomSkill: makeRandomSkill(run, isMaxed), gainSkill });
@@ -2850,7 +2969,7 @@ window.__test = {
         else endRun(false);
       } else break;
     }
-    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
+    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), score: Math.round(run.coins), relics: (run.relics || []).length, dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
     game.run = null;
     restore();
     writeSave(save);

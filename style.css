@@ -1460,3 +1460,15 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .mside.sel { border-color: #ffd84a; box-shadow: 0 0 8px #ffd84a; }
 .minfo { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0; text-align: center; min-height: 70px; }
 .minfo small { font-size: 12px; opacity: .85; }
+/* 3.10 遠征、謎題 */
+.route-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.route-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 12px; border: 2px solid #8a6ad0; background: rgba(0,0,0,.4); color: #fff; font: inherit; }
+.route-card b { font-size: 14px; } .route-card small { font-size: 11px; opacity: .85; line-height: 1.3; }
+.route-card.relic { border-color: #ffd84a; }
+.relic-bar, .relic-grid { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 6px 0; min-height: 24px; }
+.relic-own { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: rgba(0,0,0,.4); border: 1px solid #6a5a8a; }
+.pz-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+.pz { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; border-radius: 10px; border: 2px solid #4a3a6a; background: rgba(0,0,0,.35); color: #fff; font: inherit; }
+.pz b { font-size: 16px; } .pz small { font-size: 10px; opacity: .85; }
+.pz.done { border-color: #ffd84a; }
+.pz[aria-disabled="true"] { opacity: .4; }
