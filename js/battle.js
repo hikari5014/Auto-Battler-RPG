@@ -11,6 +11,7 @@ import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus } from './gear.js';
 import { talentBonus } from './talent.js';
+import { applyStar } from './heroes.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 // 遠程普攻的樣子：法術職業射法球，火槍手射子彈，其他射箭
@@ -95,6 +96,7 @@ export function createHero(def, save) {
   // 帳號來源的攻擊次數最多 +2、連擊最多 40%（局內技能不受限）
   h.hits = Math.min(h.hits, def.hits + 2);
   h.dbl = Math.min(h.dbl, 0.4);
+  applyStar(h, save); // 3.3 英雄星級
   return h;
 }
 

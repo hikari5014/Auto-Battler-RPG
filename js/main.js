@@ -7,6 +7,7 @@ import { loadSave, writeSave } from './save.js';
 import { ensureProgress, maxCh, diffUnlocked, unlockText, balChapter, anyChapter, clearChapter } from './progress.js';
 import { savePower, recommended, powerBand } from './power.js';
 import * as eco from './economy.js';
+import * as heroP from './heroes.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -31,6 +32,7 @@ ensureTalents(save);
 ensureMounts(save);
 ensureProgress(save);
 eco.ensureEconomy(save);
+heroP.ensureHeroes(save);
 eco.rollDay(save);
 eco.welcomeMails(save, VERSION, save.progress);
 // 選到還沒解鎖的難度（舊存檔）就退回休閒
@@ -844,6 +846,9 @@ function endRun(win) {
     if (m) { gemsWon += m; gemNotes.push(`層數里程碑 +${m}`); }
   }
   if (gemsWon) eco.grant(save, { gem: gemsWon });
+  // 3.3 英雄碎片：帶誰出戰就掉誰的碎片
+  const frags = heroP.runFrags(save, run.heroIds, cleared);
+  const fragHtml = frags.length ? `<p class="frag-got">${frags.map(f => `${iconTag(['dg', f.def.sprite], 18)} ${f.def.name.split(' ')[1]}碎片 +${f.n}`).join('　')}</p>` : '';
   const gemHtml = gemsWon || gemNotes.length ? `<p class="gem-got">${iconTag(ICON.diamond, 22)} <b>${gemsWon ? '+' + gemsWon : '+0'}</b> 寶石 <small>${gemNotes.join('・')}</small></p>` : '';
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
@@ -852,7 +857,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${gemHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
+    ${gemHtml}${fragHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
@@ -967,7 +972,7 @@ function unlockHidden() {
   for (const h of HEROES) {
     if (!h.hidden || save.owned.includes(h.id)) continue;
     const a = ACHIEVEMENTS.find(x => x.id === h.unlock);
-    if (a && achDone(save, a)) { save.owned.push(h.id); got.push(h); }
+    if (a && achDone(save, a)) { save.owned.push(h.id); got.push(h); heroP.ensureHeroes(save); }
   }
   if (!got.length) return;
   writeSave(save);
@@ -1099,6 +1104,7 @@ function selectHero(id, el) {
   } else if (save.gold >= h.price) {
     save.gold -= h.price;
     save.owned.push(h.id);
+    heroP.ensureHeroes(save);
     if (duoPick === 'second') save.second = h.id; else { save.selected = h.id; heroHop = performance.now(); }
     sfx('buy');
     celebrate(el);
@@ -1110,6 +1116,28 @@ function selectHero(id, el) {
     return false;
   }
   return true;
+}
+
+// 3.3 英雄升星面板
+function starPanel(hero) {
+  if (!save.owned.includes(hero.id)) return '';
+  const st = heroP.heroState(save, hero.id);
+  const rar = heroP.RARITY[heroP.rarityOf(hero)];
+  const c = heroP.nextCost(save, hero.id);
+  const why = heroP.whyNoStar(save, hero.id);
+  const shop = heroP.fragShopInfo(save, hero.id);
+  const perks = heroP.PERKS[hero.id];
+  const perkRow = (n, p) => p ? `<small class="perk ${st.star >= n ? 'on' : ''}"><b>${n} 星${n === 3 ? '天賦' : '覺醒'}</b> ${p[0]}</small>` : '';
+  return `<div class="star-box" style="--rc:${rar.color}">
+    <div class="star-head"><span class="rar-tag">${rar.name}</span><b class="stars">${heroP.starText(st.star)}</b><small>攻擊、血量 x${heroP.STAR_MUL[st.star]}</small></div>
+    ${c ? `<div class="frag-bar"><i style="width:${Math.min(1, st.frag / c.frag) * 100}%"></i><em>碎片 ${st.frag} / ${c.frag}</em></div>` : '<p class="good">已經 6 星滿星！</p>'}
+    ${perks ? perkRow(3, perks.s3) + perkRow(5, perks.s5) : ''}
+    <div class="row">
+      ${c ? `<button class="btn small ${why ? '' : 'gift'}" id="btn-starup" ${offAttr(!!why, why)}>升到 ${st.star + 1} 星 ${iconTag(ICON.gold, 14)}${fmt(c.gold)}</button>` : ''}
+      ${shop && c ? `<button class="btn small" id="btn-buyfrag" ${offAttr(shop.left <= 0 || save.gold < shop.price, shop.left <= 0 ? '今天的碎片已經買完了，明天再來' : '金幣不足')}>買碎片 ${iconTag(ICON.gold, 14)}${fmt(shop.price)}<small>今日剩 ${shop.left}</small></button>` : ''}
+    </div>
+    <small class="hint">帶這位英雄冒險（主、副都算）每 ${heroP.FRAG_RULE[heroP.rarityOf(hero)][0]} 波掉 1 片碎片，一局最多 ${heroP.FRAG_RULE[heroP.rarityOf(hero)][1]} 片</small>
+  </div>`;
 }
 
 function openHeroes(slot) {
@@ -1127,6 +1155,7 @@ function renderHeroes() {
     return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
       ${iconTag(['dg', h.sprite], 40, 'hero-emoji')}
       <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
+      ${own ? `<span class="hero-stars" style="--rc:${heroP.RARITY[heroP.rarityOf(h)].color}">${'★'.repeat(heroP.heroStar(save, h.id))}</span>` : ''}
       ${secret ? '<span class="hero-price secret">隱藏</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}
     </button>`;
   }).join('');
@@ -1150,6 +1179,7 @@ function renderHeroes() {
       <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
       <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
     </div>
+    ${starPanel(hero)}
     <div class="row">
       ${duoPick === 'second' && save.second ? '<button class="btn small ghost" id="btn-no-second">不帶副職業</button>' : ''}
       <button class="btn" id="btn-heroes-ok">確定</button>
@@ -1163,6 +1193,13 @@ $('heroes-body').addEventListener('click', ev => {
   else if (t.dataset.slot) duoPick = t.dataset.slot;
   else if (t.id === 'btn-no-second') { save.second = null; duoPick = 'main'; }
   else if (t.id === 'btn-stats') { statsTab = duoPick === 'second' && save.second ? 1 : 0; openStats(); return; }
+  else if (t.id === 'btn-starup' || t.id === 'btn-buyfrag') {
+    const id = duoPick === 'second' && save.second ? save.second : save.selected;
+    if (t.id === 'btn-starup' && heroP.starUp(save, id)) {
+      const def = HEROES.find(h => h.id === id);
+      sfx('maxup'); celebrate(t, '#ffd84a'); banner(`${def.name.split(' ')[1]} 升到 ${heroP.heroStar(save, id)} 星！`);
+    } else if (t.id === 'btn-buyfrag' && heroP.buyFrag(save, id)) { sfx('coin'); }
+  }
   else if (t.id === 'btn-heroes-ok') { writeSave(save); duoPick = 'main'; renderHome(); showScreen('screen-home'); return; }
   writeSave(save);
   renderHeroes();

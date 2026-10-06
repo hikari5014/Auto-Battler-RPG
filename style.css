@@ -1328,3 +1328,25 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .mail small { font-size: 11px; color: var(--muted); }
 .mail.got { opacity: 0.5; }
 @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+
+/* ---------- 3.3 英雄升星 ---------- */
+.hero-stars { font-size: 9px; color: var(--rc, #ffd84a); letter-spacing: -1px; line-height: 1; }
+.star-box { margin: 8px 0; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--rc); text-align: left; }
+.star-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.star-head .stars { color: #ffd84a; letter-spacing: 1px; font-weight: normal; }
+.star-head small { color: var(--muted); font-size: 11px; margin-left: auto; }
+.rar-tag { background: var(--rc); color: #1a1030; font-size: 11px; padding: 1px 6px; border-radius: 6px; }
+.frag-bar { position: relative; height: 16px; background: rgba(0,0,0,0.4); border-radius: 8px; overflow: hidden; margin-bottom: 6px; }
+.frag-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ffb820, #ffd84a); }
+.frag-bar em { position: relative; display: block; text-align: center; font-style: normal; font-size: 11px; line-height: 16px; text-shadow: 0 1px 0 #000; }
+.perk { display: block; font-size: 11px; color: var(--muted); margin: 2px 0; }
+.perk b { font-weight: normal; color: #9a8cb0; }
+.perk.on { color: #fff; }
+.perk.on b { color: #ffd84a; }
+.star-box .row { margin: 6px 0 2px; }
+.star-box .btn small { display: block; font-size: 9px; }
+.frag-got { font-size: 12px; margin: 2px 0; }
+.star-box .row { gap: 6px; }
+.star-box .row .btn { flex: 1; font-size: 13px; white-space: nowrap; padding: 6px 4px; margin: 0; }
+.star-box .row .btn small { font-size: 9px; opacity: 0.85; }
+.star-box > .hint { display: block; font-size: 10px; margin-top: 4px; }

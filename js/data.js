@@ -45,17 +45,17 @@ export const HEROES = [
   },
   // ---------- 隱藏職業：不能用金幣買，達成指定成就自動解鎖 ----------
   {
-    id: 'dragoon', name: '龍騎士 席格', sprite: 97, price: 0, hidden: true, unlock: 'hard', role: '龍族・近戰＋法術', cls: ['melee', 'spell'],
+    id: 'dragoon', name: '龍騎士 席格', sprite: 97, price: 0, hidden: true, rarity: 'legend', unlock: 'hard', role: '龍族・近戰＋法術', cls: ['melee', 'spell'],
     hp: 180, atk: 13, interval: 1.0, range: 60, hits: 1, block: 0.1,
     passive: '龍息：每第 4 次攻擊噴出龍火，燒所有敵人（150%＋燃燒）；近戰與法術技能都能用',
   },
   {
-    id: 'sage', name: '星辰賢者 奧', sprite: 111, price: 0, hidden: true, unlock: 'tower20', role: '星辰・遠程＋法術', cls: ['ranged', 'spell'],
+    id: 'sage', name: '星辰賢者 奧', sprite: 111, price: 0, hidden: true, rarity: 'elite', unlock: 'tower20', role: '星辰・遠程＋法術', cls: ['ranged', 'spell'],
     hp: 150, atk: 14, interval: 0.9, range: 240, hits: 1, crit: 0.1, magnet: 0.5,
     passive: '星落：每接住 15 顆球，流星打中所有敵人（200%）；杯子會輕輕吸球；遠程與法術技能都能用',
   },
   {
-    id: 'thief', name: '盜賊王 金手指', sprite: 86, price: 0, hidden: true, unlock: 'rich', role: '致富・近戰', cls: 'melee',
+    id: 'thief', name: '盜賊王 金手指', sprite: 86, price: 0, hidden: true, rarity: 'rare', unlock: 'rich', role: '致富・近戰', cls: 'melee',
     hp: 150, atk: 11, interval: 0.65, range: 60, hits: 1, crit: 0.15, dodge: 0.08,
     passive: '搶奪：每擊敗一隻敵人直接拿 3 球幣；結算金幣 +20%；8% 閃避',
   },
