@@ -16,6 +16,17 @@ export const DIFFICULTIES = [
 export const difficultyOf = id => DIFFICULTIES.find(d => d.id === id) || DIFFICULTIES[0];
 
 // 難度不是一開始就全開：第 1 波約 40% 強度，到第 11 波才是完整強度
+// 每一波的強度曲線（所有難度共用，再乘上難度倍率）
+// 第 1～3 波：比較弱，讓玩家先熟悉；第 4 波起血量、攻擊、數量快速增加
+// 回傳 hp / atk = 小怪血量、攻擊倍率；count = 這一波的基本數量
+export function waveCurve(w) {
+  if (w <= 3) return { hp: [0.55, 0.68, 0.82][w - 1], atk: [0.6, 0.72, 0.85][w - 1], count: 3 };
+  const k = w - 3;
+  return { hp: 1 + 0.3 * Math.pow(k, 1.2), atk: 1 + 0.17 * Math.pow(k, 1.12), count: 4 + Math.floor(k * 0.85) };
+}
+// 最終魔王：血量與攻擊是舊版的 10 倍（無盡塔每 10 層的魔王 3 倍，不然會卡死）
+export const BOSS_MUL = 10, ENDLESS_BOSS_MUL = 3;
+
 export function diffScale(mult, wave) {
   const k = Math.min(1, 0.4 + 0.06 * (wave - 1));
   return 1 + (mult - 1) * k;
