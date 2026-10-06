@@ -1,0 +1,7 @@
+Name: Warped Caves Pixel Art Pack
+Source: https://opengameart.org/content/warped-caves-pixel-art-pack
+Author: Luis Zuno (@ansimuz)
+License: 注意：OGA 頁標 CC0，但包內 public-license.txt 寫 CC-BY 3.0 → 以 CC-BY 3.0 處理
+Attribution: "Warped Caves" art by Luis Zuno (@ansimuz), CC-BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Notes: 已排除音樂（Pascal Belisle，需署名）
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

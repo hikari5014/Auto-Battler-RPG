@@ -1430,3 +1430,33 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .feat b { color: #ffd84a; font-size: 13px; display: block; }
 .feat small { display: block; font-size: 11px; opacity: .9; }
 .feat .big-pity { display: inline; color: #ff8a6b; font-size: 11px; }
+/* 3.9 戰役地圖、星星 */
+button.chapter-name { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; position: relative; }
+.chapter-name .map-hint { font-style: normal; font-size: 10px; color: #7fe8ff; }
+.stars { color: #ffd84a; font-size: var(--ss, 12px); letter-spacing: 1px; text-shadow: 0 0 3px #000; }
+.stars i { font-style: normal; color: rgba(255,255,255,.25); }
+.stars-got { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stars-got small { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; font-size: 11px; opacity: .6; }
+.stars-got small .on { color: #8dff9f; opacity: 1; }
+.stars-got b { color: #ffd84a; }
+.mtop { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin: 4px 0 6px; }
+.mchests { display: flex; gap: 4px; }
+.mchest { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,.35); border: 2px solid #4a3a6a; border-radius: 8px; padding: 2px 6px; color: #fff; font: inherit; }
+.mchest small { font-size: 10px; }
+.mchest.ready { border-color: #ffd84a; animation: pulse 1s infinite alternate; }
+.mchest.open { opacity: .45; }
+.mpath { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px 2px; border-radius: 12px; background: rgba(0,0,0,.25); }
+.mrow { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.mrow.l { transform: translateX(-18px); } .mrow.r { transform: translateX(18px); }
+.mnode { position: relative; width: 150px; height: 58px; border-radius: 14px; border: 3px solid #6a5a8a; color: #fff; font: inherit; background: var(--mc) center/cover, #333; display: flex; flex-direction: column; align-items: center; justify-content: center; text-shadow: 0 1px 2px #000, 0 0 3px #000; image-rendering: pixelated; }
+.mnode b { position: absolute; left: 6px; top: 2px; font-size: 14px; }
+.mnode small { font-size: 12px; }
+.mnode i { font-style: normal; font-size: 10px; opacity: .8; }
+.mnode.lock { filter: grayscale(1) brightness(.5); }
+.mnode.cur { border-color: #7fe8ff; }
+.mnode.sel { border-color: #ffd84a; box-shadow: 0 0 10px #ffd84a; }
+.mside { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #6a5a8a; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+.mside.done { border-color: #6dff8a; }
+.mside.sel { border-color: #ffd84a; box-shadow: 0 0 8px #ffd84a; }
+.minfo { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0; text-align: center; min-height: 70px; }
+.minfo small { font-size: 12px; opacity: .85; }

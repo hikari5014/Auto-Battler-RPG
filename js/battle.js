@@ -231,7 +231,7 @@ export class Battle {
       const n = cur.count + diff.count;
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
       // 第 3 波起才會有菁英（前兩波讓玩家先熟悉）
-      const eliteChance = w < 3 ? 0 : Math.min(0.2, 0.02 + w * 0.012) * ((run.mods || {}).elites ? 3 : 1);
+      const eliteChance = run.eliteAll ? 0.5 : w < 3 ? 0 : Math.min(0.2, 0.02 + w * 0.012) * ((run.mods || {}).elites ? 3 : 1);
       for (let i = 0; i < n; i++) q.push(mk(randomMon(), Math.random() < eliteChance ? 'elite' : 'normal'));
       // 第 3 波起有隊長，第 8 波起兩隻
       const captains = w >= 8 ? 2 : w >= 3 ? 1 : 0;

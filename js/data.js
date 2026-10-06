@@ -235,6 +235,12 @@ export const CHAPTERS = [
   { name: '幽暗墓地', sky: 'grave', fog: 'rgba(64,50,104,0.95)', bg: [0, 11, 16], overlay: 'rgba(40,20,80,0.6)', ground: [40, 40, 'dg'], enemies: ['ghost', 'skull', 'zombie', 'wraith', 'vampire', 'bat', 'shaman'], boss: 'deathknight', music: 'grave' },
   { name: '熔岩火山', sky: 'volcano', fog: 'rgba(120,38,22,0.95)', bg: [5, 12, 21], overlay: 'rgba(150,20,0,0.45)', ground: [12, 12, 'dg'], enemies: ['lavacrab', 'fireling', 'imp', 'golem', 'skull', 'spider'], boss: 'firegiant', music: 'volcano' },
   { name: '天空神殿', sky: 'sky', fog: 'rgba(236,240,255,0.95)', bg: [1, 9, 17], overlay: null, ground: [58, 57, 'dg'], enemies: ['eagle', 'griffin', 'frost', 'skyknight', 'ghost', 'shaman'], boss: 'guardian', music: 'sky' },
+  // 3.9 新地區
+  { name: '冰封凍原', sky: 'snow', fog: 'rgba(225,240,255,0.95)', bg: [1, 9, 17], overlay: 'rgba(160,210,255,0.25)', ground: [58, 57, 'dg'], enemies: ['yeti', 'snowwolf', 'polar', 'frost', 'eagle'], boss: 'frostlord', music: 'sky' },
+  { name: '毒沼密林', sky: 'swamp', fog: 'rgba(120,160,90,0.95)', bg: [6, 15, 22], overlay: 'rgba(40,90,30,0.35)', ground: [24, 38, 'pp'], enemies: ['croc', 'treant', 'bog', 'mosquito', 'snake', 'shroom'], boss: 'hydra', music: 'plains' },
+  { name: '機械要塞', sky: 'fort', fog: 'rgba(130,140,165,0.95)', bg: [0, 11, 16], overlay: 'rgba(60,70,100,0.35)', ground: [40, 40, 'dg'], enemies: ['automaton', 'ironknight', 'cannoneer', 'drone', 'golem'], boss: 'colossus', music: 'desert' },
+  { name: '深淵魔域', sky: 'abyss', fog: 'rgba(90,30,70,0.95)', bg: [5, 12, 21], overlay: 'rgba(120,20,80,0.45)', ground: [12, 12, 'dg'], enemies: ['demon', 'imp', 'eye', 'shade', 'darkmage', 'vampire'], boss: 'abysslord', music: 'grave' },
+  { name: '星界王座', sky: 'astral', fog: 'rgba(200,190,255,0.95)', bg: [1, 9, 17], overlay: 'rgba(120,90,220,0.3)', ground: [58, 57, 'dg'], enemies: ['seraphim', 'starling', 'void', 'skyknight', 'griffin'], boss: 'stardragon', music: 'sky' },
 ];
 
 // ---------- 怪物圖鑑 ----------
@@ -268,12 +274,37 @@ export const MONSTERS = {
   eagle: { name: '戰鷹', sprite: ['tc', 134], ai: 'fly', hp: 0.8, atk: 1.2, speed: 1.8, iv: 1.0, trait: '飛很快；飛行：近戰不容易打到' },
   griffin: { name: '獅鷲', sprite: ['tc', 115], ai: 'fly', hp: 1.3, atk: 1.3, speed: 1.3, iv: 1.3, trait: '飛行：近戰不容易打到' },
   frost: { name: '冰晶靈', sprite: ['tc', 49], ai: 'ranged', hp: 1.1, atk: 1.1, speed: 1.0, iv: 1.3, armor: 0.15, trait: '減傷 15%；遠程：站後排也會攻擊' },
+  // 3.9 新地區的怪物
+  yeti: { name: '雪人', sprite: ['tc', 43], ai: 'charge', hp: 1.5, atk: 1.2, speed: 0.9, iv: 1.5, trait: '皮厚；第一下衝撞特別痛' },
+  snowwolf: { name: '雪狼', sprite: ['tc', 23], hp: 0.9, atk: 1.2, speed: 1.6, iv: 1.0, trait: '速度快' },
+  polar: { name: '冰原熊', sprite: ['tc', 164], ai: 'shield', hp: 1.6, atk: 1.1, speed: 0.8, iv: 1.6, armor: 0.1, trait: '減傷 10%；開場有護盾' },
+  croc: { name: '沼澤鱷', sprite: ['tc', 148], ai: 'charge', hp: 1.4, atk: 1.3, speed: 1.0, iv: 1.4, armor: 0.1, trait: '減傷 10%；第一下衝撞特別痛' },
+  treant: { name: '樹人', sprite: ['tc', 113], ai: 'heal', hp: 1.8, atk: 0.9, speed: 0.6, iv: 1.7, trait: '皮很厚；會治療隊友' },
+  bog: { name: '泥沼怪', sprite: ['tc', 121], ai: 'split', hp: 1.3, atk: 0.9, speed: 0.8, iv: 1.4, trait: '死掉會分裂成 2 隻' },
+  mosquito: { name: '巨蚊', sprite: ['tc', 141], ai: 'fly', hp: 0.6, atk: 1.0, speed: 1.9, iv: 0.9, trait: '飛很快；飛行：近戰不容易打到' },
+  automaton: { name: '發條兵', sprite: ['tc', 127], ai: 'shield', hp: 1.5, atk: 1.1, speed: 0.8, iv: 1.4, armor: 0.2, trait: '減傷 20%；開場有護盾' },
+  ironknight: { name: '鋼鐵騎士', sprite: ['tc', 17], ai: 'charge', hp: 1.4, atk: 1.3, speed: 1.0, iv: 1.3, armor: 0.15, trait: '減傷 15%；第一下衝撞特別痛' },
+  cannoneer: { name: '砲手', sprite: ['tc', 18], ai: 'ranged', hp: 1.0, atk: 1.5, speed: 0.9, iv: 1.5, trait: '攻擊高；遠程：站後排也會攻擊' },
+  drone: { name: '偵察機', sprite: ['tc', 82], ai: 'throw', hp: 0.8, atk: 1.0, speed: 1.6, iv: 1.1, dodge: 0.15, trait: '15% 閃避；丟零件卡住倍率門' },
+  demon: { name: '惡魔', sprite: ['tc', 102], hp: 1.3, atk: 1.5, speed: 1.1, iv: 1.2, trait: '攻擊高' },
+  eye: { name: '邪眼', sprite: ['tc', 5], ai: 'ranged', hp: 0.9, atk: 1.4, speed: 1.0, iv: 1.3, dodge: 0.1, trait: '10% 閃避；遠程：站後排也會攻擊' },
+  shade: { name: '暗影', sprite: ['tc', 19], ai: 'summon', hp: 0.9, atk: 1.3, speed: 1.1, iv: 1.3, dodge: 0.2, trait: '20% 閃避；會召喚骷髏' },
+  darkmage: { name: '黑暗法師', sprite: ['tc', 66], ai: 'heal', hp: 0.9, atk: 1.6, speed: 0.9, iv: 1.6, trait: '攻擊高；會治療隊友' },
+  seraphim: { name: '星之使徒', sprite: ['tc', 36], ai: 'heal', hp: 1.1, atk: 1.3, speed: 1.1, iv: 1.3, trait: '會治療隊友' },
+  starling: { name: '星光球', sprite: ['tc', 89], ai: 'bomb', hp: 0.8, atk: 1.2, speed: 1.6, iv: 1.0, trait: '速度快；死掉會爆炸' },
+  void: { name: '虛空之眼', sprite: ['tc', 75], ai: 'throw', hp: 1.0, atk: 1.2, speed: 1.2, iv: 1.2, dodge: 0.15, trait: '15% 閃避；扭曲空間卡住倍率門' },
   // 魔王（每章一隻）
   cyclops: { name: '牛頭魔王', sprite: ['tc', 20], hp: 1, atk: 1, speed: 0.7, iv: 1.6, boss: true },
   crabking: { name: '沙暴蠍王', sprite: ['tc', 145], hp: 1.1, atk: 0.95, speed: 0.7, iv: 1.5, armor: 0.15, boss: true },
   deathknight: { name: '亡靈騎士', sprite: ['tc', 107], hp: 1, atk: 1.15, speed: 0.8, iv: 1.4, dodge: 0.1, boss: true },
   firegiant: { name: '炎之巨人', sprite: ['tc', 123], hp: 1.2, atk: 1.1, speed: 0.7, iv: 1.6, boss: true },
   guardian: { name: '天空守護者', sprite: ['tc', 37], hp: 1.1, atk: 1.1, speed: 0.8, iv: 1.3, armor: 0.2, boss: true },
+  // 3.9 新地區的魔王
+  frostlord: { name: '冰霜之王', sprite: ['tc', 46], hp: 1.15, atk: 1.1, speed: 0.7, iv: 1.5, armor: 0.15, boss: true },
+  hydra: { name: '九頭蛇', sprite: ['tc', 110], hp: 1.25, atk: 1.05, speed: 0.75, iv: 1.3, boss: true },
+  colossus: { name: '機械巨像', sprite: ['tc', 128], hp: 1.3, atk: 1.15, speed: 0.6, iv: 1.7, armor: 0.25, boss: true },
+  abysslord: { name: '深淵魔王', sprite: ['tc', 97], hp: 1.2, atk: 1.25, speed: 0.8, iv: 1.3, dodge: 0.1, boss: true },
+  stardragon: { name: '星界之龍', sprite: ['tc', 31], hp: 1.3, atk: 1.2, speed: 0.8, iv: 1.3, armor: 0.15, boss: true },
 };
 
 // ---------- 怪物強度等級 ----------
@@ -582,6 +613,11 @@ export const BOSS_MOVES = {
   deathknight: { p2: { id: 'summon', every: 12 }, p3: { id: 'drain', every: 9 } },
   firegiant: { p2: { id: 'meteor', every: 10 }, p3: { id: 'stone', every: 8 } },
   guardian: { p2: { id: 'shell', every: 12 }, p3: { id: 'meteor', every: 9 } },
+  frostlord: { p2: { id: 'shell', every: 12 }, p3: { id: 'quake', every: 8 } },
+  hydra: { p2: { id: 'summon', every: 11 }, p3: { id: 'drain', every: 8 } },
+  colossus: { p2: { id: 'stone', every: 9 }, p3: { id: 'meteor', every: 8 } },
+  abysslord: { p2: { id: 'drain', every: 9 }, p3: { id: 'summon', every: 9 } },
+  stardragon: { p2: { id: 'meteor', every: 9 }, p3: { id: 'stone', every: 7 } },
   default: { p2: { id: 'quake', every: 10 }, p3: { id: 'meteor', every: 9 } },
 };
 export const MOVE_NAMES = { quake: '震地', shell: '甲殼', summon: '召喚亡靈', drain: '生命吸取', meteor: '隕石', stone: '落石' };

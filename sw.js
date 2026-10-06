@@ -1,7 +1,7 @@
 // 離線快取（Service Worker）
 // 每個版本有自己的一份快取；新版本下載完會「等待」，玩家按下更新才切換，
 // 這樣不會玩到一半，一部分是舊檔案、一部分是新檔案。
-const VERSION = '3.8.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
+const VERSION = '3.9.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
 const CACHE = 'marble-brave-' + VERSION;
 const ASSETS = [
   './',
@@ -12,6 +12,7 @@ const ASSETS = [
   'js/battle.js',
   'js/board.js',
   'js/bonds.js',
+  'js/campaign.js',
   'js/data.js',
   'js/economy.js',
   'js/events.js',
@@ -55,14 +56,24 @@ const ASSETS = [
   'assets/ui/colored-yellow.png',
   'assets/ui/mana-panel-dark.png',
   'assets/ui/mana-panel.png',
+  'assets/bg/abyss-a.png',
+  'assets/bg/abyss-b.png',
+  'assets/bg/astral-a.png',
+  'assets/bg/astral-b.png',
   'assets/bg/desert-a.png',
   'assets/bg/desert-b.png',
+  'assets/bg/fort-a.png',
+  'assets/bg/fort-b.png',
   'assets/bg/grave-a.png',
   'assets/bg/grave-b.png',
   'assets/bg/plains-a.png',
   'assets/bg/plains-b.png',
   'assets/bg/sky-a.png',
   'assets/bg/sky-b.png',
+  'assets/bg/snow-a.png',
+  'assets/bg/snow-b.png',
+  'assets/bg/swamp-a.png',
+  'assets/bg/swamp-b.png',
   'assets/bg/title-a.png',
   'assets/bg/title-b.png',
   'assets/bg/volcano-a.png',

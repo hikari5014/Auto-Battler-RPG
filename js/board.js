@@ -47,6 +47,7 @@ export class Board {
     this.t = 0;
     this.onCatch = () => {};
     this.onPeg = () => {};
+    this.onGoldPeg = () => {};
   }
 
   layout(top, bottom, W) {
@@ -67,6 +68,11 @@ export class Board {
     const Y = fy => this.top + fy * this.h;
     this.gravity = cfg.gravity;
     this.pegs = [...cfg.pegs, ...(cfg.extraPegs || [])].map(([x, y]) => ({ x: X(x), y: Y(y), lit: 0 }));
+    // 3.9 特殊釘子：金釘（撞到給球幣）、晶釘（把球分裂成兩顆，每顆球只分一次）
+    for (const [x, y] of cfg.goldPegs || []) this.pegs.push({ x: X(x), y: Y(y), lit: 0, kind: 'gold', cd: 0 });
+    for (const [x, y] of cfg.splitPegs || []) this.pegs.push({ x: X(x), y: Y(y), lit: 0, kind: 'split' });
+    // 3.9 輸送帶：一條橫向的風帶，經過的球被往 dir 方向推
+    this.belts = (cfg.belts || []).map(([y, x1, x2, dir]) => ({ y: Y(y), x1: X(x1), x2: X(x2), dir }));
     this.walls = (cfg.walls || []).map(([x1, y1, x2, y2]) => ({ x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2) }));
     this.bumpers = (cfg.bumpers || []).map(([x, y, r]) => ({ x: X(x), y: Y(y), r, lit: 0 }));
     this.holes = (cfg.holes || []).map(([x, y]) => ({ x: X(x), y: Y(y), r: 10 }));
@@ -224,7 +230,7 @@ export class Board {
       }
       if (w.gust > 0) w.gust = Math.max(0, w.gust - dt);
     }
-    for (const p of this.pegs) p.lit = Math.max(0, p.lit - dt * 5);
+    for (const p of this.pegs) { p.lit = Math.max(0, p.lit - dt * 5); if (p.cd) p.cd = Math.max(0, p.cd - dt); }
     this.cupPulse = Math.max(0, this.cupPulse - dt * 6);
 
     const range = (this.W - this.cupW) / 2 - 6;
@@ -263,6 +269,7 @@ export class Board {
       b.vy += G * dt;
       if (b.vy > 650) b.vy = 650;
       if (windF) b.vx += windF * dt;
+      for (const bt of this.belts) if (b.y > bt.y - 8 && b.y < bt.y + 8 && b.x > bt.x1 && b.x < bt.x2) b.vx += bt.dir * 900 * dt;
       if (magnet && b.y > cupTop - 160 * magnet && b.y < cupTop) {
         const dx = this.cupX - b.x;
         if (Math.abs(dx) < 120 * magnet) b.vx += Math.sign(dx) * 480 * magnet * dt;
@@ -292,6 +299,12 @@ export class Board {
             p.lit = 1;
             this.onPeg();
             sfx('peg');
+            if (p.kind === 'gold' && !p.cd) { p.cd = 0.5; this.onGoldPeg(p); }
+            else if (p.kind === 'split' && !b.split && balls.length < 300) {
+              b.split = true;
+              balls.push({ x: b.x, y: b.y, vx: -b.vx + rand(-40, 40), vy: b.vy, v: b.v, mask: b.mask, age: b.age, split: true });
+              this.pops.push({ x: p.x, y: p.y - 10, text: '分裂', life: 0.4, color: '#7fe8ff' });
+            }
           }
         }
       }
@@ -527,6 +540,30 @@ export class Board {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    // 金釘、晶釘
+    for (const p of this.pegs) {
+      if (!p.kind) continue;
+      ctx.fillStyle = p.kind === 'gold' ? '#ffd84a' : '#7fe8ff';
+      ctx.strokeStyle = p.kind === 'gold' ? '#8a5a00' : '#1a6a8a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, PR + 1.5, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+    // 輸送帶：虛線＋往前跑的箭頭
+    if (this.belts.length) {
+      const t = performance.now() / 1000;
+      for (const bt of this.belts) {
+        ctx.fillStyle = 'rgba(160,220,255,0.18)';
+        ctx.fillRect(bt.x1, bt.y - 7, bt.x2 - bt.x1, 14);
+        ctx.fillStyle = 'rgba(200,240,255,0.75)';
+        const span = bt.x2 - bt.x1;
+        for (let k = 0; k < span / 26; k++) {
+          const x = bt.x1 + (((k * 26 + t * 60 * bt.dir) % span) + span) % span;
+          ctx.beginPath();
+          ctx.moveTo(x + 5 * bt.dir, bt.y); ctx.lineTo(x - 3 * bt.dir, bt.y - 4); ctx.lineTo(x - 3 * bt.dir, bt.y + 4);
+          ctx.fill();
+        }
+      }
+    }
 
     this.drawFeatures(ctx);
     this.drawGates(ctx);

@@ -11,6 +11,7 @@ import * as heroP from './heroes.js';
 import * as gacha from './gacha.js';
 import * as bondsM from './bonds.js';
 import * as modes from './modes.js';
+import * as camp from './campaign.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -384,6 +385,12 @@ board.onCatch = (b, mult) => {
   if (h.def.id === 'sage' && run.caught % h.starNeed === 0 && run.phase === 'fight') {
     for (let k = 0; k < h.starCount; k++) setTimeout(() => game.run && game.run.phase === 'fight' && battle.blast(h.starMul, k ? '' : '星落!', '#c8b6ff', { crit: h.starCrit, style: 'meteor' }), k * 200);
   }
+};
+board.onGoldPeg = p => {
+  const run = game.run;
+  if (!run || run.phase !== 'fight') return;
+  run.coins += 1;
+  board.pops.push({ x: p.x, y: p.y - 12, text: '+1', life: 0.5, color: '#ffd84a' });
 };
 board.onPeg = () => {
   const run = game.run;
@@ -792,6 +799,11 @@ function endModeRun(win) {
       lines.push('這一階之後可以「掃蕩」直接拿獎勵');
       eco.track(save, 'daily');
     } else lines = ['沒有通關不給副本獎勵（次數已經用掉）'];
+  } else if (run.mode === 'side') {
+    const { ch, k } = run.side;
+    title = win ? `${camp.SIDES[k].name} 通關！` : `${camp.SIDES[k].name} 失敗`;
+    sub = `第 ${ch} 章・完成 ${cleared}/${run.maxWave} 波`;
+    lines = win ? camp.sideReward(save, run.diff.id, ch, k) || ['這個支線已經領過獎勵了'] : ['再挑戰一次吧'];
   } else if (run.mode === 'rush') {
     title = win ? '魔王連戰 全破！' : '魔王連戰結束';
     sub = `打倒 ${cleared}/5 隻魔王`;
@@ -881,6 +893,12 @@ function endRun(win) {
   if (rideMax) setTimeout(() => banner(`${ride.m.name} 完全體！`), 1500);
   const rideHtml = ride ? `<p class="ride-exp">${iconTag(mountRef(ride.m), 18)} ${ride.m.name} +${ride.exp} 經驗${ride.ups ? `，升到 Lv.${ride.st.lv}！` : ''}</p>` : '';
   let unlocked = '';
+  let starHtml = '';
+  if (win && !run.endless && !run.daily) {
+    const n = camp.rateRun(run);
+    const up = camp.recordStars(save, run.diff.id, run.chapter, n);
+    starHtml = `<p class="stars-got">${starTag(n, 22)}<small>${camp.STAR_RULES.map((r, i) => `<span class="${i < n ? 'on' : ''}">${i < n ? '✓' : '✗'} ${r}</span>`).join('')}</small>${up ? `<b>+${up} 星</b>` : ''}</p>`;
+  }
   if (win && !run.endless && !run.daily) {
     const r = clearChapter(save, run.diff.id, run.chapter);
     if (r.next) {
@@ -920,7 +938,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${gemHtml}${fragHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
+    ${starHtml}${gemHtml}${fragHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
@@ -1107,7 +1125,7 @@ function renderHome() {
       </div>
       <div class="chapter">
         <button class="icon-btn" id="ch-prev" ${offAttr(save.chapter <= 1, '已經是第一章')}>◀</button>
-        <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b><em>${boardOf(save.chapter).rule}</em></div>
+        <button class="chapter-name" id="btn-map"><small>第 ${save.chapter} 章 ${starTag(camp.starsOf(save, save.difficulty, save.chapter))}</small><b>${chapterName(save.chapter)}</b><em>${boardOf(save.chapter).rule}</em><i class="map-hint">地圖 ▸</i></button>
         <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= maxCh(save), `在「${difficultyOf(save.difficulty).name}」通關這一章才能解鎖下一章`)}>▶</button>
       </div>
       <div class="version-row"><span>v${VERSION}</span><button class="link" id="btn-changelog">更新日誌</button></div>
@@ -1342,6 +1360,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
   else if (t.id === 'btn-modes') { openModes(); return; }
+  else if (t.id === 'btn-map') { openMap(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') {
     // 戰力不足只提醒一次，不擋
@@ -2050,6 +2069,68 @@ $('modes-body').addEventListener('click', ev => {
     return;
   } else if (t.id === 'btn-modes-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
   renderModes();
+});
+
+// ---------- 3.9 戰役地圖 ----------
+const starTag = (n, size = 12) => `<span class="stars" style="--ss:${size}px">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span>`;
+let mapSel = null; // { ch, k }  k = null 主線、'e' 精英關、't' 寶藏關
+function openMap() {
+  camp.ensureCampaign(save);
+  mapSel = { ch: save.chapter, k: null };
+  renderMap();
+  showScreen('screen-map', 'screen-home');
+  setTimeout(() => { const el = document.querySelector('.mnode.sel'); if (el) el.scrollIntoView({ block: 'center' }); }, 30);
+}
+function renderMap() {
+  const d = save.difficulty, top = maxCh(save, d), total = camp.totalStars(save, d);
+  const N = Math.max(camp.MAP_CHAPTERS, Math.min(top, 99));
+  let nodes = '';
+  for (let ch = N; ch >= 1; ch--) {
+    const lock = ch > top, side = camp.sideOpen(save, d, ch);
+    const c = CHAPTERS[(ch - 1) % CHAPTERS.length];
+    const sel = mapSel && mapSel.ch === ch;
+    const sideBtn = k => `<button class="mside ${camp.sideDone(save, d, ch, k) ? 'done' : ''} ${sel && mapSel.k === k ? 'sel' : ''}" data-mside="${ch}${k}" ${offAttr(!side, '先通關這一章')}>${iconTag(camp.SIDES[k].icon, 18)}</button>`;
+    nodes += `<div class="mrow ${ch % 2 ? 'l' : 'r'}">
+      ${sideBtn('e')}
+      <button class="mnode ${lock ? 'lock' : ''} ${sel && !mapSel.k ? 'sel' : ''} ${ch === top ? 'cur' : ''}" data-mch="${ch}" ${offAttr(lock, `先通關第 ${ch - 1} 章`)} style="--mc:url(assets/bg/${c.sky}-a.png)">
+        <b>${ch}</b><small>${chapterName(ch)}</small>${lock ? '<i>未開放</i>' : starTag(camp.starsOf(save, d, ch))}
+      </button>
+      ${sideBtn('t')}
+    </div>`;
+  }
+  let info = '';
+  if (mapSel) {
+    const { ch, k } = mapSel;
+    if (!k) info = `<b>第 ${ch} 章 ${chapterName(ch)}</b><small>${boardOf(ch).rule}</small><small>星星：${camp.STAR_RULES.join('・')}</small>
+      <button class="btn gift" id="btn-map-go" ${offAttr(ch > top, '還沒開放')}>出發（${difficultyOf(d).name}）</button>`;
+    else info = `<b>第 ${ch} 章・${camp.SIDES[k].name}</b><small>${camp.SIDES[k].desc}${camp.sideDone(save, d, ch, k) ? '（獎勵已領，可以再玩）' : ''}</small>
+      <button class="btn gift" id="btn-side-go" ${offAttr(!camp.sideOpen(save, d, ch), '先通關這一章')}>挑戰</button>`;
+  }
+  const chests = camp.STAR_CHESTS.map(c => {
+    const open = camp.chestOpen(save, d, c.need), ready = !open && total >= c.need;
+    return `<button class="mchest ${open ? 'open' : ready ? 'ready' : ''}" data-mchest="${c.need}" ${offAttr(!ready, open ? '已經領過了' : `集滿 ${c.need} 顆星`)}>${iconTag(open ? ICON.chestOpen : ICON.chest, 22)}<small>${c.need}★</small></button>`;
+  }).join('');
+  $('map-body').innerHTML = `
+    <h2>戰役地圖・${difficultyOf(d).name}</h2>
+    <div class="mtop"><span class="pill">★ <b>${total}</b> / ${camp.MAP_CHAPTERS * 3}</span><span class="mchests">${chests}</span></div>
+    <div class="mpath">${nodes}</div>
+    <div class="minfo">${info}</div>
+    <button class="btn ghost" id="btn-map-close">關閉</button>`;
+}
+$('map-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  const d = save.difficulty;
+  if (t.dataset.mch) mapSel = { ch: +t.dataset.mch, k: null };
+  else if (t.dataset.mside) mapSel = { ch: parseInt(t.dataset.mside, 10), k: t.dataset.mside.slice(-1) };
+  else if (t.dataset.mchest) { const g = camp.claimChest(save, d, +t.dataset.mchest); if (g) { sfx('jackpot'); celebrate(t, '#ffd84a'); toast('星星寶箱：' + eco.giftText(g)); writeSave(save); } }
+  else if (t.id === 'btn-map-go') { save.chapter = mapSel.ch; writeSave(save); startRun({ chapter: mapSel.ch }); return; }
+  else if (t.id === 'btn-side-go') { writeSave(save); startRun({ chapter: mapSel.ch, spec: camp.sideRun(mapSel.ch, mapSel.k) }); return; }
+  else if (t.id === 'btn-map-close') { renderHome(); showScreen('screen-home'); return; }
+  const y = $('screen-map').scrollTop;
+  renderMap();
+  $('screen-map').scrollTop = y;
 });
 
 // ---------- 每日挑戰 ----------
