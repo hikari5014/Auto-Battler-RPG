@@ -1,10 +1,17 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '2.13.0';
+export const VERSION = '2.13.1';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '2.13.1', date: '2026-10-06',
+    notes: [
+      '「開始冒險」按鈕固定在畫面最下面，往下滑看其他選項時也隨時按得到',
+      '修正：首頁往下滑時會一直自動跳回上面；現在只有在標題收合到一半放手時才會自動補完',
+    ],
+  },
   {
     version: '2.13.0', date: '2026-10-06',
     notes: [

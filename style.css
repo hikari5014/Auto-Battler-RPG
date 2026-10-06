@@ -1120,7 +1120,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 #screen-home { z-index: 0; isolation: isolate; }
 
 /* ---------- 首頁上滑收合 ---------- */
-#screen-home { overflow-y: auto; overflow-x: hidden; scroll-snap-type: y proximity; overscroll-behavior: contain; scrollbar-width: none; }
+#screen-home { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
 #screen-home::-webkit-scrollbar { display: none; }
 #home-body.home { display: block; height: auto; position: relative; }
 .home-stage {
@@ -1129,8 +1129,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   margin-bottom: calc(-1 * var(--stage-now, var(--home-stage)));
   overflow: hidden;
 }
-.home-space { position: relative; height: var(--home-stage); scroll-snap-align: start; pointer-events: none; }
-.snap-pt { position: absolute; left: 0; top: var(--collapse-dist); height: 1px; width: 1px; scroll-snap-align: start; }
+.home-space { position: relative; height: var(--home-stage); pointer-events: none; }
+.snap-pt { display: none; }
 .home-bottom { min-height: calc(var(--app-h) - var(--home-stage)); position: relative; z-index: 1; }
 .grip { display: flex; flex-direction: column; align-items: center; margin: -4px 0 -2px; opacity: calc(1 - var(--collapse, 0) * 2); }
 .grip i { width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.35); }
@@ -1195,3 +1195,9 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 #gear-body .gd-btns .btn { width: auto; min-width: 0; flex: 1 1 30%; padding: 4px 2px; font-size: 13px; border-width: 8px; }
 #gear-body .gd-btns .btn small { display: block; }
 #gear-body .gd-btns { flex-direction: row; }
+/* 開始冒險：永遠固定在畫面最下面 */
+.start-dock { position: sticky; bottom: 0; z-index: 4; padding: 8px 12px calc(var(--safe-bottom) + 8px); background: linear-gradient(180deg, rgba(18, 12, 36, 0), #120c24 30%); }
+.start-dock .start { margin: 0; }
+.home-bottom { padding-bottom: 6px; min-height: calc(var(--app-h) - var(--home-stage) - var(--safe-bottom) - 84px); justify-content: space-around; }
+.home-more { padding-bottom: 12px; }
+#screen-home.launching .start-dock { opacity: 0; translate: 0 110%; transition: opacity 0.45s, translate 0.55s cubic-bezier(.6, -0.2, .7, 1); }

@@ -956,7 +956,6 @@ function renderHome() {
           <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
       </div>
       ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(['dg', hero.sprite], 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
-      <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button>
     </div>
     <div class="home-more">
       <div class="heroes">${HEROES.filter(h => save.owned.includes(h.id) || !h.hidden).map(h => {
@@ -987,7 +986,8 @@ function renderHome() {
       <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
       <button class="link back-top" data-act="back-top">▲ 回到上面</button>
     </div>
-    </div>`;
+    </div>
+    <div class="start-dock"><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button></div>`;
 }
 
 // 選職業：主副職業都在這裡挑（也可以買新職業）
@@ -1877,7 +1877,23 @@ function onHomeScroll() {
   root.setProperty('--clip', Math.max(0, st - dist) + 'px');
   sc.classList.toggle('collapsed', c > 0.55);
 }
-$('screen-home').addEventListener('scroll', onHomeScroll, { passive: true });
+$('screen-home').addEventListener('scroll', () => { onHomeScroll(); armSnap(); }, { passive: true });
+// 吸附：只有停在「展開」與「收起」之間（標題正在收合的那一段）才自動補完，
+// 已經滑到下面的內容時完全不動，避免一直被拉回去
+let snapTimer = 0, touching = false;
+const homeEl = $('screen-home');
+homeEl.addEventListener('touchstart', () => { touching = true; clearTimeout(snapTimer); }, { passive: true });
+homeEl.addEventListener('touchend', () => { touching = false; armSnap(); }, { passive: true });
+function armSnap() {
+  clearTimeout(snapTimer);
+  snapTimer = setTimeout(() => {
+    if (touching || launching) return;
+    const dist = (game.homeStagePx || 0) - game.battleH * scale;
+    const st = homeEl.scrollTop;
+    if (st <= 2 || st >= dist - 2) return;
+    homeEl.scrollTo({ top: st < dist * 0.45 ? 0 : dist, behavior: 'smooth' });
+  }, 220);
+}
 
 // ---------- 開始冒險的過場動畫 ----------
 // 展示台往上收成戰鬥畫面的高度、英雄走到戰鬥位置、遠方的怪淡出、彈珠台從下面升上來，最後白光一閃開打
