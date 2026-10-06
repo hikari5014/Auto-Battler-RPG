@@ -1393,3 +1393,11 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .star-box .row { flex-wrap: wrap; }
 .star-box .row .btn { min-width: 30%; }
 .star-box .row .btn { flex: 1 1 0; min-width: 0; font-size: 12px; white-space: normal; line-height: 1.2; padding: 6px 2px; }
+/* 3.5 羈絆 */
+.bonds { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 4px 0 2px; }
+.bond { font: inherit; font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--bc); color: var(--bc); background: rgba(0,0,0,.35); cursor: pointer; }
+.bond.pair { background: rgba(255,216,74,.15); }
+.bond.none { --bc: #888; cursor: default; }
+#toast.long { white-space: pre-line; text-align: left; font-size: 13px; line-height: 1.5; }
+#toast.long.show { animation-duration: 5s; }
+.duo-mid .bond { margin-top: 2px; font-size: 11px; padding: 2px 6px; white-space: nowrap; }

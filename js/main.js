@@ -9,6 +9,7 @@ import { savePower, recommended, powerBand } from './power.js';
 import * as eco from './economy.js';
 import * as heroP from './heroes.js';
 import * as gacha from './gacha.js';
+import * as bondsM from './bonds.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -58,6 +59,7 @@ const game = {
   onMountBalls: n => board.pour(n), // 金翼鳥「金羽」
 };
 const board = new Board();
+game.board = board; // 怪物投石要卡住倍率門
 const battle = new Battle(game);
 // 遊戲座標 → 畫面（CSS 像素）座標，給教學光圈定位用
 const toCss = (x, y) => ({ x: x * scale, y: y * scale });
@@ -128,9 +130,11 @@ function startRun(opts = {}) {
   const mods = {};
   for (const m of opts.mods || []) mods[m] = true;
   const tb = talentBonus(save);
+  const bonds = bondsM.computeBonds(defs, defs.map(d => heroP.heroStar(save, d.id)));
+  const bondCoins = bondsM.applyBonds(heroes, bonds);
   game.run = {
     chapter, wave: 0, daily: !!opts.daily, endless: !!opts.endless, mods,
-    coins: tb.coin + gearBonus(save).coin, tb,
+    coins: tb.coin + gearBonus(save).coin + bondCoins, tb, bonds,
     hero: heroes[0], heroes, switchCd: 0, bare: defs.map(bareHero),
     heroIds: defs.map(d => d.id), heroCls: [...new Set(defs.flatMap(heroCls))],
     skills: [], levels: {}, phase: 'fight', revived: false,
@@ -962,11 +966,20 @@ function duoBar() {
   const sec = save.second && HEROES.find(h => h.id === save.second);
   return `<div class="duo">
     <button class="duo-slot ${duoPick === 'main' ? 'on' : ''}" id="duo-main"><i>主</i>${iconTag(heroRef(main), 26)}<span>${main.name.split(' ')[1]}</span></button>
-    <span class="duo-mid">⇄<small>戰鬥中可切換</small></span>
+    <span class="duo-mid">⇄${sec ? bondChips([main, sec]) : '<small>戰鬥中可切換</small>'}</span>
     <button class="duo-slot second ${duoPick === 'second' ? 'on' : ''} ${sec ? '' : 'empty'}" id="duo-second"><i>副</i>${sec ? iconTag(heroRef(sec), 26) + `<span>${sec.name.split(' ')[1]}</span>` : '<span>＋ 選副職業</span>'}</button>
     ${sec ? '<button class="duo-x" id="duo-clear" aria-label="不帶副職業">✕</button>' : ''}
   </div>`;
 }
+// 羈絆小標籤：點一下看說明
+function bondChips(defs) {
+  const list = bondsM.computeBonds(defs, defs.map(d => heroP.heroStar(save, d.id)));
+  if (!list.length) return '<small class="bond none">沒有羈絆</small>';
+  const pair = list.find(b => b.kind === 'pair');
+  const text = list.map(b => `${b.name}${b.lv ? ` Lv${b.lv}` : ''}：${b.desc}`).join('\n');
+  return `<button class="bond ${pair ? 'pair' : ''}" data-bond="${text}">${pair ? '♥ ' : ''}羈絆 ×${list.length}</button>`;
+}
+const tagChips = def => (def.tags || []).map(t => `<span class="cat-tag" style="--cc:${bondsM.TAGS[t].color}">${bondsM.TAGS[t].name}</span>`).join(' ');
 
 // 隱藏職業：達成對應成就就自動加入
 function unlockHidden() {
@@ -1200,6 +1213,7 @@ function renderHeroes() {
       <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
       <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
       <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
+      ${hero.tags ? `<small class="cls-line">羈絆標籤：${tagChips(hero)}</small>` : ''}
     </div>
     ${starPanel(hero)}
     <div class="row">
@@ -1246,6 +1260,7 @@ $('home-body').addEventListener('click', ev => {
   // 下面「更多」區塊的按鈕用 data-act，對應到上面同樣功能的按鈕
   if (t.dataset.act === 'back-top') { $('screen-home').scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (t.dataset.act) t = { id: t.dataset.act, dataset: {} };
+  if (t.dataset.bond) { toast(t.dataset.bond, true); return; }
   if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
     save.chapter = Math.min(save.chapter, maxCh(save));
@@ -2326,9 +2341,10 @@ function countUp(el, target) {
   requestAnimationFrame(step);
 }
 
-function toast(text) {
+function toast(text, long = false) {
   const b = $('toast');
   b.textContent = text;
+  b.classList.toggle('long', long);
   b.classList.remove('show');
   void b.offsetWidth;
   b.classList.add('show');
@@ -2565,7 +2581,7 @@ window.__test = {
         else endRun(false);
       } else break;
     }
-    const out = { win: run.phase === 'over' && run.wave >= MAX_WAVE && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp) };
+    const out = { win: run.phase === 'over' && run.wave >= MAX_WAVE && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
     game.run = null;
     restore();
     writeSave(save);

@@ -145,6 +145,15 @@ export class Board {
   }
 
   pour(n) { this.queue += n; }
+  // 投石怪：隨機一道好門被石頭卡住幾秒
+  blockRandomGate(sec) {
+    const ok = this.gates.filter(g => !g.trap && !(g.stone > 0));
+    if (!ok.length) return null;
+    const g = ok[Math.floor(Math.random() * ok.length)];
+    g.stone = sec;
+    g.flash = 1;
+    return g;
+  }
 
   // 觸控（由 main.js 呼叫，座標是遊戲內座標）
   touchStart(x, y) {
@@ -201,6 +210,8 @@ export class Board {
       g.flash = Math.max(0, g.flash - dt * 4);
       // 墓地：門會忽隱忽現
       g.vis = this.cfg.blink && !g.trap ? Math.max(0, Math.min(1, (Math.sin(this.t * 1.1 + g.phase) + 0.35) * 2.5)) : 1;
+      // 被怪物丟石頭卡住：這段時間門沒有作用
+      if (g.stone > 0) { g.stone -= dt; g.vis = Math.min(g.vis, 0.2); }
     }
     for (const b of this.bumpers) b.lit = Math.max(0, b.lit - dt * 5);
     for (const p of this.portals) p.lit = Math.max(0, p.lit - dt * 3);
@@ -557,6 +568,14 @@ export class Board {
     for (const g of this.gates) {
       const st = gateStyle(g.type);
       const y = this.gateY(g.row);
+      if (g.stone > 0) {
+        // 卡在門上的石頭
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#6b6158';
+        ctx.beginPath(); ctx.ellipse(g.x + g.w / 2, y, 13, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8d8276';
+        ctx.beginPath(); ctx.ellipse(g.x + g.w / 2 - 3, y - 3, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+      }
       if (g.vis <= 0.02) {
         // 墓地：隱形中只留一條淡淡的虛線
         ctx.globalAlpha = 0.25;

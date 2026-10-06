@@ -94,6 +94,8 @@ export function createHero(def, save) {
     swordOn: false, holyOn: false, grenadeOn: false, breathOn: false,
     freezeEvery: 0, freezeTime: 0.8, frozenAmp: 0, bashEvery: 0, bashMul: 1.2, blocks: 0,
     turrets: 0, turretMul: 0.4, turretT: 0, turretCoins: 0,
+    burstEvery: 0, burstMul: 0.5, burstCount: 6, petSprite: null, roarEvery: 0,
+    markAmp: 0, markBlast: 0, plague: false, coinAtk: 0, coinCap: 0.4, coinAmp: 0,
   };
   if (def.init) def.init(h);
   applyJewels(h, gb.skills);
@@ -154,7 +156,7 @@ function applyJewels(h, sk) {
 
 // 狂暴：血量低於一半時攻擊力提高
 const raging = h => h.rage > 0 && h.hp < h.maxHp * 0.5;
-export const heroAtk = h => h.baseAtk * h.atkMul * (raging(h) ? 1 + h.rage : 1);
+export const heroAtk = h => h.baseAtk * h.atkMul * (raging(h) ? 1 + h.rage : 1) * (1 + (h.coinAmp || 0));
 
 // 第 i 個排隊位置：越後面越遠、越往右，形成一條斜線
 const slot = (i, big) => ({ x: -0.3 + i * 0.55 + (big ? 0.25 : 0), z: 4.4 + i * 0.85 + (big ? 0.3 : 0) });
@@ -212,8 +214,10 @@ export class Battle {
         interval: mon.iv / (mods.speedy ? 1.5 : 1), speed: mon.speed * (mods.speedy ? 1.5 : 1), dodge: mon.dodge || 0, armor: mon.armor || 0,
         slow: 0, timer: rand(0, 0.6), x: 0, z: 0, size: t.size, ballMul: t.balls,
         kb: 0, flash: 0, lunge: 0, dead: false, phase: rand(0, 6), enraged: false,
+        ai: mon.ai || null, aiT: rand(0, 2), shield: mon.ai === 'shield' ? maxHp * 0.5 : 0,
       };
     };
+    this.mk = mk; // 召喚、分裂要用
     const randomMon = () => ch.enemies[Math.floor(Math.random() * ch.enemies.length)];
     const q = [];
     if (boss) {
@@ -231,6 +235,7 @@ export class Battle {
       if (w % 5 === 0 || run.hero.chestEvery) q.push(mk('mimic', 'chest'));
     }
     this.queue = q;
+    this.mark = null;
     this.spawnTimer = 0.4;
     // 每波重置：開場衝鋒、魔力護盾
     const h = run.hero;
@@ -242,6 +247,69 @@ export class Battle {
   }
 
   cleared() { return this.queue.length === 0 && this.enemies.length === 0; }
+
+  onMonsterDeath(e, crit) {
+    const hh = this.g.run.hero;
+    // 審判：被標記的敵人死掉時聖光爆炸
+    if (e === this.mark) {
+      this.mark = null;
+      if (hh.markBlast) setTimeout(() => this.g.run && this.g.run.phase === 'fight' && this.blast(hh.markBlast, '審判!', '#fff2a8', { style: 'holy' }), 60);
+    }
+    // 瘟疫：中毒的敵人死掉，毒傳給所有敵人
+    if (hh.plague && e.dotT > 0) {
+      for (const o of this.enemies) if (o !== e && !o.dead) { o.dotDps = Math.max(o.dotDps || 0, e.dotDps); o.dotT = 3; o.dotColor = '#7dff5a'; }
+      if (!settings.lowFx) this.anim('nova', e.x, e.z, e.size * 0.5, 1.4, '#7dff5a', 0, 0.45);
+    }
+    if (e.ai === 'split' && !e.mini && this.mk) {
+      for (let k = 0; k < 2; k++) {
+        const m = this.mk(e.key, 'normal');
+        m.maxHp = e.maxHp * 0.35; m.hp = m.maxHp; m.atk = e.atk * 0.6; m.size = e.size * 0.7; m.ballMul = (e.ballMul || 1) * 0.5; m.mini = true; m.ai = null;
+        m.x = e.x + rand(-0.3, 0.3); m.z = e.z + rand(-0.3, 0.3);
+        this.enemies.push(m);
+      }
+      this.text(e.x, e.z, e.size + 0.4, '分裂!', '#8dff9f', 12);
+    } else if (e.ai === 'bomb') {
+      this.anim('sunburn', e.x, e.z, e.size * 0.5, 1.4, null, 0, 0.45);
+      const h = this.g.run.hero;
+      if (crit) {
+        // 暴擊殺死：炸到自己人
+        this.text(e.x, e.z, e.size + 0.5, '誘爆!', '#ffb347', 14);
+        for (const o of this.enemies) if (o !== e && !o.dead) this.damage(o, heroAtk(h) * 1.2, false, true, '#ffb347');
+      } else if (h.hp > 0) {
+        const dmg = h.maxHp * 0.12 * (1 - Math.min(DR_CAP, h.dr));
+        h.hp -= dmg;
+        h.hurt = 1;
+        this.text(h.x, h.z, 1.2, '-' + fmt(dmg), '#ff5a5a', 14);
+      }
+    }
+  }
+
+  // 3.5 怪物行為：治療、召喚、投石（遠程、護盾、分裂、衝鋒、飛行、小偷、自爆在別的地方處理）
+  monsterAi(e, dt) {
+    e.aiT += dt;
+    if (e.ai === 'heal' && e.aiT >= 4) {
+      e.aiT = 0;
+      const hurt = this.enemies.filter(o => !o.dead && o.hp < o.maxHp).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      if (hurt) {
+        hurt.hp = Math.min(hurt.maxHp, hurt.hp + hurt.maxHp * 0.15);
+        this.text(hurt.x, hurt.z, hurt.size + 0.4, '治療', '#8dff9f', 12);
+        if (!settings.lowFx) this.anim('nova', hurt.x, hurt.z, hurt.size * 0.5, 0.9, '#8dff9f', 0, 0.4);
+      }
+    } else if (e.ai === 'summon' && e.aiT >= 6 && (e.summons || 0) < 4 && this.mk) {
+      e.aiT = 0;
+      for (let k = 0; k < 2; k++) {
+        const m = this.mk('skull', 'normal');
+        m.maxHp *= 0.3; m.hp = m.maxHp; m.ballMul = 0; m.size *= 0.8; m.minion = true;
+        m.x = e.x + 0.5; m.z = e.z + rand(-0.4, 0.4);
+        this.enemies.push(m);
+      }
+      e.summons = (e.summons || 0) + 2;
+      this.text(e.x, e.z, e.size + 0.5, '召喚!', '#c38bff', 13);
+    } else if (e.ai === 'throw' && e.aiT >= 8 && this.g.board) {
+      e.aiT = 0;
+      if (this.g.board.blockRandomGate(5)) this.text(e.x, e.z, e.size + 0.5, '投石!', '#c9b18a', 13);
+    }
+  }
 
   update(dt, fighting) {
     const run = this.g.run;
@@ -261,6 +329,12 @@ export class Battle {
     if (h.mount && this.enemies.some(e => !e.dead)) {
       run.mountT = (run.mountT || 0) + dt;
       if (run.mountT >= h.mount.cdNow) { run.mountT = 0; this.mountSkill(h); }
+    }
+    // 莫甘：身上每 100 球幣加攻擊
+    if (h.coinAtk) h.coinAmp = Math.min(h.coinCap, Math.floor(run.coins / 100) * h.coinAtk);
+    // 審判印記：標記血量最多的敵人
+    if (h.markAmp) {
+      if (!this.mark || this.mark.dead) this.mark = this.enemies.filter(e => !e.dead).sort((a, b) => b.maxHp - a.maxHp)[0] || null;
     }
     // 砲台：每座每秒射一發（不會被打壞）
     if (h.turrets > 0 && this.enemies.some(e => !e.dead)) {
@@ -344,7 +418,8 @@ export class Battle {
       e.kb = Math.max(0, e.kb - dt * 4);
       e.flash = Math.max(0, e.flash - dt * 6);
       e.lunge = Math.max(0, e.lunge - dt * 6);
-      if (i < 2 && d < 0.05) {
+      if (e.ai) this.monsterAi(e, dt);
+      if ((i < 2 || (e.ai === 'ranged' && i < 4)) && d < 0.05) {
         e.timer += dt * (1 - e.slow) * (1 - h.slowAtk) * (e.enraged ? 1.4 : 1); // 冰霜變慢、狂暴變快
         if (e.timer >= e.interval) {
           e.timer = 0;
@@ -373,6 +448,16 @@ export class Battle {
           if (h.swordTwice) setTimeout(() => this.g.run && this.swordWave(), 160);
         }
         if (h.meteorEvery && h.swings % h.meteorEvery === 0) this.meteor();
+        // 過熱：連續噴火打全體
+        if (h.burstEvery && h.swings % h.burstEvery === 0) {
+          for (let k = 0; k < h.burstCount; k++) setTimeout(() => this.g.run && this.g.run.phase === 'fight' && this.blast(h.burstMul, k ? '' : '過熱!', '#ff7a3b', { style: 'fire' }), k * 300);
+        }
+        // 咆哮：擊暈全體
+        if (h.roarEvery && h.swings % h.roarEvery === 0) {
+          for (const e of this.enemies) if (!e.dead) e.stun = Math.max(e.stun || 0, e.kind === 'boss' ? 0.4 : 1);
+          this.text(h.x + 0.5, h.z, 1.5, '咆哮!', '#c98a55', 16);
+          this.shake = Math.max(this.shake, 6);
+        }
         if (h.chainEvery && h.swings % h.chainEvery === 0) this.chain();
         const id = h.def.id;
         if ((id === 'paladin' || h.holyOn) && h.swings % h.holyEvery === 0) this.holy();
@@ -399,8 +484,8 @@ export class Battle {
     const t = this.enemies.find(e => !e.dead);
     if (!t) { h.hitQueue = 0; return; }
     h.lunge = 1;
-    // 墓地：敵人有機率閃避
-    if (Math.random() < (this.g.run.rules.dodge || 0) + (t.dodge || 0)) {
+    // 墓地：敵人有機率閃避；飛行怪近戰比較難打到
+    if (Math.random() < (this.g.run.rules.dodge || 0) + (t.dodge || 0) + (t.ai === 'fly' && h.range <= 2 ? 0.4 : 0)) {
       this.text(t.x, t.z, t.size + 0.3, '閃避', '#c9c2d1', 12);
       if (h.range > 2) this.streak(h, t, '#888', 0.12, shotStyle(h));
       return;
@@ -752,6 +837,14 @@ export class Battle {
     if (!this.g.run.hero.ignoreArmor) dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷（穿甲彈無視）
     if (e.stun > 0) dmg *= 1 + (this.g.run.hero.stunAmp || 0); // 重擊滿級
     if (e.frozen > 0) dmg *= 1 + (this.g.run.hero.frozenAmp || 0); // 凍結增傷
+    if (e === this.mark) dmg *= 1 + (this.g.run.hero.markAmp || 0); // 審判印記
+    // 護盾怪：護盾還在時只受到 40% 傷害（多段攻擊打盾比較快）
+    if (e.shield > 0) {
+      const eff = dmg * 0.4 * (this.g.run.hero.hits > 1 ? 1.5 : 1);
+      if (eff < e.shield) { e.shield -= eff; dmg = 0; e.flash = 0.6; if (!small) this.text(e.x, e.z, e.size + 0.25, '護盾', '#9fe3ff', 11); return; }
+      dmg = (eff - e.shield) / 0.4; e.shield = 0;
+      this.text(e.x, e.z, e.size + 0.5, '護盾破了!', '#9fe3ff', 13);
+    }
     if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
     e.hp -= dmg;
     e.flash = 1;
@@ -762,6 +855,7 @@ export class Battle {
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
       this.g.onKill(e);
+      this.onMonsterDeath(e, crit);
       const h = this.g.run.hero;
       if (h.killGrow) { h.maxHp *= 1 + h.killGrow; }
       if (h.killHeal) { h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.killHeal); }
@@ -813,7 +907,18 @@ export class Battle {
       }
       return;
     }
+    // 小偷：不打人，偷球幣
+    if (e.ai === 'thief') {
+      const run = this.g.run;
+      const n = Math.min(Math.floor(run.coins), Math.round(5 + run.coins * 0.05));
+      if (n > 0) { run.coins -= n; this.text(e.x, e.z, e.size + 0.5, `偷走 ${n} 球幣`, '#ffd84a', 13); }
+      return;
+    }
     let dmg = e.atk * (1 - Math.min(DR_CAP, h.dr));
+    // 3.5 後排站位：遠程、法術英雄被魔王打到的傷害 -25%（近戰有格擋、吸血技能可以撐）
+    if (e.kind === 'boss' && h.def.cls !== 'melee') dmg *= 0.75;
+    // 衝鋒：第一下特別痛
+    if (e.ai === 'charge' && !e.charged) { e.charged = true; dmg *= 2.5; this.text(e.x, e.z, e.size + 0.5, '衝撞!', '#ff8a6b', 14); }
     // 魔力護盾先擋
     if (h.shield > 0) {
       const absorbed = Math.min(h.shield, dmg);
@@ -930,12 +1035,23 @@ export class Battle {
     // 擊退：被打時往後彈；攻擊：往英雄方向撲一下
     const x = e.x + e.kb * 0.35 - e.lunge * 0.3;
     const z = e.z + e.kb * 0.2;
-    const lift = e.lunge * (e.kind === 'boss' ? 0.25 : 0.1);
+    const lift = e.lunge * (e.kind === 'boss' ? 0.25 : 0.1) + (e.ai === 'fly' ? 0.55 + Math.sin(this.scene.t * 4 + e.phase) * 0.12 : 0);
     const sc = this.scene;
     // 等級外觀：菁英紫色光環、寶箱怪橘光、魔王腳下有發紅的裂地光
     if (e.kind === 'elite' || e.kind === 'chest' || e.kind === 'boss') this.drawTierGlow(ctx, e, x, z);
     const rage = e.enraged ? 0.25 + Math.sin(sc.t * 10) * 0.15 : 0;
     const { p, top } = this.drawActor(ctx, e.sprite, x, z, e.size, e.flash, e.phase, lift, rage);
+    if (e === this.mark) { ctx.fillStyle = '#ffd84a'; ctx.font = `${Math.round(12 + p.s * 0.1)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('✚', p.x, top - 4); }
+    // 護盾怪：藍色光罩
+    if (e.shield > 0) {
+      const r = e.size * p.s * 0.62;
+      ctx.save();
+      ctx.globalAlpha = 0.35 + Math.sin(sc.t * 5) * 0.1;
+      ctx.strokeStyle = '#9fe3ff'; ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(120,200,255,0.15)';
+      ctx.beginPath(); ctx.ellipse(p.x, top + (p.y - top) * 0.5, r, r * 1.05, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
     this.drawStatus(ctx, e, p, top);
     if (e.teaser || sc.fogAt(z) >= 0.6 || e.kind === 'boss') return; // 魔王用畫面上方的大血條
     const bw = Math.max(24, Math.min(54, e.size * p.s * 0.8));
@@ -1011,6 +1127,7 @@ export class Battle {
       const side = i % 2 ? 0.5 : -0.5;
       const q = this.scene.project(x + side * 0.4, h.z - 0.3 + side * 0.2 - i * 0.15, 0);
       const r = 0.13 * q.s;
+      if (h.petSprite) { drawSprite(ctx, h.petSprite[1], q.x, q.y, 0.75 * q.s, true, 0, h.petSprite[0]); continue; }
       ctx.fillStyle = '#5a3b12'; ctx.fillRect(q.x - r, q.y - r * 1.2, r * 2, r * 1.2);
       ctx.fillStyle = '#e8b23a'; ctx.beginPath(); ctx.arc(q.x, q.y - r * 1.4, r, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#3a2a10'; ctx.fillRect(q.x, q.y - r * 1.7, r * 1.6, r * 0.6);
