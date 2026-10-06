@@ -1,0 +1,7 @@
+Pack: scratchio-animated-horse
+Source URL: https://opengameart.org/content/animated-horse
+Author: ScratchIO
+License: CC0 1.0
+Attribution: Not required.
+Notes: Horse frames 60x33px: Idle/Eat/Walk/Run.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

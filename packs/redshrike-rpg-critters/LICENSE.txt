@@ -1,0 +1,7 @@
+Pack: redshrike-rpg-critters
+Source URL: https://opengameart.org/content/16x16-16x24-32x32-rpg-enemies-updated
+Author: Stephen "Redshrike" Challener
+License: CC-BY 3.0 / OGA-BY 3.0
+Attribution: REQUIRED: "Stephen 'Redshrike' Challener, hosted by OpenGameArt.org" + link to opengameart.org
+Notes: 16x16/16x24/32x32 overworld enemies, 3-frame.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

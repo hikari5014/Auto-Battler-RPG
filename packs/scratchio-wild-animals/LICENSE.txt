@@ -1,0 +1,7 @@
+Pack: scratchio-wild-animals
+Source URL: https://opengameart.org/content/animated-wild-animals
+Author: ScratchIO
+License: CC0 1.0
+Attribution: Not required.
+Notes: Bear, Boar, Deer, Fox, Rabbit, Wolf: Idle/Walk/Run (+Wolf Howl).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

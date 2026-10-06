@@ -1,0 +1,7 @@
+Pack: para-particle-fx
+Source URL: https://opengameart.org/content/animated-particle-effects-1 ; https://opengameart.org/content/animated-particle-effects-2
+Author: para
+License: CC0 1.0
+Attribution: Not required.
+Notes: Large 1024px non-pixel particle sheets (rings, fire, smoke, blood, teleport).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

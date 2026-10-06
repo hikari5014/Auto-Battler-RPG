@@ -1,0 +1,7 @@
+Pack: mikodrak-2d-spell-effects
+Source URL: https://opengameart.org/content/2d-spell-effects
+Author: Mikodrak
+License: CC0 1.0
+Attribution: Not required.
+Notes: 10 effects; GIFs include grass background, some have transparent PNG frames.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

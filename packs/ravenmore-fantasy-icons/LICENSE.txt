@@ -1,0 +1,7 @@
+Pack: ravenmore-fantasy-icons
+Source URL: https://opengameart.org/content/fantasy-icon-pack-by-ravenmore-0
+Author: Ravenmore (https://ravenmore.itch.io/)
+License: CC-BY 3.0
+Attribution: REQUIRED: "Fantasy Icon Pack by Ravenmore (https://ravenmore.itch.io/), CC-BY 3.0, via OpenGameArt.org"
+Notes: Source .psd removed locally to save space (24MB).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

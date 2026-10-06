@@ -1,0 +1,7 @@
+Pack: luizmelo-heroes
+Source URL: https://luizmelo.itch.io/hero-knight ; /fantasy-warrior ; /huntress ; /martial-hero ; /medieval-king-pack-2
+Author: LuizMelo
+License: CC0 1.0
+Attribution: Not required. Optional: "LuizMelo".
+Notes: Each pack ships License.txt stating CC0. Name-your-own-price ($0 ok). NOTE: many other LuizMelo packs are PAID (still CC0 after purchase) - not downloaded.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

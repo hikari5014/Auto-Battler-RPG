@@ -1,0 +1,7 @@
+Name: CC0 Currency
+Source: https://opengameart.org/content/cc0-currency
+Author: ZaninDevelopers
+License: CC0 1.0
+Attribution: ZaninDevelopers（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

@@ -1,0 +1,7 @@
+Name: JRPG Pack 1/2/5 + Boss Battle Music（精選）
+Source: https://opengameart.org/content/jrpg-pack-2-towns ; https://opengameart.org/content/jrpg-pack-5-action ; https://opengameart.org/content/jrpg-pack-1-exploration ; https://opengameart.org/content/boss-battle-music
+Author: Juhani Junkala (SubspaceAudio)
+License: CC0 1.0
+Attribution: Juhani Junkala – CC0（非必要）
+Notes: Boss 曲由原始 WAV 轉為 OGG（q5）
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

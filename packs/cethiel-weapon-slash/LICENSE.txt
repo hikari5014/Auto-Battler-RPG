@@ -1,0 +1,7 @@
+Pack: cethiel-weapon-slash
+Source URL: https://opengameart.org/content/weapon-slash-effect
+Author: Cethiel
+License: CC0 1.0
+Attribution: Not required.
+Notes: Classic + 3 alternative colours (purple, blue, fire), 5 slash variants x 6 frames.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

@@ -1,0 +1,7 @@
+Name: Gothicvania Patreon's Collection
+Source: https://opengameart.org/content/gothicvania-patreons-collection
+Author: Luis Zuno (@ansimuz)
+License: CC0 / Public Domain（包內 public-license.txt）
+Attribution: Art by Luis Zuno (@ansimuz) – CC0
+Notes: 含 Gothic Castle、Old Dark Castle 背景與數隻魔物
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

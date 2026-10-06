@@ -1,0 +1,7 @@
+Pack: kenney-tiny-battle
+Source URL: https://kenney.nl/assets/tiny-battle
+Author: Kenney (www.kenney.nl)
+License: CC0 1.0
+Attribution: Not required. Optional: "Kenney.nl".
+Notes: 16x16 top-down units/tiles. Bundled License.txt.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

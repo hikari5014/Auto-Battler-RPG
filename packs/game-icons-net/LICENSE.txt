@@ -1,0 +1,7 @@
+Pack: game-icons-net
+Source URL: https://game-icons.net/
+Author: Lorc, Delapouite and other contributors (see per-folder author)
+License: CC-BY 3.0 (a few authors CC0: Viscious Speed, Zeromancer)
+Attribution: REQUIRED per author used: "Icons made by Lorc, Delapouite, ... from https://game-icons.net, CC BY 3.0". Author = subfolder name under icons/ffffff/transparent/1x1/<author>/
+Notes: 4180 SVG icons, white on transparent. Bundled icons/license.txt.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

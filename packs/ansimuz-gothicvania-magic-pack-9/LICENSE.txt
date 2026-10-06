@@ -1,0 +1,7 @@
+Name: Gothicvania Magic Pack 9
+Source: https://opengameart.org/content/gothicvania-magic-pack-9
+Author: Luis Zuno (@ansimuz)
+License: CC0（OGA）；包內授權：可商用、可修改、可再散布、不需署名
+Attribution: Art by Luis Zuno (@ansimuz) – CC0
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

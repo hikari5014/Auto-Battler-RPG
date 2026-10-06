@@ -1,0 +1,7 @@
+Name: Fusion Pixel Font（8/10/12px Proportional 繁中 TC）
+Source: https://github.com/TakWolf/fusion-pixel-font ；取自 npm @fontsource/fusion-pixel-{8,10,12}px-proportional-tc@5.3.0
+Author: TakWolf（含 Ark Pixel 等上游字型）
+License: SIL OFL 1.1（Reserved Font Name "Fusion Pixel"）
+Attribution: Fusion Pixel Font © 2022 TakWolf, SIL Open Font License 1.1
+Notes: 須附 OFL.txt；不可單獨販售字型；若修改/子集化後改名需避開保留名稱
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

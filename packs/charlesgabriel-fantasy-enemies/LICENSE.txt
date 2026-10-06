@@ -1,0 +1,7 @@
+Pack: charlesgabriel-fantasy-enemies
+Source URL: https://opengameart.org/content/10-fantasy-rpg-enemies ; https://opengameart.org/content/10-more-fantasy-rpg-enemies-plus-a-boss
+Author: Charles Gabriel (OGA exclusive commission)
+License: CC-BY 3.0 (also CC-BY-SA 3.0 / GPL 2/3; choose CC-BY 3.0)
+Attribution: REQUIRED: "Charles Gabriel, commissioned by OpenGameArt.org (http://opengameart.org), CC-BY 3.0"
+Notes: 20 animated enemies (slime, snake, goblin, cockatrice, wolf, dragon, bat, eye, skeleton, spider, tiger, ninja, shadow boss...). 3-frame, ~32px.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

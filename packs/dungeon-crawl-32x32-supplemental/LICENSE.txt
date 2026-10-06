@@ -1,0 +1,7 @@
+Pack: dungeon-crawl-32x32-supplemental
+Source URL: https://opengameart.org/content/dungeon-crawl-32x32-tiles-supplemental
+Author: Dungeon Crawl Stone Soup tile artists (submitted by MedicineStorm)
+License: CC0 1.0
+Attribution: Not required. Courtesy link: http://opengameart.org/content/dungeon-crawl-32x32-tiles-supplemental
+Notes: Newer DCSS tiles, ~3000.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

@@ -1,0 +1,7 @@
+Name: Item Popup Starburst
+Source: https://opengameart.org/content/item-popup-starburst
+Author: Esthar
+License: CC0 1.0
+Attribution: Esthar（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

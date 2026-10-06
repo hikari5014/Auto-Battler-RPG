@@ -1,0 +1,7 @@
+Pack: luizmelo-monsters-creatures-fantasy
+Source URL: https://luizmelo.itch.io/monsters-creatures-fantasy
+Author: LuizMelo
+License: CC0 1.0
+Attribution: Not required. Optional: "Monsters Creatures Fantasy by LuizMelo".
+Notes: itch.io page: "License: CC0 (Creative Commons Zero). Credits are not required". All 3 uploads (v1.0/1.2/1.3).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

@@ -1,0 +1,7 @@
+Pack: gilgaphoenixignis-boss-cohort
+Source URL: https://opengameart.org/content/boss-cohort
+Author: Gilgaphoenixignis
+License: CC-BY 4.0 / CC-BY 3.0
+Attribution: REQUIRED: "Boss Cohort by Gilgaphoenixignis (CC-BY 4.0), OpenGameArt.org"
+Notes: 5 static boss sprites (2x versions downloaded + spectre).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

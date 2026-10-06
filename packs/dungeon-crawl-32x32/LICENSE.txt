@@ -1,0 +1,7 @@
+Pack: dungeon-crawl-32x32
+Source URL: https://opengameart.org/content/dungeon-crawl-32x32-tiles
+Author: Dungeon Crawl Stone Soup tile artists (maintainer Chris Hamons; submitted by MedicineStorm)
+License: CC0 1.0
+Attribution: Not required. Courtesy link: http://opengameart.org/content/dungeon-crawl-32x32-tiles
+Notes: ~6000 32x32 tiles (monsters, items, armour, weapons, spells, effects).
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

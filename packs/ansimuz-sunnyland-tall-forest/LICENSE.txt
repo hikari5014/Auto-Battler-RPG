@@ -1,0 +1,7 @@
+Name: SunnyLand Tall Forest Environment
+Source: https://opengameart.org/content/sunnyland-tall-forest-environment
+Author: Luis Zuno (@ansimuz)
+License: CC0 1.0（OGA 標示）；包內 public-license.txt：可商用、可修改、可再散布
+Attribution: Art by Luis Zuno (@ansimuz) – CC0（非必要，建議標註）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

@@ -1,0 +1,7 @@
+Pack: starsteel-spell-effects
+Source URL: https://opengameart.org/content/spell-effects-by-starsteelgaming
+Author: StarsteelGaming
+License: CC0 1.0
+Attribution: Not required. Author suggests: "Created by StarsteelGaming at OpenGameArt.org (2018)".
+Notes: Fireball / Icespear / Thundersphere pixel frames 64x32.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

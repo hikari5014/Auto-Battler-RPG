@@ -1,0 +1,7 @@
+Pack: dawnlike-16x16
+Source URL: https://opengameart.org/content/dawnlike-16x16-universal-rogue-like-tileset-v181
+Author: DragonDePlatino (palette by DawnBringer)
+License: CC-BY 4.0
+Attribution: REQUIRED: "DawnLike tileset by DragonDePlatino (CC-BY 4.0), palette by DawnBringer". README also REQUESTS hiding the "Platino" sprite (from Reptile0/1.png) somewhere in the game.
+Notes: 400+ 16x16 creatures (2-frame anim), 800+ items incl. Amulet/Ring/Boot/Glove/Hat/Armor/Shield/weapons.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

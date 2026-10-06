@@ -1,0 +1,7 @@
+Name: UI Pack - Pixel Adventure
+Source: https://kenney.nl/assets/ui-pack-pixel-adventure
+Author: Kenney (kenney.nl)
+License: CC0 1.0
+Attribution: Kenney.nl – CC0（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

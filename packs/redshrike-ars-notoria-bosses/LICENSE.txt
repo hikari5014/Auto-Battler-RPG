@@ -1,0 +1,7 @@
+Pack: redshrike-ars-notoria-bosses
+Source URL: https://opengameart.org/content/bosses-and-monsters-spritesheets-ars-notoria
+Author: Balmer (sprites modified from Stephen "Redshrike" Challener)
+License: CC-BY 3.0
+Attribution: REQUIRED: "Original sprites by Stephen Challener (Redshrike), spritesheets by Balmer, OpenGameArt.org (CC-BY 3.0)"
+Notes: Animated boss/mage/minion sheets, 45-122px frames, DB32 palette.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

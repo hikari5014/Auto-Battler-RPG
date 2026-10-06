@@ -1,0 +1,7 @@
+Pack: metashinryu-slash-collection
+Source URL: https://opengameart.org/content/slash-effect-collection
+Author: MetaShinryu
+License: CC0 1.0
+Attribution: Not required ("Use as you see fit for any purpose").
+Notes: Small/Big/Huge slash sheets. Source .xcf removed locally.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

@@ -1,0 +1,7 @@
+Name: Particle Pack
+Source: https://kenney.nl/assets/particle-pack
+Author: Kenney (kenney.nl)
+License: CC0 1.0
+Attribution: Kenney.nl – CC0（非必要）
+Notes: 僅保留 PNG (Transparent)；高解析非像素，需縮小或當光暈用
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

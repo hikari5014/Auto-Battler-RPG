@@ -1,0 +1,7 @@
+Pack: denzi-cc0
+Source URL: https://opengameart.org/content/denzis-public-domain-art
+Author: DENZI (submitted by MedicineStorm)
+License: CC0 1.0
+Attribution: Not required.
+Notes: 32x32 / 32x48 / 48x32 monsters, helms, paperdoll, skill & ability icons.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

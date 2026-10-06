@@ -1,0 +1,7 @@
+Name: Tiny RPG - Mana Soul GUI
+Source: https://opengameart.org/content/tiny-rpg-mana-soul-gui
+Author: Gabriel "tiopalada" Lima
+License: CC0 1.0
+Attribution: tiopalada – CC0（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

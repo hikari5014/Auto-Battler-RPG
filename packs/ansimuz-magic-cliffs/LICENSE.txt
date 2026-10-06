@@ -1,0 +1,7 @@
+Name: Magic Cliffs Environment
+Source: https://opengameart.org/content/magic-cliffs-environment
+Author: Luis Zuno (@ansimuz)
+License: 注意：OGA 頁標 CC0，但包內 public-license.txt 寫 CC-BY 3.0 → 以 CC-BY 3.0 處理
+Attribution: "Magic Cliffs Environment" art by Luis Zuno (@ansimuz), CC-BY 3.0
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

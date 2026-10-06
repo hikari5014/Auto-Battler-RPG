@@ -1,0 +1,7 @@
+Pack: m484-explosion-set
+Source URL: https://opengameart.org/content/explosion-set-1-m484-games
+Author: Master484 (M484 Games)
+License: CC0 1.0
+Attribution: Not required.
+Notes: Pixel explosion sheet.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

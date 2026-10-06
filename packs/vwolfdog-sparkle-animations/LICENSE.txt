@@ -1,0 +1,7 @@
+Name: Multiple Colors of Sparkle Animations
+Source: https://opengameart.org/content/multiple-colors-of-sparkle-animations
+Author: vWolfdog
+License: CC0 1.0
+Attribution: vWolfdog（非必要）
+Notes: 已排除黑底版本
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

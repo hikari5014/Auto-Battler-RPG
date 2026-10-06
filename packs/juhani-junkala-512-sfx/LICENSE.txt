@@ -1,0 +1,7 @@
+Name: The Essential Retro Video Game Sound Effects Collection [512 sounds]
+Source: https://opengameart.org/content/512-sound-effects-8-bit-style
+Author: Juhani Junkala (SubspaceAudio)
+License: CC0 1.0（包內 INFO.txt）
+Attribution: Juhani Junkala – CC0（非必要）
+Notes: 已排除 Death Screams 資料夾
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

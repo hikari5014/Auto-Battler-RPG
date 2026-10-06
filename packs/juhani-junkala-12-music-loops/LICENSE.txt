@@ -1,0 +1,7 @@
+Name: 12 Music Loops（精選 6 首）
+Source: https://opengameart.org/content/12-music-loops
+Author: Juhani Junkala (SubspaceAudio)
+License: CC0 1.0
+Attribution: Juhani Junkala – CC0（非必要）
+Notes: 
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation
