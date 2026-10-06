@@ -13,6 +13,7 @@ import * as bondsM from './bonds.js';
 import * as modes from './modes.js';
 import * as camp from './campaign.js';
 import * as expd from './expedition.js';
+import * as live from './live.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -458,6 +459,13 @@ function update(dt) {
     lastCoins = run.coins;
   }
 
+  // 3.11 世界王：限時
+  if (run.timer && run.phase === 'fight') {
+    run.tT = (run.tT || 0) + dt;
+    const left = Math.max(0, Math.ceil(run.timer - run.tT));
+    if (left !== run.tShown) { run.tShown = left; $('hud-wave').innerHTML = `${run.label(1)}　${left} 秒｜傷害 ${fmt(run.bossDmg || 0)}`; }
+    if (run.tT >= run.timer) { endRun(true); return; }
+  }
   if (run.phase === 'fight') {
     if (run.hero.hp <= 0 && run.hero.undyingReady) {
       // 傳說特效「不屈」：每波第一次致命傷保留 1 點血
@@ -832,6 +840,17 @@ function endModeRun(win) {
       lines.push('這一階之後可以「掃蕩」直接拿獎勵');
       eco.track(save, 'daily');
     } else lines = ['沒有通關不給副本獎勵（次數已經用掉）'];
+  } else if (run.mode === 'worldboss') {
+    const dmg = Math.round(run.bossDmg || 0), r = live.wbReward(save, dmg, fitCh());
+    title = '世界王 結束';
+    sub = `${run.label(1)}・總傷害 ${fmt(dmg)}`;
+    const tiers = live.wbTiers(fitCh());
+    lines = [r.tier ? `傷害第 ${r.tier} 階：${eco.giftText(r.gift)}` : `傷害不到 ${fmt(tiers[0])}，沒有獎勵`, r.tier < tiers.length ? `下一階：${fmt(tiers[r.tier])} 傷害` : '已經到最高階！'];
+  } else if (run.mode === 'arena') {
+    const d = live.arenaResult(save, run.opp, win);
+    title = win ? '競技場 勝利！' : '競技場 落敗';
+    sub = `對手：${run.opp.name}・打倒 ${cleared}/3 個幻影`;
+    lines = [`積分 ${d >= 0 ? '+' : ''}${d} → ${save.arena.pts}（${live.rankOf(save.arena.pts).name}）`];
   } else if (run.mode === 'expedition') {
     title = win ? '遠征 全破！' : '遠征結束';
     sub = `完成 ${cleared}/12 波・遺物 ${(run.relics || []).length} 個`;
@@ -864,6 +883,8 @@ function endModeRun(win) {
   const jUps = jewelRideExp(save, cleared);
   rideExp(save, cleared);
   eco.track(save, 'run');
+  const tok = run.mode === 'puzzle' ? 0 : live.onRunEnd(save, run, cleared, win);
+  if (tok) lines.push(`${live.currentEvent().token} +${tok}（活動代幣）`);
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
   $('result-body').innerHTML = `
@@ -886,7 +907,7 @@ function endRun(win) {
   let gold = cleared * 10 * run.chapter + Math.floor(run.coins / 5);
   gold = Math.round(gold * run.diff.gold);
   if (win) gold += Math.round(150 * run.chapter * run.diff.gold);
-  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + Math.max(...run.heroes.map(h => h.goldBonus)))); // 黃金戒指＋天賦＋盜賊王
+  gold = Math.round(gold * (1 + gearBonus(save).gold + run.tb.gold + Math.max(...run.heroes.map(h => h.goldBonus)) + (live.currentEvent().goldBonus || 0))); // 黃金戒指＋天賦＋盜賊王＋豐收祭
   save.gold += gold;
   const diffIndex = DIFFICULTIES.findIndex(d => d.id === run.diff.id);
   const { drops, salvaged } = rollDrops(save, cleared, win, diffIndex, run.chapter);
@@ -972,6 +993,8 @@ function endRun(win) {
     if (m) { gemsWon += m; gemNotes.push(`層數里程碑 +${m}`); }
   }
   if (gemsWon) eco.grant(save, { gem: gemsWon });
+  const tok = live.onRunEnd(save, run, cleared, win);
+  const tokHtml = tok ? `<p class="frag-got">${live.currentEvent().token} +${tok}（活動代幣）</p>` : '';
   // 3.3 英雄碎片：帶誰出戰就掉誰的碎片
   const frags = heroP.runFrags(save, run.heroIds, cleared);
   const fragHtml = frags.length ? `<p class="frag-got">${frags.map(f => `${iconTag(heroRef(f.def), 18)} ${f.def.name.split(' ')[1]}碎片 +${f.n}`).join('　')}</p>` : '';
@@ -983,7 +1006,7 @@ function endRun(win) {
     <p>${run.endless ? `到達第 ${cleared} 層` : `第 ${run.chapter} 章・完成 ${cleared}/${MAX_WAVE} 波`}・擊敗 ${run.kills} 隻</p>
     ${recordHtml}
     <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
-    ${starHtml}${gemHtml}${fragHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
+    ${starHtml}${gemHtml}${fragHtml}${tokHtml}${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
     ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
@@ -1144,6 +1167,7 @@ function renderHome() {
         <span class="top-btns">
           ${installEvt ? `<button class="icon-btn" id="btn-install" aria-label="安裝到手機">${iconTag(ICON.install, 22)}</button>` : ''}
           <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
+          <button class="icon-btn ${live.passReady(save) ? 'has-update' : ''}" id="btn-live" aria-label="活動">${iconTag(ICON.chest, 22)}</button>
           <button class="icon-btn ${eco.unreadMail(save) ? 'has-update' : ''}" id="btn-mail" aria-label="信箱">${iconTag(ICON.mail, 22)}</button>
           <button class="icon-btn" id="btn-settings" aria-label="設定">${iconTag(['ic', 829], 22)}</button>
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
@@ -1406,6 +1430,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-endless') { openEndless(); return; }
   else if (t.id === 'btn-modes') { openModes(); return; }
   else if (t.id === 'btn-map') { openMap(); return; }
+  else if (t.id === 'btn-live') { openLive(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') {
     // 戰力不足只提醒一次，不擋
@@ -1762,7 +1787,7 @@ function openQuest() {
   renderQuest();
   showScreen('screen-quest', 'screen-home');
 }
-const giftTag = (gift, px = 14) => Object.entries(gift).filter(([, v]) => v).map(([k, v]) => `<span class="gift-i">${k === 'shards' ? '✦' : iconTag(eco.CUR[k].icon, px)}${fmt(v)}</span>`).join('');
+const giftTag = (gift, px = 14) => Object.entries(gift).filter(([, v]) => v).map(([k, v]) => `<span class="gift-i">${k === 'shards' ? '✦' : eco.CUR[k] && eco.CUR[k].icon ? iconTag(eco.CUR[k].icon, px) : (eco.CUR[k] ? eco.CUR[k].name : k) + ' '}${fmt(v)}</span>`).join('');
 function renderQuest() {
   const m = save.missions, w = save.weekly;
   const tabs = [['daily', '每日任務'], ['weekly', '每週'], ['sign', '簽到'], ['vault', '冒險寶庫']];
@@ -1944,6 +1969,7 @@ const bagRoomLeft = () => MAX_ITEMS - ensureGear(save).items.length;
 function showPull(out) {
   if (out === 'bag') { toast('背包空位不夠，先分解或合成一些裝備'); return; }
   if (!out) { toast('不夠，無法召喚'); return; }
+  if (live.currentEvent().pullTokens) live.eventTokens(save, out.length * live.currentEvent().pullTokens);
   writeSave(save); // 先存檔再播動畫
   gachaResult = out;
   const best = out.some(o => o.r === 'legend') ? 'legend' : out.some(o => o.r === 'elite') ? 'elite' : out.some(o => o.r === 'rare') ? 'rare' : null;
@@ -2045,11 +2071,13 @@ function openModes() {
   renderModes();
   showScreen('screen-modes', 'screen-home');
 }
+// 3.11 世界王、競技場：用「戰力剛好打得過」的中級章節
+const fitCh = () => { const pw = savePower(save); let c = 1; while (c < 30 && recommended('normal', c + 1) <= pw) c++; return c; };
 const rushDiff = () => (save.difficulty === 'casual' ? 'easy' : save.difficulty);
 const modeCh = diffId => Math.max(1, maxCh(save, diffId) - 1);
 function renderModes() {
   modes.ensureModes(save);
-  const tabs = [['dungeon', '每日副本'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['exp', '遠征'], ['puzzle', '謎題'], ['endless', '無盡塔']];
+  const tabs = [['dungeon', '每日副本'], ['wb', '世界王'], ['arena', '競技場'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['exp', '遠征'], ['puzzle', '謎題'], ['endless', '無盡塔']];
   let body = '';
   if (modesTab === 'dungeon') {
     const ids = Object.keys(modes.DUNGEONS);
@@ -2076,6 +2104,19 @@ function renderModes() {
       <div class="rush-row">${modes.RUSH_GEMS.map((g, i) => `<span class="rush-b ${save.rush.best > i ? 'done' : ''}">${iconTag(['dg', 108], 22)}<small>第 ${i + 1} 隻</small><b>${iconTag(ICON.diamond, 12)}${g}</b></span>`).join('')}</div>
       <p class="dg-info">本週最佳：<b>${save.rush.best}/5</b></p>
       <button class="btn big gift" id="btn-rush-go">開始魔王連戰</button>`;
+  } else if (modesTab === 'wb') {
+    const w = live.ensureWb(save), key = live.wbBoss(), tiers = live.wbTiers(fitCh());
+    body = `<p class="hint">每週一隻超大魔王（打不死）。${live.WB_TIME} 秒內造成越多傷害，獎勵越好。每天 ${live.WB_TRIES} 次，開打前可以先買技能。</p>
+      <div class="wb-boss">${iconTag(MONSTERS[key].sprite, 56)}<b>${MONSTERS[key].name}</b><small>本週最高傷害 ${fmt(w.best)}</small></div>
+      <div class="wb-tiers">${tiers.map((t, i) => `<span class="${w.best >= t ? 'on' : ''}"><b>${i + 1} 階</b><small>${fmt(t)}</small><em>${iconTag(ICON.diamond, 10)}${live.WB_REWARD[i].gem}</em></span>`).join('')}</div>
+      <button class="btn big gift" id="btn-wb-go" ${offAttr(w.tries >= live.WB_TRIES, '今天的次數用完了')}>挑戰（剩 ${live.WB_TRIES - w.tries} 次）</button>`;
+  } else if (modesTab === 'arena') {
+    const a = live.ensureArena(save), rk = live.rankOf(a.pts);
+    body = `<p class="hint">挑戰其他英雄的「幻影」：連打 3 個幻影，全勝才算贏。贏了加分、輸了扣分；每週一重置，照本週最高分領段位獎勵。每天 ${live.ARENA_TRIES} 次。</p>
+      <p class="dg-info">積分 <b>${a.pts}</b>・段位 <b>${rk.name}</b>（本週最高 ${a.best}）</p>
+      <div class="arena-opps">${a.opp.map((o, i) => `<button class="arena-opp" data-arena="${i}" ${offAttr(a.tries >= live.ARENA_TRIES, '今天的次數用完了')}><span>${o.team.map(id => iconTag(heroRef(HEROES.find(h => h.id === id)), 24)).join('')}</span><b>${o.name}</b><small>${['弱', '相當', '強'][i]}・贏 +${o.win}／輸 ${o.lose}</small></button>`).join('')}</div>
+      <div class="g-btns"><button class="btn" id="btn-arena-reroll">換一批對手</button><button class="btn gift" id="btn-arena-claim" ${offAttr(a.claimed, '這週已經領過了')}>領段位獎勵<small>${eco.giftText(live.rankOf(a.best).gift)}</small></button></div>
+      <p class="hint">今天剩 ${live.ARENA_TRIES - a.tries} 次</p>`;
   } else if (modesTab === 'exp') {
     const e = expd.ensureExp(save);
     body = `<p class="hint">12 波的冒險（第 12 波是魔王）。每打完一波選一條路：戰鬥、精英（打贏選遺物）、營火（回血）、寶箱（選遺物）、商人（技能 6 折）。遺物只在這次遠征有效。使用目前難度與章節。</p>
@@ -2118,7 +2159,20 @@ $('modes-body').addEventListener('click', ev => {
     writeSave(save);
     startRun({ chapter: modeCh(rushDiff()), spec: { ...modes.rushRun(), diffId: rushDiff() } });
     return;
-  } else if (t.id === 'btn-exp-go') {
+  } else if (t.id === 'btn-wb-go') {
+    live.ensureWb(save).tries++;
+    writeSave(save);
+    startRun({ chapter: fitCh(), spec: { ...live.wbRun(), diffId: 'normal' } });
+    return;
+  } else if (t.dataset.arena) {
+    const a = live.ensureArena(save), o = a.opp[+t.dataset.arena];
+    a.tries++;
+    writeSave(save);
+    startRun({ chapter: fitCh(), spec: { ...live.arenaRun(o), diffId: 'normal' } });
+    return;
+  } else if (t.id === 'btn-arena-reroll') { const a = live.ensureArena(save); a.opp = live.rollOpponents(a.pts); }
+  else if (t.id === 'btn-arena-claim') { const r = live.claimArenaWeekly(save); if (r) { sfx('jackpot'); toast(`${r.name}段位獎勵：${eco.giftText(r.gift)}`); writeSave(save); } }
+  else if (t.id === 'btn-exp-go') {
     writeSave(save);
     startRun({ chapter: save.chapter, spec: expd.expeditionRun() });
     return;
@@ -2133,6 +2187,47 @@ $('modes-body').addEventListener('click', ev => {
     return;
   } else if (t.id === 'btn-modes-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
   renderModes();
+});
+
+// ---------- 3.11 冒險手冊、限時活動 ----------
+let liveTab = 'pass';
+function openLive() { renderLive(); showScreen('screen-live', 'screen-home'); }
+function renderLive() {
+  const p = live.ensurePass(save), lv = live.passLv(save), e = live.ensureEvent(save), ev = live.currentEvent();
+  let body = '';
+  if (liveTab === 'pass') {
+    const rows = [];
+    for (let i = 1; i <= live.PASS_LV; i++) {
+      const got = p.got.includes(i), ok = i <= lv;
+      rows.push(`<button class="pass-lv ${got ? 'got' : ok ? 'ready' : ''} ${i === live.PASS_LV ? 'big' : ''}" data-pass="${i}" ${offAttr(!ok || got, got ? '已領取' : `手冊 Lv.${i} 才能領`)}><b>${i}</b><small>${eco.giftText(live.passGift(i)).replace(/、/g, ' ')}</small></button>`);
+    }
+    body = `<p class="hint">玩任何模式都會累積手冊經驗（每局 15 起、每過一波 +3、獲勝 +25）。每季 ${live.PASS_DAYS} 天，免費領 30 級獎勵。本季還剩 ${live.passDaysLeft()} 天。</p>
+      <div class="pass-bar"><i style="width:${(p.xp % live.PASS_XP) / live.PASS_XP * 100}%"></i><span>Lv.${lv} ${lv < live.PASS_LV ? `（${p.xp % live.PASS_XP}/${live.PASS_XP}）` : 'MAX'}</span></div>
+      <div class="pass-grid">${rows.join('')}</div>
+      <button class="btn gift" id="btn-pass-all" ${offAttr(!live.passReady(save), '沒有可以領的')}>全部領取</button>`;
+  } else {
+    body = `<div class="ev-head" style="--ec:${ev.color}"><b>${ev.name}</b><small>${ev.desc}</small><small>還剩 ${live.eventDaysLeft()} 天・每週換一種活動</small></div>
+      <p class="dg-info">${ev.token}：<b>${e.pts}</b>（冒險、挑戰每過一波 +1）</p>
+      <div class="q-list">${live.EVENT_SHOP.map(it => { const left = it.limit - (e.bought[it.id] || 0); return `<div class="q-row"><span><b>${it.name}</b><small>剩 ${left} 次</small></span><button class="btn small" data-evbuy="${it.id}" ${offAttr(left <= 0 || e.pts < it.cost, left <= 0 ? '買完了' : `${ev.token}不足`)}>${ev.token} ${it.cost}</button></div>`; }).join('')}</div>`;
+  }
+  $('live-body').innerHTML = `<h2>活動</h2>
+    <div class="vtabs">${[['pass', '冒險手冊'], ['event', live.currentEvent().name]].map(([k, n]) => `<button class="vtab ${liveTab === k ? 'sel' : ''}" data-ltab="${k}">${n}${k === 'pass' && live.passReady(save) ? ' •' : ''}</button>`).join('')}</div>
+    ${body}
+    <button class="btn ghost" id="btn-live-close">關閉</button>`;
+}
+$('live-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.dataset.ltab) liveTab = t.dataset.ltab;
+  else if (t.dataset.pass) { const g = live.claimPass(save, +t.dataset.pass); if (g) { sfx('jingle'); toast('手冊獎勵：' + eco.giftText(g)); writeSave(save); } }
+  else if (t.id === 'btn-pass-all') {
+    const sum = {};
+    for (let i = 1; i <= live.passLv(save); i++) { const g = live.claimPass(save, i); if (g) for (const [k, v] of Object.entries(g)) sum[k] = (sum[k] || 0) + v; }
+    sfx('jackpot'); celebrate(t, '#ffd84a'); toast('手冊獎勵：' + eco.giftText(sum)); writeSave(save);
+  } else if (t.dataset.evbuy) { const it = live.buyEvent(save, t.dataset.evbuy); if (it) { sfx('buy'); toast(`兌換：${it.name}`); writeSave(save); } }
+  else if (t.id === 'btn-live-close') { renderHome(); showScreen('screen-home'); return; }
+  renderLive();
 });
 
 // ---------- 3.10 遠征路線 ----------
@@ -2883,6 +2978,7 @@ Promise.all([
 window.__game = { game, board, battle, save };
 window.__test = {
   openRoute: () => openRoute(),
+  fitCh: () => fitCh(),
   // 直接獲得技能（測試用）
   give(id) {
     const sk = SKILLS.find(k => k.id === id);
@@ -2925,6 +3021,9 @@ window.__test = {
     else if (opts.mode === 'rush') spec = { ...modes.rushRun(), diffId: save.difficulty };
     else if (opts.mode === 'trial') { save.trial = { floor: opts.floor || 0 }; spec = modes.trialRun(save); }
     else if (opts.mode === 'expedition') spec = expd.expeditionRun();
+    if (opts.fit) opts.chapter = fitCh();
+    if (opts.mode === 'worldboss') spec = { ...live.wbRun(), diffId: 'normal' };
+    else if (opts.mode === 'arena') spec = { ...live.arenaRun(live.rollOpponents(opts.pts || 0)[opts.opp || 1]), diffId: 'normal' };
     else if (opts.mode === 'puzzle') spec = expd.puzzleRun(opts.puzzle || 0);
     startRun({ chapter: opts.chapter || 1, spec });
     const run = game.run;
@@ -2969,7 +3068,7 @@ window.__test = {
         else endRun(false);
       } else break;
     }
-    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), score: Math.round(run.coins), relics: (run.relics || []).length, dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
+    const out = { win: run.phase === 'over' && run.wave >= (run.maxWave || MAX_WAVE) && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), score: Math.round(run.coins), bdmg: Math.round(run.bossDmg || 0), relics: (run.relics || []).length, dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp), def: [run.hero.dr, run.hero.dodge, run.hero.block, run.hero.life, run.hero.regen].map(v => +(v || 0).toFixed(2)), bossAtk: run.bossAtk || 0 };
     game.run = null;
     restore();
     writeSave(save);

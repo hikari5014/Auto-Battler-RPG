@@ -1472,3 +1472,25 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .pz b { font-size: 16px; } .pz small { font-size: 10px; opacity: .85; }
 .pz.done { border-color: #ffd84a; }
 .pz[aria-disabled="true"] { opacity: .4; }
+/* 3.11 世界王、競技場、手冊、活動 */
+.wb-boss { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 6px 0; }
+.wb-boss b { font-size: 16px; color: #ff8a6b; }
+.wb-tiers { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin: 6px 0; }
+.wb-tiers span { display: flex; flex-direction: column; align-items: center; padding: 4px 1px; border-radius: 8px; background: rgba(0,0,0,.35); border: 1px solid #4a3a6a; font-size: 10px; }
+.wb-tiers span.on { border-color: #ffd84a; }
+.wb-tiers b { font-size: 11px; } .wb-tiers em { font-style: normal; color: #7fe8ff; }
+.arena-opps { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.arena-opp { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 6px 10px; border-radius: 12px; border: 2px solid #6a5a8a; background: rgba(0,0,0,.35); color: #fff; font: inherit; text-align: left; }
+.arena-opp span { grid-row: span 2; display: flex; }
+.arena-opp small { font-size: 11px; opacity: .8; }
+.pass-bar { position: relative; height: 22px; border-radius: 11px; background: rgba(0,0,0,.45); overflow: hidden; margin: 6px 0; border: 2px solid #4a3a6a; }
+.pass-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #36d6ff, #6dff8a); }
+.pass-bar span { position: relative; display: block; text-align: center; font-size: 12px; line-height: 18px; }
+.pass-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; max-height: 38vh; overflow-y: auto; margin: 6px 0; }
+.pass-lv { display: flex; flex-direction: column; align-items: center; padding: 4px 2px; border-radius: 8px; border: 2px solid #4a3a6a; background: rgba(0,0,0,.35); color: #fff; font: inherit; }
+.pass-lv b { font-size: 13px; } .pass-lv small { font-size: 9px; opacity: .85; line-height: 1.2; text-align: center; }
+.pass-lv.ready { border-color: #ffd84a; animation: pulse 1s infinite alternate; }
+.pass-lv.got { opacity: .4; }
+.pass-lv.big { border-color: #ff8a6b; }
+.ev-head { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px; border-radius: 12px; border: 2px solid var(--ec); background: rgba(0,0,0,.35); text-align: center; }
+.ev-head b { color: var(--ec); font-size: 16px; } .ev-head small { font-size: 12px; opacity: .9; }

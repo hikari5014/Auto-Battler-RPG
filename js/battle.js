@@ -226,7 +226,8 @@ export class Battle {
     const q = [];
     if (boss) {
       // 魔王關：兩隻隊長護衛＋魔王
-      q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), mk(run.bossKey ? run.bossKey(run.wave) : ch.boss, 'boss'));
+      const bk = mk(run.bossKey ? run.bossKey(run.wave) : ch.boss, 'boss');
+      if (run.noCaptains) q.push(bk); else q.push(mk(randomMon(), 'captain'), mk(randomMon(), 'captain'), bk);
     } else {
       const n = cur.count + diff.count;
       // 每隻普通怪都有機會變成「隨機菁英」，波數越後面機率越高
@@ -909,6 +910,7 @@ export class Battle {
       this.text(e.x, e.z, e.size + 0.5, '護盾破了!', '#9fe3ff', 13);
     }
     if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
+    if (e.kind === 'boss') this.g.run.bossDmg = (this.g.run.bossDmg || 0) + Math.min(dmg, Math.max(0, e.hp)); // 3.11 世界王算傷害
     e.hp -= dmg;
     e.flash = 1;
     e.kb = small ? 0.3 : 1;

@@ -21,6 +21,7 @@ export const CUR = {
   gearTicket: { name: '裝備召喚券', icon: ['it', 2] },
   gold: { name: '金幣', icon: ['pp', 151] },
   shards: { name: '魔晶', icon: null },
+  anyFrag: { name: '萬能碎片', icon: null },
 };
 
 export function ensureEconomy(save) {
