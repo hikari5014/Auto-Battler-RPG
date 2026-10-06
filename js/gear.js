@@ -121,6 +121,26 @@ export const UNIQUES = {
 };
 const uniquesFor = type => Object.keys(UNIQUES).filter(k => UNIQUES[k].types.includes(type));
 
+// ---------- 寶石 ----------
+// 裝備上有鑲嵌孔（稀有度越高孔越多），寶石有 1～5 級，3 顆同級合成高一級
+export const GEMS = {
+  ruby: { name: '紅寶石', stat: 'atk', color: '#ff4d4d' },
+  sapphire: { name: '藍寶石', stat: 'crit', color: '#36a9ff' },
+  emerald: { name: '綠寶石', stat: 'hp', color: '#3ddc84' },
+  topaz: { name: '黃寶石', stat: 'gold', color: '#ffd84a' },
+  amethyst: { name: '紫晶', stat: 'critDmg', color: '#c38bff' },
+};
+export const GEM_MAX = 5;
+const GEM_MUL = [0, 1, 2.2, 3.8, 6, 9];
+export const SOCKETS = [0, 1, 1, 2, 3];
+export const gemKey = (id, lv) => `${id}-${lv}`;
+export const parseGem = key => { const [id, lv] = key.split('-'); return { id, lv: +lv }; };
+export const gemValue = key => { const g = parseGem(key); return r1(STATS[GEMS[g.id].stat].base * GEM_MUL[g.lv]); };
+export const gemName = key => { const g = parseGem(key); return `${GEMS[g.id].name} Lv.${g.lv}`; };
+export const gemColor = key => GEMS[parseGem(key).id].color;
+// 寶石：用 CSS 畫的菱形（等級越高越大越亮）
+export const gemTag = (key, size = 14) => `<i class="gem lv${parseGem(key).lv}" style="--gc:${gemColor(key)};--gs:${size}px"></i>`;
+
 // ---------- 存檔 ----------
 const rand = (a, b) => a + Math.random() * (b - a);
 const r1 = v => Math.round(v * 10) / 10;
@@ -130,6 +150,9 @@ export function ensureGear(save) {
   const g = save.gear;
   if (g.v !== 2) migrate(g);
   if (g.shards === undefined) g.shards = 0;
+  if (!g.gems) g.gems = {};
+  if (!g.presets) g.presets = [null, null, null];
+  for (const it of g.items) if (!it.sockets) it.sockets = Array(SOCKETS[it.rarity]).fill(null);
   return g;
 }
 // 舊版裝備（武器、防具、飾品三欄）轉成新版
@@ -158,7 +181,7 @@ function makeItem(gear, type, rarity, ilv = 1) {
   const T = TYPES[type];
   const r = RARITIES[rarity];
   const k = r.mult * ilvMul(ilv);
-  const it = { id: gear.nextId++, type, rarity, ilv, plus: 0, fresh: true, affixes: [] };
+  const it = { id: gear.nextId++, type, rarity, ilv, plus: 0, fresh: true, affixes: [], sockets: Array(SOCKETS[rarity]).fill(null) };
   it.main = T.main || RING_MAINS[Math.floor(Math.random() * RING_MAINS.length)];
   it.value = r1((T.main ? T.base : STATS[it.main].base * 1.6) * k);
   if (Math.random() < SET_CHANCE[rarity]) it.set = SET_IDS[Math.floor(Math.random() * SET_IDS.length)];
@@ -233,6 +256,7 @@ export function gearBonus(save) {
     add(it.main, mainValue(it));
     for (const a of it.affixes) add(a.stat, a.value);
     if (it.ench) add(it.ench.stat, it.ench.value);
+    for (const gk of it.sockets || []) if (gk) add(GEMS[parseGem(gk).id].stat, gemValue(gk));
     if (it.skill) {
       const p = jewelPower(it);
       if (p) b.skills[it.skill] = (b.skills[it.skill] || 0) + p;
@@ -383,6 +407,7 @@ export function salvage(save, id) {
   if (i < 0 || isWorn(save, id)) return null;
   const it = gear.items[i];
   gear.items.splice(i, 1);
+  for (const gk of it.sockets || []) if (gk) gear.gems[gk] = (gear.gems[gk] || 0) + 1; // 寶石退回
   const r = RARITIES[it.rarity];
   const g = Math.round(r.salvage * (1 + (it.plus || 0) * 0.3));
   save.gold += g;
@@ -419,6 +444,7 @@ export function mergeAll(save) {
       if (list.length < 3) continue;
       const three = list.slice(0, 3);
       gear.items = gear.items.filter(x => !three.includes(x));
+      for (const x of three) for (const gk of x.sockets || []) if (gk) gear.gems[gk] = (gear.gems[gk] || 0) + 1;
       const up = makeItem(gear, three[0].type, three[0].rarity + 1, Math.max(...three.map(x => x.ilv || 1)));
       up.plus = Math.max(...three.map(x => x.plus || 0));
       if (up.skill) {
@@ -440,3 +466,110 @@ export function mergeableCount(save) {
   return n;
 }
 export const freshCount = save => ensureGear(save).items.filter(it => it.fresh).length;
+
+// ---------- 寶石操作 ----------
+export function gemDrops(save, cleared, win, diffIndex) {
+  const gear = ensureGear(save);
+  const n = Math.floor(cleared / 5) + (win ? 1 : 0);
+  const got = [];
+  const ids = Object.keys(GEMS);
+  for (let i = 0; i < n; i++) {
+    const lv = Math.random() < 0.08 * diffIndex ? 2 : 1;
+    const key = gemKey(ids[Math.floor(Math.random() * ids.length)], lv);
+    gear.gems[key] = (gear.gems[key] || 0) + 1;
+    got.push(key);
+  }
+  return got;
+}
+export function socketGem(save, itemId, idx, key) {
+  const gear = ensureGear(save);
+  const it = gear.items.find(x => x.id === itemId);
+  if (!it || !(gear.gems[key] > 0) || idx >= it.sockets.length) return false;
+  if (it.sockets[idx]) gear.gems[it.sockets[idx]] = (gear.gems[it.sockets[idx]] || 0) + 1;
+  gear.gems[key]--;
+  if (!gear.gems[key]) delete gear.gems[key];
+  it.sockets[idx] = key;
+  return true;
+}
+export function unsocketGem(save, itemId, idx) {
+  const gear = ensureGear(save);
+  const it = gear.items.find(x => x.id === itemId);
+  const key = it && it.sockets[idx];
+  if (!key) return false;
+  gear.gems[key] = (gear.gems[key] || 0) + 1;
+  it.sockets[idx] = null;
+  return true;
+}
+// 一鍵合成寶石：3 顆同種同級 → 1 顆高一級（一直合到不能合為止）
+export function mergeGems(save) {
+  const gear = ensureGear(save);
+  let made = 0, again = true;
+  while (again) {
+    again = false;
+    for (const key of Object.keys(gear.gems)) {
+      const g = parseGem(key);
+      if (g.lv >= GEM_MAX || gear.gems[key] < 3) continue;
+      const n = Math.floor(gear.gems[key] / 3);
+      gear.gems[key] -= n * 3;
+      if (!gear.gems[key]) delete gear.gems[key];
+      const up = gemKey(g.id, g.lv + 1);
+      gear.gems[up] = (gear.gems[up] || 0) + n;
+      made += n;
+      again = true;
+    }
+  }
+  return made;
+}
+
+// ---------- 重鑄：把一條副屬性重新隨機 ----------
+export const reforgeCost = it => ({ shards: 2 + it.rarity * 2, gold: Math.round(150 * (1 + it.rarity) * ilvMul(it.ilv)) });
+export function reforge(save, itemId, idx) {
+  const gear = ensureGear(save);
+  const it = gear.items.find(x => x.id === itemId);
+  if (!it || !it.affixes[idx]) return null;
+  const c = reforgeCost(it);
+  if (gear.shards < c.shards || save.gold < c.gold) return null;
+  gear.shards -= c.shards;
+  save.gold -= c.gold;
+  const used = new Set([it.main, ...it.affixes.map(a => a.stat)]);
+  used.delete(it.affixes[idx].stat);
+  const pool = AFFIX_POOL.filter(k => !used.has(k));
+  const k = pool[Math.floor(Math.random() * pool.length)];
+  it.affixes[idx] = { stat: k, value: r1(STATS[k].base * RARITIES[it.rarity].mult * ilvMul(it.ilv) * rand(0.6, 1.3)) || 0.1 };
+  return it.affixes[idx];
+}
+
+// ---------- 鍛造：指定種類，用魔晶和金幣打造一件（至少稀有） ----------
+export const CRAFT_TIERS = [
+  { name: '普通爐', shards: 15, gold: 1500, weights: [0, 75, 22, 3, 0] },
+  { name: '精工爐', shards: 45, gold: 6000, weights: [0, 30, 50, 18, 2] },
+  { name: '神鍛爐', shards: 120, gold: 25000, weights: [0, 0, 45, 45, 10] },
+];
+export function craft(save, type, tier, ilv) {
+  const gear = ensureGear(save);
+  const t = CRAFT_TIERS[tier];
+  if (gear.shards < t.shards || save.gold < t.gold || gear.items.length >= MAX_ITEMS) return null;
+  gear.shards -= t.shards;
+  save.gold -= t.gold;
+  let x = Math.random() * t.weights.reduce((a, b) => a + b, 0);
+  let rarity = 0;
+  for (; rarity < MAX_RARITY; rarity++) { x -= t.weights[rarity]; if (x <= 0) break; }
+  const it = makeItem(gear, type, rarity, ilv);
+  gear.items.push(it);
+  return it;
+}
+
+// ---------- 裝備方案：存下目前身上的裝備，一鍵換回來 ----------
+export function savePreset(save, i) {
+  const gear = ensureGear(save);
+  gear.presets[i] = { ...gear.equip };
+}
+export function loadPreset(save, i) {
+  const gear = ensureGear(save);
+  const p = gear.presets[i];
+  if (!p) return false;
+  const ids = new Set(gear.items.map(x => x.id));
+  gear.equip = {};
+  for (const [slot, id] of Object.entries(p)) if (ids.has(id)) gear.equip[slot] = id;
+  return true;
+}
