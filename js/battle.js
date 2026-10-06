@@ -20,6 +20,36 @@ const HERO_POS = { x: -1.35, z: 4 };
 export const BENCH_POS = { x: -3.6, z: 4.6 }; // 雙職業：換上場的職業從畫面左邊衝進來
 const HERO_HEIGHT = 0.9;   // 英雄在世界裡有多高（公尺）
 
+// 3.1 逐格動畫特效（CodeManu「Free Pixel Effects」、13rice 放射閃電，都是 CC0），圖檔在 assets/fx/
+const ANIM = { sunburn: 31, nova: 31, bolt: 6, ice: 29, fire: 31, dark: 31, hit: 30 };
+const animImg = {};
+const tintCache = new Map();
+function animSheet(name, tint) {
+  if (!animImg[name]) { const im = new Image(); im.src = `assets/fx/${name}.png`; animImg[name] = im; }
+  const im = animImg[name];
+  if (!im.complete || !im.naturalWidth) return null;
+  if (!tint) return im;
+  const k = name + tint;
+  if (!tintCache.has(k)) {
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = tint;
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(im, 0, 0);
+    tintCache.set(k, c);
+  }
+  return tintCache.get(k);
+}
+// 命中時要播哪一種動畫（依技能特效的樣式）
+const IMPACT = {
+  meteor: ['sunburn', 1.8], grenade: ['sunburn', 1.3], bolt: ['bolt', 1.0, true], orb: ['nova', 0.9, true],
+  fire: ['fire', 1.0], holy: ['nova', 1.2, '#ffe9a0'], saw: ['dark', 0.9, true], dash: ['dark', 1.1, true], beam: ['hit', 0.8, true],
+};
+
 export function createHero(def, save) {
   const gb = gearBonus(save); // 身上裝備的加成
   const tb = talentBonus(save); // 天賦網的加成
@@ -136,6 +166,7 @@ export class Battle {
     this.queue = [];
     this.texts = [];
     this.streaks = [];
+    this.anims = [];
     this.parts = [];
     this.slashes = [];
     this.sparks = [];       // 命中光點
@@ -369,7 +400,7 @@ export class Battle {
     }
     if (h.stun && Math.random() < h.stun) { t.stun = 1; this.text(t.x, t.z, t.size + 0.5, '暈眩', '#ffd84a', 12); }
     if (h.dot) { t.dotDps = heroAtk(h) * h.dot; t.dotT = h.dotTime; t.dotColor = h.dotColor; }
-    if (h.frost > 0) t.slow = h.frost;
+    if (h.frost > 0) { t.slow = h.frost; if (!settings.lowFx && Math.random() < 0.25) this.anim('ice', t.x, t.z, t.size * 0.5, 0.9, null, 0, 0.5); }
     if (h.range > 2) this.streak(h, t, crit ? '#ffdd55' : shotColor(h), 0.18, shotStyle(h));
     else this.slashes.push({ x: t.x, z: t.z, h: t.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit, color: h.def.id === 'saw' ? '#ff9f43' : h.def.id === 'paladin' ? '#fff2a8' : h.def.id === 'rogue' ? '#b9a8ff' : null });
     if (crit) this.burst(t.x, t.z, t.size * 0.5, '#ffdd55', 6, 2.2);
@@ -601,6 +632,15 @@ export class Battle {
   // grenade 榴彈（拋物線）、fire 火焰、holy 光柱、dash 衝刺、beam 光束
   fx(x1, z1, h1, x2, z2, h2, color, life, style = 'beam') {
     this.streaks.push({ x1, z1, h1, x2, z2, h2, color, life, max: life, style, seed: Math.random() * 1000 });
+    const im = IMPACT[style];
+    if (im && !settings.lowFx) this.anim(im[0], x2, z2, h2, im[1], im[2] === true ? color : im[2], life * 0.7);
+  }
+  // 逐格動畫：name = 特效種類，size = 世界大小，delay = 幾秒後才開始播
+  anim(name, x, z, h, size, tint, delay = 0, dur = 0.45) {
+    if (this.anims.length > 40) return;
+    this.anims.push({ name, x, z, h, size, tint, t: -delay, dur });
+    if (name === 'sunburn') setTimeout(() => sfx('boom'), delay * 1000);
+    else if (name === 'bolt') setTimeout(() => sfx('zap'), delay * 1000);
   }
   // 命中時噴出的小光點
   burst(x, z, h, color, n, speed) {
@@ -685,6 +725,7 @@ export class Battle {
     e.flash = 1;
     e.kb = small ? 0.3 : 1;
     if (e.kind === 'boss' && !e.enraged && e.hp > 0 && e.hp < e.maxHp * 0.5) this.bossEnrage(e);
+    if (crit && !small && !settings.lowFx && Math.random() < 0.6) this.anim('dark', e.x + rand(-0.1, 0.1), e.z, e.size * 0.55, 0.8, '#ffd84a', 0, 0.3);
     this.text(e.x + rand(-0.15, 0.15), e.z, e.size + 0.25, fmt(Math.max(1, dmg)), crit ? '#ffdd55' : color || (small ? '#cfd8ff' : '#fff'), crit ? 20 : (small ? 11 : 14));
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
@@ -774,6 +815,11 @@ export class Battle {
       t.rise += 38 * dt;
       if (t.life <= 0) this.texts.splice(i, 1);
     }
+    for (let i = this.anims.length - 1; i >= 0; i--) {
+      const a = this.anims[i];
+      a.t += dt;
+      if (a.t >= a.dur) this.anims.splice(i, 1);
+    }
     for (const list of [this.streaks, this.slashes]) {
       for (let i = list.length - 1; i >= 0; i--) {
         list[i].life -= dt;
@@ -839,7 +885,8 @@ export class Battle {
     const w = size * p.s * (1 - breathe);
     const hgt = size * p.s * (1 + breathe);
     ctx.globalAlpha = 1 - sc.fogAt(z) * 0.85;
-    drawSprite(ctx, sprite, p.x, p.y + 1, w, false, flash, 'dg', hgt, rage);
+    const [key, idx] = Array.isArray(sprite) ? sprite : ['dg', sprite]; // 怪物可以用其他圖集：['tc', 編號]
+    drawSprite(ctx, idx, p.x, p.y + 1, w, false, flash, key, hgt, rage);
     ctx.globalAlpha = 1;
     return { p, top: p.y - hgt };
   }
@@ -919,7 +966,8 @@ export class Battle {
       const px = size * mp.s;
       this.drawMountAura(ctx, m, mp.x, mp.y, px, sc.t);
       ctx.globalAlpha = 1 - sc.fogAt(h.z) * 0.85;
-      drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
+      if (m.sprite) drawSprite(ctx, m.sprite[1], mp.x, mp.y + 1, px, !!m.flip, 0, m.sprite[0]);
+      else drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
       ctx.globalAlpha = 1;
       lift += size * (h.showcase ? 0.5 : 0.42) + bob;
     }
@@ -1107,6 +1155,20 @@ export class Battle {
     ctx.globalAlpha = 1;
     // 技能特效（箭、法球、閃電、劍氣、隕石…）
     for (const s of this.streaks) this.drawShot(ctx, s);
+    ctx.globalAlpha = 1;
+    // 命中的逐格動畫（爆炸、閃電、冰晶…）
+    ctx.imageSmoothingEnabled = false;
+    for (const a of this.anims) {
+      if (a.t < 0) continue;
+      const img = animSheet(a.name, a.tint);
+      if (!img) continue;
+      const n = ANIM[a.name], fs = img.height;
+      const f = Math.min(n - 1, Math.floor(a.t / a.dur * n));
+      const q = sc.project(a.x, a.z, a.h);
+      const px = a.size * q.s;
+      ctx.globalAlpha = 1 - sc.fogAt(a.z) * 0.6;
+      ctx.drawImage(img, f * fs, 0, fs, fs, q.x - px / 2, q.y - px / 2, px, px);
+    }
     ctx.globalAlpha = 1;
     // 命中光點
     for (const p of this.sparks) {

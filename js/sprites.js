@@ -3,11 +3,13 @@
 // pp = Pixel Platformer（金幣、寶石、愛心、草地磚）
 // bg = Pixel Platformer 背景（天空、山丘）
 // ic = 1-Bit Pack（技能卡與介面圖示）
+// tc = Tiny Creatures（怪物、魔王、坐騎）
 export const SHEETS = {
   dg: { src: 'assets/img/tiny-dungeon.png', tile: 16, cols: 12 },
   pp: { src: 'assets/img/pixel-platformer.png', tile: 18, cols: 20 },
   bg: { src: 'assets/img/pixel-platformer-bg.png', tile: 24, cols: 8 },
   ic: { src: 'assets/img/icons-1bit.png', tile: 16, cols: 49 },
+  tc: { src: 'assets/img/tiny-creatures.png', tile: 16, cols: 10 }, // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
 };
 
 // 像素中文字型「俐方體11號」（Cubic 11，免費授權）
@@ -39,7 +41,7 @@ export function loadSprites() {
       g.fillStyle = '#fff';
       g.fillRect(0, 0, c.width, c.height);
       white[key] = c;
-      if (key === 'dg') {
+      if (key === 'dg' || key === 'tc') {
         const r = document.createElement('canvas');
         r.width = c.width;
         r.height = c.height;

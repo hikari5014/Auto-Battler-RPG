@@ -45,6 +45,7 @@ export function settingsHtml() {
     </div>
     <div class="row">
       <button class="btn small" id="btn-replay-tutorial">重看教學</button>
+      <button class="btn small" id="btn-credits">製作群</button>
       <button class="btn small ghost" id="btn-reset-save">清除存檔</button>
     </div>
     <button class="btn big" id="btn-settings-close">完成</button>`;

@@ -558,7 +558,7 @@ function celebrateMax(sk, card) {
   for (const h of run.heroes) h.maxed = (h.maxed || 0) + 1;
   save.stats.maxed++;
   banner(`${sk.name} 滿級！`);
-  sfx('wave');
+  sfx('maxup');
   if (card) {
     card.classList.add('maxed');
     celebrate(card, '#ffd84a');
@@ -806,7 +806,7 @@ function endRun(win) {
   const ride = rideExp(save, cleared);
   const rideMax = ride && isMaxMount(ride.st) && ride.ups;
   if (rideMax) setTimeout(() => banner(`${ride.m.name} 完全體！`), 1500);
-  const rideHtml = ride ? `<p class="ride-exp">${iconTag(['ic', ride.m.icon, ride.m.color], 18)} ${ride.m.name} +${ride.exp} 經驗${ride.ups ? `，升到 Lv.${ride.st.lv}！` : ''}</p>` : '';
+  const rideHtml = ride ? `<p class="ride-exp">${iconTag(mountRef(ride.m), 18)} ${ride.m.name} +${ride.exp} 經驗${ride.ups ? `，升到 Lv.${ride.st.lv}！` : ''}</p>` : '';
   let unlocked = '';
   if (win && !run.endless && !run.daily) {
     const r = clearChapter(save, run.diff.id, run.chapter);
@@ -949,6 +949,9 @@ function unlockHidden() {
 }
 const unlockAch = h => ACHIEVEMENTS.find(x => x.id === h.unlock);
 const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>`).join(' ');
+
+// 坐騎圖：3.1 起用 Tiny Creatures 的生物圖（舊的單色圖示當備用）
+const mountRef = m => m.sprite || ['ic', m.icon, m.color];
 
 // 首頁：目前戰力 vs 這個難度、這一章的推薦戰力
 function powerLine() {
@@ -1362,7 +1365,7 @@ $('talent-body').addEventListener('click', ev => {
 function mountBtn() {
   const r = riding(save);
   const own = Object.keys(ensureMounts(save).owned).length;
-  return `<button class="talent-btn mount-btn" id="btn-mount">${r ? iconTag(['ic', r.icon, r.color], 26) : iconTag(['ic', 371, '#8a7a9a'], 26)}<span><b>坐騎</b><small>${r ? `騎乘中：${r.name} Lv.${r.lv} ${'★'.repeat(r.star)}` : own ? '目前沒有騎乘' : '買一隻坐騎，一起去冒險'}</small></span><em>▶</em></button>`;
+  return `<button class="talent-btn mount-btn" id="btn-mount">${r ? iconTag(mountRef(r), 26) : iconTag(['ic', 371, '#8a7a9a'], 26)}<span><b>坐騎</b><small>${r ? `騎乘中：${r.name} Lv.${r.lv} ${'★'.repeat(r.star)}` : own ? '目前沒有騎乘' : '買一隻坐騎，一起去冒險'}</small></span><em>▶</em></button>`;
 }
 let mountSel = null;
 function openMount() {
@@ -1378,7 +1381,7 @@ function renderMount() {
   const list = MOUNTS.map(x => {
     const o = mountState(save, x.id);
     return `<button class="mcard ${x.id === mountSel ? 'sel' : ''} ${o ? '' : 'locked'} ${ms.ride === x.id ? 'riding' : ''}" data-mount="${x.id}" data-fx="tilt">
-      ${iconTag(['ic', x.icon, o ? x.color : '#6a5a7a'], 34)}<small>${x.name}</small>
+      ${iconTag(o ? mountRef(x) : [...mountRef(x), '#6a5a7a'], 34)}<small>${x.name}</small>
       ${o ? `<i>${isMaxMount(o) ? '<b class="mmax">MAX</b>' : `Lv.${o.lv} ${'★'.repeat(o.star)}`}</i>` : `<i class="price">${iconTag(ICON.gold, 12)}${x.price}</i>`}</button>`;
   }).join('');
   let body;
@@ -1404,7 +1407,7 @@ function renderMount() {
   $('mount-body').innerHTML = `
     <h2>坐騎</h2>
     <div class="pill" id="mount-gold">${iconTag(ICON.gold, 18)} <b>${fmt(save.gold)}</b></div>
-    <div class="m-hero ${isMaxMount(st) ? 'maxed' : st && st.star >= 2 ? 'star' + st.star : ''}" style="--mc:${m.color}">${iconTag(['ic', m.icon, st ? m.color : '#6a5a7a'], 72)}<b>${m.name}${riding_ ? ' <i class="tag">騎乘中</i>' : ''}</b></div>
+    <div class="m-hero ${isMaxMount(st) ? 'maxed' : st && st.star >= 2 ? 'star' + st.star : ''}" style="--mc:${m.color}">${iconTag(st ? mountRef(m) : [...mountRef(m), '#6a5a7a'], 72)}<b>${m.name}${riding_ ? ' <i class="tag">騎乘中</i>' : ''}</b></div>
     ${body}
     <div class="mcards">${list}</div>
     <p class="hint">騎著坐騎去冒險，每完成一波 +6 經驗；也可以用飼料餵牠（按住連續餵）。</p>
@@ -1832,6 +1835,9 @@ $('settings-body').addEventListener('click', ev => {
     t.setAttribute('aria-checked', settings[key]);
     if (key === 'vibrate' && settings.vibrate) vibrate(30);
     writeSave(save);
+  } else if (t.id === 'btn-credits') {
+    showCredits();
+    return;
   } else if (t.id === 'btn-replay-tutorial') {
     tutorial.reset();
     toast('下次開始冒險時會重新播放教學');
@@ -1883,6 +1889,28 @@ function changelogHtml(list) {
       <div class="log-head"><b>v${v.version}</b><small>${v.date}</small>${v.version === VERSION ? '<span class="tag">目前版本</span>' : ''}</div>
       <ul>${v.notes.map(n => `<li>${n}</li>`).join('')}</ul>
     </div>`).join('');
+}
+
+// 製作群：使用到的免費素材與作者（CC-BY 的一定要列出來）
+const CREDITS = [
+  ['角色、怪物、圖示、介面、音效', 'Kenney（kenney.nl）', 'CC0'],
+  ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
+  ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
+  ['平原、墓地、火山、天空背景', 'Ansimuz「Tall Forest」「Gothicvania Cemetery」「Mountain at Dusk」', 'CC0'],
+  ['天空神殿背景', 'Ansimuz「Magic Cliffs」', 'CC-BY 3.0'],
+  ['沙漠背景', 'Emcee Flesher「Rocky Desert」', 'CC0'],
+  ['技能特效', 'CodeManu「Free Pixel Effects」、13rice「Radial Lightning」', 'CC0'],
+  ['背景音樂', 'Juhani Junkala、Abstraction「Three Red Hearts」', 'CC0'],
+  ['音效', 'IgnisForge「43 Retro SFX」、Kenney', 'CC0'],
+  ['中文字型', '俐方體 11 號（Cubic 11）、Fusion Pixel Font（TakWolf）', 'OFL'],
+];
+function showCredits() {
+  $('info-body').innerHTML = `
+    <h2>製作群</h2>
+    <p class="hint">遊戲設計與程式：彈珠勇者團隊。感謝以下作者無私分享的免費素材：</p>
+    <div class="credits">${CREDITS.map(([what, who, lic]) => `<p><small>${what}</small><b>${who}</b><em>${lic}</em></p>`).join('')}</div>
+    <button class="btn" id="btn-info-close">關閉</button>`;
+  showScreen('screen-info', 'screen-home');
 }
 
 function showChangelog(list, title) {

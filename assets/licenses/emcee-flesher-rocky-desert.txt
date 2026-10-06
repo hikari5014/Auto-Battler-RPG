@@ -1,0 +1,7 @@
+Name: Rocky desert landscape (layered, looping)
+Source: https://opengameart.org/content/rocky-desert-landscape-layered-looping
+Author: Emcee Flesher（基於 Reemax 作品）
+License: CC0 1.0
+Attribution: Emcee Flesher / Reemax（非必要）
+Notes: 單檔直接下載
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

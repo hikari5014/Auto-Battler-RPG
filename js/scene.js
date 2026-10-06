@@ -11,6 +11,23 @@ const TEX_TILES = 8;        // 地面貼圖一邊有幾格
 const TILE_WORLD = 0.55;    // 一格地磚在世界裡多大
 const FOG_Z = 26;           // 超過這個距離就完全被霧蓋住
 
+// 3.1 各章節的遠景（兩層視差：a = 天空＋遠山，b = 中景），圖檔在 assets/bg/
+const SKY = {};
+function skyLayers(key) {
+  if (!key) return null;
+  if (!SKY[key]) {
+    SKY[key] = ['a', 'b'].map(n => { const im = new Image(); im.src = `assets/bg/${key}-${n}.png`; return im; });
+  }
+  const ls = SKY[key];
+  return ls.every(im => im.complete && im.naturalWidth) ? ls : null;
+}
+// 一層遠景：等比縮放到指定高度、底部對齊 baseY，橫向重複並依速度平移
+function drawLayer(ctx, im, W, baseY, h, off) {
+  const w = im.naturalWidth * h / im.naturalHeight;
+  let x = -(((off % w) + w) % w);
+  for (; x < W; x += w) ctx.drawImage(im, Math.floor(x), Math.round(baseY - h), Math.ceil(w) + 1, Math.round(h));
+}
+
 export class Scene {
   constructor() {
     this.cam = { x: 0, h: 1.6, f: 300, punch: 0, sway: 0 };
@@ -78,10 +95,19 @@ export class Scene {
     const { W, top, bottom, horizon } = this;
 
     // 天空與遠景（遠景跟著鏡頭輕微平移＝視差）
-    const T = 72;
-    drawTile(ctx, ch.bg[0], 0, top, W, horizon - top, T, 'bg');
-    const off = ((this.t * 6 + this.cam.sway * 40) % T + T) % T;
-    drawTile(ctx, ch.bg[1], -off, horizon - T + 6, W + T, T, T, 'bg');
+    const layers = skyLayers(ch.sky);
+    if (layers) {
+      ctx.imageSmoothingEnabled = false;
+      const h = horizon - top + 8;
+      const scale = h / layers[0].naturalHeight;
+      drawLayer(ctx, layers[0], W, horizon + 8, h, this.t * 2 + this.cam.sway * 20);
+      drawLayer(ctx, layers[1], W, horizon + 8, layers[1].naturalHeight * scale, this.t * 7 + this.cam.sway * 60);
+    } else {
+      const T = 72;
+      drawTile(ctx, ch.bg[0], 0, top, W, horizon - top, T, 'bg');
+      const off = ((this.t * 6 + this.cam.sway * 40) % T + T) % T;
+      drawTile(ctx, ch.bg[1], -off, horizon - T + 6, W + T, T, T, 'bg');
+    }
     if (ch.overlay) {
       ctx.fillStyle = ch.overlay;
       ctx.fillRect(0, top, W, horizon - top + 6);

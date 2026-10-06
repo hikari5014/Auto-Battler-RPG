@@ -6,27 +6,27 @@
 
 export const MOUNTS = [
   {
-    id: 'horse', name: '疾風馬', icon: 371, color: '#e8b878', price: 600,
+    id: 'horse', name: '疾風馬', icon: 371, sprite: ['tc', 50], flip: true, color: '#e8b878', price: 600,
     stat: 'spd', per: 0.012, statName: '攻擊速度',
     skill: '衝刺', cd: 5, skillDesc: s => `撞擊最前面的敵人，造成 ${250 + s * 100}% 傷害並擊退`,
   },
   {
-    id: 'wolf', name: '戰狼', icon: 374, color: '#b8c4dc', price: 1500,
+    id: 'wolf', name: '戰狼', icon: 374, sprite: ['tc', 24], color: '#b8c4dc', price: 1500,
     stat: 'crit', per: 0.004, statName: '暴擊率',
     skill: '狼嚎', cd: 7, skillDesc: s => `接下來 ${2 + s} 次攻擊必定暴擊`,
   },
   {
-    id: 'bear', name: '巨熊', icon: 422, color: '#c98a55', price: 2500,
+    id: 'bear', name: '巨熊', icon: 422, sprite: ['tc', 163], color: '#c98a55', price: 2500,
     stat: 'hp', per: 0.012, statName: '血量',
     skill: '熊吼', cd: 8, skillDesc: s => `擊暈所有敵人 ${(0.5 + s * 0.5).toFixed(1)} 秒，並獲得 ${5 + s * 5}% 血量的護盾`,
   },
   {
-    id: 'bird', name: '金翼鳥', icon: 369, color: '#ffd84a', price: 3500,
+    id: 'bird', name: '金翼獅鷲', icon: 369, sprite: ['tc', 114], flip: true, color: '#ffd84a', price: 3500,
     stat: 'ball', per: 0.08, statName: '每殺一隻多掉球',
     skill: '金羽', cd: 7, skillDesc: s => `從天上灑下 ${4 + s * 4} 顆小球`,
   },
   {
-    id: 'drake', name: '火蜥龍', icon: 421, color: '#ff6a3d', price: 6000,
+    id: 'drake', name: '火龍', icon: 421, sprite: ['tc', 33], flip: true, color: '#ff6a3d', price: 6000,
     stat: 'atk', per: 0.012, statName: '攻擊力',
     skill: '火息', cd: 7, skillDesc: s => `噴火燒所有敵人，造成 ${80 + s * 60}% 傷害並燃燒`,
   },

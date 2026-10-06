@@ -155,6 +155,13 @@ const SAMPLES = {
   win: { files: ['win'], vol: 0.8, rate: [1, 1], gap: 0 },
   lose: { files: ['lose'], vol: 0.8, rate: [1, 1], gap: 0 },
   wave: { files: ['wave'], vol: 0.5, rate: [1, 1], gap: 0 },
+  // 3.1 新音效（IgnisForge 43 Retro SFX，CC0）
+  boom: { files: ['boom'], vol: 0.35, rate: [0.85, 1.15], gap: 140 },
+  zap: { files: ['zap'], vol: 0.3, rate: [0.9, 1.2], gap: 120 },
+  maxup: { files: ['maxup'], vol: 0.7, rate: [1, 1], gap: 200 },
+  jackpot: { files: ['jackpot'], vol: 0.8, rate: [1, 1], gap: 0 },
+  coin: { files: ['coin'], vol: 0.5, rate: [0.95, 1.1], gap: 80 },
+  jingle: { files: ['jingle'], vol: 0.7, rate: [1, 1], gap: 0 },
 };
 const buffers = {};
 

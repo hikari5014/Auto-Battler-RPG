@@ -1,0 +1,7 @@
+Pack: clint-tiny-creatures
+Source URL: https://opengameart.org/content/tiny-creatures
+Author: Clint Bellanger
+License: CC0 1.0
+Attribution: Not required. Optional: "Tiny Creatures by Clint Bellanger".
+Notes: 180 16x16 creatures, expansion of Kenney Tiny Dungeon/Tiny Town made with Kenney permission. Bundled License.txt.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

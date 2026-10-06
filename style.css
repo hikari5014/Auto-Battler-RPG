@@ -1,5 +1,10 @@
 /* 像素中文字型：俐方體11號（Cubic 11，免費授權，見 assets/licenses） */
 @font-face {
+  font-family: "Fusion12";
+  src: url("assets/fonts/FusionPixel12.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
   font-family: "Cubic11";
   src: url("assets/fonts/Cubic_11.woff2") format("woff2");
   font-display: swap;
@@ -1268,3 +1273,14 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .start .power-line em { font-size: 10px; padding: 0 5px; vertical-align: 1px; }
 .reward.gift-row { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
 .reward.gift-row span { white-space: nowrap; }
+
+/* ---------- 3.1：標題字型（Fusion Pixel 繁中像素字，OFL） ---------- */
+.panel h2, #banner, .title-font { font-family: "Fusion12", "Cubic11", system-ui, sans-serif; letter-spacing: 1px; }
+.credits { text-align: left; max-height: 60vh; overflow: auto; margin: 6px 0 12px; }
+.credits p { margin: 0 0 10px; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+.credits small { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.credits b { font-size: 13px; font-weight: normal; }
+.credits em { font-style: normal; font-size: 11px; color: #ffd84a; align-self: center; }
+/* 3.1：彈窗面板換成 Mana Soul GUI（tiopalada，CC0）的紫金邊框 */
+.panel { border-image: url("assets/ui/mana-panel.png") 14 fill / 21px stretch; image-rendering: pixelated; }
+.home { border-image: none; }

@@ -1,0 +1,7 @@
+Pack: 13rice-radial-lightning
+Source URL: https://opengameart.org/content/radial-lightning-effect
+Author: 13rice
+License: CC0 1.0
+Attribution: Not required ("Attribution appreciated to 13rice from OpenGameArt").
+Notes: Radial lightning spritesheet.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)
