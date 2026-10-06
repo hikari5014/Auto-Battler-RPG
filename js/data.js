@@ -10,12 +10,12 @@ export const HEROES = [
   },
   {
     id: 'archer', name: '彈射射手 莉亞', sprite: 112, price: 300, role: '高速・遠程', cls: 'ranged',
-    hp: 110, atk: 5, interval: 0.5, range: 240, hits: 1, crit: 0.15,
+    hp: 185, atk: 7, interval: 0.5, range: 240, hits: 1, crit: 0.15,
     passive: '球雨箭：每接住 20 顆球自動射出強力箭；攻速極快、天生 15% 暴擊，但很脆',
   },
   {
     id: 'mage', name: '重力法師 諾娃', sprite: 84, price: 700, role: '範圍・法術', cls: 'spell',
-    hp: 90, atk: 17, interval: 1.7, range: 200, hits: 1, splash: 0.5, magnet: 1,
+    hp: 130, atk: 18, interval: 1.7, range: 200, hits: 1, splash: 0.5, magnet: 1,
     passive: '重力井：接球杯會吸住附近的小球；攻擊慢但每下都濺射全體 50%',
   },
   {
@@ -30,34 +30,34 @@ export const HEROES = [
   },
   {
     id: 'rogue', name: '暗影刺客 夜', sprite: 88, price: 2400, role: '爆發・近戰', cls: 'melee',
-    hp: 95, atk: 7, interval: 0.6, range: 60, hits: 1, crit: 0.25, critDmg: 2.2, dodge: 0.15,
+    hp: 115, atk: 7, interval: 0.6, range: 60, hits: 1, crit: 0.25, critDmg: 2.2, dodge: 0.15,
     passive: '背刺：天生 25% 暴擊、暴擊傷害 220%；15% 機率閃避敵人攻擊',
   },
   {
     id: 'gunner', name: '火槍手 布雷', sprite: 85, price: 3000, role: '轟炸・遠程', cls: 'ranged',
-    hp: 115, atk: 14, interval: 1.3, range: 260, hits: 1,
+    hp: 195, atk: 16, interval: 1.3, range: 260, hits: 1,
     passive: '榴彈：每第 5 次攻擊丟出榴彈，炸所有敵人（150%）；射程最遠',
   },
   {
     id: 'elem', name: '元素使 艾拉', sprite: 99, price: 3600, role: '元素・法術', cls: 'spell',
-    hp: 95, atk: 12, interval: 1.0, range: 200, hits: 1,
+    hp: 140, atk: 14, interval: 1.0, range: 200, hits: 1,
     passive: '三元素：每次攻擊隨機附加火（燃燒）、冰（減速）、雷（跳 2 隻敵人）',
   },
   // ---------- 隱藏職業：不能用金幣買，達成指定成就自動解鎖 ----------
   {
     id: 'dragoon', name: '龍騎士 席格', sprite: 97, price: 0, hidden: true, unlock: 'hard', role: '龍族・近戰＋法術', cls: ['melee', 'spell'],
-    hp: 180, atk: 14, interval: 1.0, range: 60, hits: 1, block: 0.1,
+    hp: 180, atk: 13, interval: 1.0, range: 60, hits: 1, block: 0.1,
     passive: '龍息：每第 4 次攻擊噴出龍火，燒所有敵人（150%＋燃燒）；近戰與法術技能都能用',
   },
   {
     id: 'sage', name: '星辰賢者 奧', sprite: 111, price: 0, hidden: true, unlock: 'tower20', role: '星辰・遠程＋法術', cls: ['ranged', 'spell'],
-    hp: 105, atk: 11, interval: 0.9, range: 240, hits: 1, crit: 0.1, magnet: 0.5,
+    hp: 150, atk: 14, interval: 0.9, range: 240, hits: 1, crit: 0.1, magnet: 0.5,
     passive: '星落：每接住 15 顆球，流星打中所有敵人（200%）；杯子會輕輕吸球；遠程與法術技能都能用',
   },
   {
     id: 'thief', name: '盜賊王 金手指', sprite: 86, price: 0, hidden: true, unlock: 'rich', role: '致富・近戰', cls: 'melee',
     hp: 150, atk: 11, interval: 0.65, range: 60, hits: 1, crit: 0.15, dodge: 0.08,
-    passive: '搶奪：每擊敗一隻敵人直接拿 3 球幣；結算金幣 +30%；8% 閃避',
+    passive: '搶奪：每擊敗一隻敵人直接拿 3 球幣；結算金幣 +20%；8% 閃避',
   },
 ];
 
@@ -171,6 +171,8 @@ export const SKILLS = [
     maxDesc: '每第 4 下攻擊必定暴擊', maxApply: h => { h.critEvery = 4; } },
   { id: 'r_kite', cat: 'ranged', icon: ['ic', 1021, '#b6ff6d'], star: 2, max: 2, name: '拉開距離', desc: '敵人走路速度 -20%', apply: h => { h.slowWalk = Math.min(0.6, h.slowWalk + 0.2); },
     maxDesc: '敵人攻擊速度也 -20%', maxApply: h => { h.slowAtk = 0.2; } },
+  { id: 'r_roll', cat: 'ranged', icon: ['ic', 1058, '#9fe3ff'], star: 1, max: 3, name: '閃身步', desc: '閃避 +8%、受到的傷害 -6%', apply: h => { h.dodge = Math.min(0.6, h.dodge + 0.08); h.dr = Math.min(0.6, h.dr + 0.06); },
+    maxDesc: '閃避後回復 3% 血量', maxApply: h => { h.dodgeHeal = (h.dodgeHeal || 0) + 0.03; } },
   // ---------- 法術技能 ----------
   { id: 's_chain', cat: 'spell', icon: ['ic', 616, '#9fe3ff'], star: 2, max: 3, name: '連鎖閃電', desc: '每 3 次攻擊放出閃電，連跳 3 隻敵人（+120% 傷害）', apply: h => { h.chainEvery = 3; h.chainMul += 1.2; },
     maxDesc: '每 2 次攻擊就放，連跳 6 隻', maxApply: h => { h.chainEvery = 2; h.chainJumps = 6; } },
@@ -178,6 +180,8 @@ export const SKILLS = [
     maxDesc: '燃燒時間變成 6 秒', maxApply: h => { h.dotTime = 6; } },
   { id: 's_shield', cat: 'spell', icon: ['ic', 233, '#d06bff'], star: 2, max: 3, name: '魔力護盾', desc: '每波開始獲得 15% 血量的護盾', apply: h => { h.shieldPct += 0.15; h.shield = h.maxHp * h.shieldPct; },
     maxDesc: '護盾破掉時對全體造成 300% 傷害', maxApply: h => { h.shieldBurst = 3; } },
+  { id: 's_ward', cat: 'spell', icon: ['ic', 233, '#9fe3ff'], star: 1, max: 3, name: '法術結界', desc: '受到的傷害 -10%、每秒回復 0.5% 血量', apply: h => { h.dr = Math.min(0.6, h.dr + 0.1); h.regenPs += 0.005; },
+    maxDesc: '每秒回血再 +1%', maxApply: h => { h.regenPs += 0.01; } },
   { id: 's_nova', cat: 'spell', icon: ['ic', 1023, '#d06bff'], star: 2, max: 2, name: '魔力爆發', desc: '擊殺敵人時爆炸，對全體造成 40% 傷害', apply: h => { h.killBlast += 0.4; },
     maxDesc: '爆炸傷害再 +80%', maxApply: h => { h.killBlast += 0.8; } },
   // ---------- 通用（新）----------

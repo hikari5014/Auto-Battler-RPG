@@ -5,13 +5,15 @@
 // ---------- 難度 ----------
 // hp / atk：敵人血量、攻擊力倍率；count：每波多幾隻；price：技能卡價格倍率；lvGrow：技能每升一級，價格再乘幾倍；rerolls：每一波商店最多刷新幾次（含免費刷新）
 // gold：結算金幣倍率；traps：彈珠台上多幾道紅色陷阱門（x0.5）
+// 3.0 平衡：相鄰難度威脅約 1.35 倍；休閒金幣減半（可以亂玩，但不能拿來刷資源）
+// unlock：要先在哪個難度通關第幾章才能選
 export const DIFFICULTIES = [
-  { id: 'casual', name: '休閒', hp: 1, atk: 1, count: 0, price: 1, lvGrow: 1.5, rerolls: Infinity, gold: 1, traps: 0, color: '#8dff9f' },
-  { id: 'easy', name: '簡單', hp: 1.35, atk: 1.25, count: 0, price: 1.15, lvGrow: 1.6, rerolls: 10, gold: 1.3, traps: 0, color: '#9fe3ff' },
-  { id: 'normal', name: '中級', hp: 1.9, atk: 1.6, count: 1, price: 1.35, lvGrow: 1.7, rerolls: 8, gold: 1.7, traps: 0, color: '#ffd84a' },
-  { id: 'hard', name: '挑戰', hp: 2.6, atk: 2.0, count: 1, price: 1.6, lvGrow: 1.85, rerolls: 6, gold: 2.3, traps: 0, color: '#ff9f43' },
-  { id: 'hell', name: '地獄', hp: 3.8, atk: 2.8, count: 2, price: 1.9, lvGrow: 2.0, rerolls: 4, gold: 3.2, traps: 1, color: '#ff5a5a' },
-  { id: 'nightmare', name: '無解', hp: 6, atk: 4, count: 3, price: 2.3, lvGrow: 2.2, rerolls: 3, gold: 5, traps: 2, color: '#d06bff' },
+  { id: 'casual', name: '休閒', hp: 1, atk: 1, count: 0, price: 1, lvGrow: 1.5, rerolls: Infinity, gold: 0.5, traps: 0, color: '#8dff9f', unlock: null },
+  { id: 'easy', name: '簡單', hp: 1.3, atk: 1.2, count: 0, price: 1.1, lvGrow: 1.6, rerolls: 10, gold: 1.4, traps: 0, color: '#9fe3ff', unlock: null },
+  { id: 'normal', name: '中級', hp: 1.8, atk: 1.5, count: 1, price: 1.25, lvGrow: 1.7, rerolls: 8, gold: 2.0, traps: 0, color: '#ffd84a', unlock: ['easy', 1] },
+  { id: 'hard', name: '挑戰', hp: 2.5, atk: 1.9, count: 1, price: 1.4, lvGrow: 1.8, rerolls: 6, gold: 2.8, traps: 0, color: '#ff9f43', unlock: ['normal', 3] },
+  { id: 'hell', name: '地獄', hp: 3.5, atk: 2.5, count: 2, price: 1.6, lvGrow: 1.9, rerolls: 5, gold: 4.0, traps: 1, color: '#ff5a5a', unlock: ['hard', 5] },
+  { id: 'nightmare', name: '無解', hp: 5, atk: 3.3, count: 3, price: 1.8, lvGrow: 2.0, rerolls: 4, gold: 6.0, traps: 1, color: '#d06bff', unlock: ['hell', 5] },
 ];
 export const difficultyOf = id => DIFFICULTIES.find(d => d.id === id) || DIFFICULTIES[0];
 
@@ -24,8 +26,13 @@ export function waveCurve(w) {
   const k = w - 3;
   return { hp: 1 + 0.3 * Math.pow(k, 1.2), atk: 1 + 0.17 * Math.pow(k, 1.12), count: 4 + Math.floor(k * 0.85) };
 }
-// 最終魔王：血量與攻擊是舊版的 10 倍（無盡塔每 10 層的魔王 3 倍，不然會卡死）
-export const BOSS_MUL = 10, ENDLESS_BOSS_MUL = 3;
+// 最終魔王：血量是舊版的 10 倍、攻擊 4 倍（無盡塔每 10 層的魔王 3 倍，不然會卡死）
+// 開打 60 秒後每 10 秒攻擊 +25%：要打得夠快，而不是比誰撐得過三下
+export const BOSS_MUL = 10, BOSS_ATK_MUL = 4, ENDLESS_BOSS_MUL = 3;
+export const BOSS_FURY_AT = 60, BOSS_FURY_EVERY = 10, BOSS_FURY_MUL = 1.25;
+
+// 每往後一章，敵人血量、攻擊各乘幾倍（3.0 前是 1.8，跳太大）
+export const CHAPTER_GROWTH = 1.45;
 
 export function diffScale(mult, wave) {
   const k = Math.min(1, 0.4 + 0.06 * (wave - 1));

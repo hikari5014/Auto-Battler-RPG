@@ -55,11 +55,11 @@ export const slotsFor = type => Object.keys(SLOTS).filter(k => SLOTS[k].type ===
 
 // mult = 數值倍率；weight = 掉落機率；affix = 副屬性條數；salvage = 分解金幣；shard = 分解魔晶
 export const RARITIES = [
-  { id: 0, name: '普通', color: '#cfcfcf', mult: 1, weight: 60, affix: 0, salvage: 15, shard: 1 },
-  { id: 1, name: '稀有', color: '#36d6ff', mult: 1.8, weight: 28, affix: 1, salvage: 40, shard: 3 },
-  { id: 2, name: '史詩', color: '#d06bff', mult: 3, weight: 10, affix: 2, salvage: 120, shard: 8 },
-  { id: 3, name: '傳說', color: '#ffb820', mult: 5, weight: 2, affix: 3, salvage: 400, shard: 20 },
-  { id: 4, name: '神話', color: '#ff4d6d', mult: 8, weight: 0.3, affix: 4, salvage: 1200, shard: 50 },
+  { id: 0, name: '普通', color: '#cfcfcf', mult: 1, old: 1, weight: 60, affix: 0, salvage: 15, shard: 1 },
+  { id: 1, name: '稀有', color: '#36d6ff', mult: 1.6, old: 1.8, weight: 28, affix: 1, salvage: 40, shard: 3 },
+  { id: 2, name: '史詩', color: '#d06bff', mult: 2.4, old: 3, weight: 10, affix: 2, salvage: 120, shard: 8 },
+  { id: 3, name: '傳說', color: '#ffb820', mult: 3.4, old: 5, weight: 2, affix: 3, salvage: 400, shard: 20 },
+  { id: 4, name: '神話', color: '#ff4d6d', mult: 4.5, old: 8, weight: 0.3, affix: 4, salvage: 1200, shard: 50 },
 ];
 export const MAX_RARITY = RARITIES.length - 1;
 export const MAX_ITEMS = 40;
@@ -121,17 +121,17 @@ export const UNIQUES = {
 };
 const uniquesFor = type => Object.keys(UNIQUES).filter(k => UNIQUES[k].types.includes(type));
 
-// ---------- 寶石 ----------
-// 裝備上有鑲嵌孔（稀有度越高孔越多），寶石有 1～5 級，3 顆同級合成高一級
+// ---------- 符石（3.0 前叫寶石；存檔欄位仍是 gems） ----------
+// 裝備上有鑲嵌孔（稀有度越高孔越多），符石有 1～5 級，3 顆同級合成高一級
 export const GEMS = {
-  ruby: { name: '紅寶石', stat: 'atk', color: '#ff4d4d' },
-  sapphire: { name: '藍寶石', stat: 'crit', color: '#36a9ff' },
-  emerald: { name: '綠寶石', stat: 'hp', color: '#3ddc84' },
-  topaz: { name: '黃寶石', stat: 'gold', color: '#ffd84a' },
-  amethyst: { name: '紫晶', stat: 'critDmg', color: '#c38bff' },
+  ruby: { name: '紅符石', stat: 'atk', color: '#ff4d4d' },
+  sapphire: { name: '藍符石', stat: 'crit', color: '#36a9ff' },
+  emerald: { name: '綠符石', stat: 'hp', color: '#3ddc84' },
+  topaz: { name: '黃符石', stat: 'gold', color: '#ffd84a' },
+  amethyst: { name: '紫符石', stat: 'critDmg', color: '#c38bff' },
 };
 export const GEM_MAX = 5;
-const GEM_MUL = [0, 1, 2.2, 3.8, 6, 9];
+const GEM_MUL = [0, 1, 1.8, 2.7, 3.7, 5];
 export const SOCKETS = [0, 1, 1, 2, 3];
 export const gemKey = (id, lv) => `${id}-${lv}`;
 export const parseGem = key => { const [id, lv] = key.split('-'); return { id, lv: +lv }; };
@@ -146,9 +146,10 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const r1 = v => Math.round(v * 10) / 10;
 
 export function ensureGear(save) {
-  if (!save.gear) save.gear = { v: 2, items: [], equip: {}, nextId: 1, shards: 0 };
+  if (!save.gear) save.gear = { v: 3, items: [], equip: {}, nextId: 1, shards: 0 };
   const g = save.gear;
-  if (g.v !== 2) migrate(g);
+  if (g.v !== 2 && g.v !== 3) migrate(g);
+  if (g.v === 2) rebalance(g);
   if (g.shards === undefined) g.shards = 0;
   if (!g.gems) g.gems = {};
   if (!g.presets) g.presets = [null, null, null];
@@ -175,12 +176,30 @@ function migrate(g) {
   g.v = 2;
 }
 
-// ilv = 裝備等級（在第幾章掉的）：每高一級數值 +12%，越後面的章節掉越好的裝備
-export const ilvMul = ilv => 1 + 0.12 * ((ilv || 1) - 1);
+// ilv = 裝備等級（在第幾章掉的）：每高一級數值 +8%，最高 10 級（3.0 平衡：原本 +12% 而且沒有上限）
+export const ILV_CAP = 10;
+export const ilvMul = ilv => 1 + 0.08 * (Math.min(ILV_CAP, ilv || 1) - 1);
+const oldIlvMul = ilv => 1 + 0.12 * ((ilv || 1) - 1);
+// 3.0 平衡：舊裝備的數值照新公式換算一次，並記下補償（在主畫面發給玩家）
+function rebalance(g) {
+  let n = 0;
+  for (const it of g.items) {
+    const r = RARITIES[it.rarity];
+    const f = (r.mult / r.old) * (ilvMul(it.ilv) / oldIlvMul(it.ilv));
+    it.value = r1(it.value * f) || 0.1;
+    for (const a of it.affixes || []) a.value = r1(a.value * f) || 0.1;
+    if (it.ench) it.ench.value = r1(it.ench.value * r.mult / r.old) || 0.1;
+    if (it.ilv > ILV_CAP) it.ilv = ILV_CAP;
+    if (it.rarity >= 2) n++;
+  }
+  g.rebalanced = { shards: Math.min(400, 30 + n * 6), gold: 2000 + n * 300 };
+  g.v = 3;
+}
 function makeItem(gear, type, rarity, ilv = 1) {
   const T = TYPES[type];
   const r = RARITIES[rarity];
   const k = r.mult * ilvMul(ilv);
+  ilv = Math.min(ILV_CAP, ilv);
   const it = { id: gear.nextId++, type, rarity, ilv, plus: 0, fresh: true, affixes: [], sockets: Array(SOCKETS[rarity]).fill(null) };
   it.main = T.main || RING_MAINS[Math.floor(Math.random() * RING_MAINS.length)];
   it.value = r1((T.main ? T.base : STATS[it.main].base * 1.6) * k);
@@ -198,8 +217,9 @@ function makeItem(gear, type, rarity, ilv = 1) {
 
 export const itemName = it => (it.set ? SETS[it.set].name + '・' : '') + TYPES[it.type].names[it.rarity] + (it.plus ? ` +${it.plus}` : '');
 export const itemIcon = it => ['ic', TYPES[it.type].icons[it.rarity], RARITIES[it.rarity].color];
-// 主屬性實際數值（強化每級 +10%）
-export const mainValue = it => r1(it.value * (1 + 0.1 * (it.plus || 0)));
+// 主屬性實際數值（強化每級 +6%）
+export const PLUS_STEP = 0.06;
+export const mainValue = it => r1(it.value * (1 + PLUS_STEP * (it.plus || 0)));
 export const itemDesc = it => statText(it.main, mainValue(it));
 
 // ---------- 掉落 ----------
@@ -222,7 +242,9 @@ export function rollDrops(save, cleared, win, diffIndex, chapter = 1) {
   let count = Math.min(7, Math.floor(cleared / 4) + (win ? 2 : 0) + (diffIndex >= 3 ? 1 : 0));
   if (cleared >= 3) count = Math.max(1, count);
   const drops = [];
-  for (let i = 0; i < count; i++) drops.push(makeItem(gear, randomType(), randomRarity(diffIndex), chapter));
+  // 休閒難度：裝備等級最高 3、稀有度最高史詩（休閒可以亂玩，但不能拿來刷平衡難度的裝備）
+  const ilv = diffIndex === 0 ? Math.min(3, chapter) : chapter;
+  for (let i = 0; i < count; i++) drops.push(makeItem(gear, randomType(), diffIndex === 0 ? Math.min(2, randomRarity(0)) : randomRarity(diffIndex), ilv));
   gear.items.push(...drops);
   // 背包滿了：自動分解最差的、沒穿在身上的
   let salvaged = 0;
@@ -485,6 +507,9 @@ export function socketGem(save, itemId, idx, key) {
   const gear = ensureGear(save);
   const it = gear.items.find(x => x.id === itemId);
   if (!it || !(gear.gems[key] > 0) || idx >= it.sockets.length) return false;
+  // 同一件裝備，同種符石只能鑲一顆
+  const id = parseGem(key).id;
+  if (it.sockets.some((k, i) => k && i !== idx && parseGem(k).id === id)) return false;
   if (it.sockets[idx]) gear.gems[it.sockets[idx]] = (gear.gems[it.sockets[idx]] || 0) + 1;
   gear.gems[key]--;
   if (!gear.gems[key]) delete gear.gems[key];

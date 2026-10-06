@@ -1,5 +1,5 @@
 // 角色完整數值：首頁（含天賦、裝備、坐騎）與戰鬥中（再加上技能）共用
-import { heroAtk } from './battle.js';
+import { heroAtk, critRate, critMul } from './battle.js';
 import { fmt } from './board.js';
 
 const pct = v => Math.round(v * 1000) / 10 + '%';
@@ -7,8 +7,7 @@ const num = v => (v >= 100 ? fmt(v) : (Math.round(v * 10) / 10).toString());
 
 // 估計每秒傷害：攻擊力 x 攻擊次數 x 連擊 x 暴擊期望值 x 攻速（不含範圍攻擊、被動）
 export function dps(h) {
-  const crit = Math.min(1, h.crit);
-  return heroAtk(h) * h.hits * (1 + h.dbl) * (1 + crit * (h.critDmg - 1)) * h.spdMul / h.interval;
+  return heroAtk(h) * h.hits * (1 + h.dbl) * (1 + critRate(h) * (critMul(h) - 1)) * h.spdMul / h.interval;
 }
 
 // 回傳一排一排的數值；main = 一定顯示，其他只有不是 0 才顯示
@@ -21,8 +20,8 @@ export function statRows(h, base) {
     { k: 'dps', name: '每秒傷害（估）', v: num(dps(h)), up: base && d(dps(h), dps(base)) ? '+' + num(dps(h) - dps(base)) : '', main: true, hot: true },
     { k: 'spd', name: '每秒攻擊', v: (h.spdMul / h.interval).toFixed(2) + ' 下', up: base && d(h.spdMul, base.spdMul) ? '+' + pct(h.spdMul - base.spdMul) : '', main: true },
     { k: 'hits', name: '攻擊次數', v: 'x' + h.hits, up: base && d(h.hits, base.hits) ? '+' + (h.hits - base.hits) : '', main: true },
-    { k: 'crit', name: '暴擊率', v: pct(Math.min(1, h.crit)), up: base && d(h.crit, base.crit) ? '+' + pct(h.crit - base.crit) : '', main: true },
-    { k: 'critDmg', name: '暴擊傷害', v: pct(h.critDmg), up: base && d(h.critDmg, base.critDmg) ? '+' + pct(h.critDmg - base.critDmg) : '', main: true },
+    { k: 'crit', name: '暴擊率', v: pct(critRate(h)), up: base && d(h.crit, base.crit) ? '+' + pct(h.crit - base.crit) : '', main: true },
+    { k: 'critDmg', name: '暴擊傷害', v: pct(critMul(h)), up: base && d(h.critDmg, base.critDmg) ? '+' + pct(h.critDmg - base.critDmg) : '', main: true },
     { k: 'ball', name: '每殺掉球', v: num(h.ballsPerKill), up: base && d(h.ballsPerKill, base.ballsPerKill) ? '+' + num(h.ballsPerKill - base.ballsPerKill) : '', main: true },
     { k: 'dbl', name: '連擊機率', v: pct(h.dbl) },
     { k: 'splash', name: '濺射全體', v: pct(h.splash) },

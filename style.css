@@ -1254,3 +1254,17 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 /* 彈窗比畫面高時，不要被切掉上面：用 auto 邊距置中（太高就從頂端開始，可以往下滑） */
 .screen.overlay { align-items: flex-start; }
 .screen.overlay > .panel { margin-top: auto; margin-bottom: auto; flex: none; }
+
+/* ---------- 3.0 平衡大修：難度鎖、戰力列 ---------- */
+.diff.locked { opacity: 0.55; filter: grayscale(0.6); }
+.diff.locked b { font-size: 11px; }
+.diff.locked small { font-size: 8px; line-height: 1.1; }
+.power-line { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 0 2px; font-size: 12px; color: var(--muted); }
+.power-line b { color: #fff; font-size: 14px; }
+.power-line em { font-style: normal; font-weight: 700; color: #1a1030; background: var(--pc); padding: 1px 8px; border-radius: 9px; font-size: 11px; }
+ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.start .power-line { display: inline; margin: 0; font-size: inherit; color: inherit; }
+.start .power-line b { font-size: inherit; color: #fff; }
+.start .power-line em { font-size: 10px; padding: 0 5px; vertical-align: 1px; }
+.reward.gift-row { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+.reward.gift-row span { white-space: nowrap; }

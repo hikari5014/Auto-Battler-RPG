@@ -6,7 +6,7 @@ import { drawSprite, drawIcon, drawTinted, FONT } from './sprites.js';
 import { riding } from './mount.js';
 import { fmt } from './board.js';
 import { Scene } from './scene.js';
-import { diffScale, waveCurve, BOSS_MUL, ENDLESS_BOSS_MUL } from './levels.js';
+import { diffScale, waveCurve, CHAPTER_GROWTH, BOSS_MUL, BOSS_ATK_MUL, ENDLESS_BOSS_MUL, BOSS_FURY_AT, BOSS_FURY_EVERY, BOSS_FURY_MUL } from './levels.js';
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus } from './gear.js';
@@ -25,15 +25,16 @@ export function createHero(def, save) {
   const tb = talentBonus(save); // 天賦網的加成
   const mt = riding(save);       // 騎著的坐騎
   const mb = k => (mt && mt.stat === k ? mt.bonus : 0);
-  const maxHp = def.hp * (1 + tb.hp) * (1 + gb.hp) * (1 + mb('hp'));
+  // 3.0 分桶：天賦、裝備、坐騎的同類加成先相加（有遞減），再乘到英雄身上
+  const maxHp = def.hp * (1 + softBucket(tb.hp + gb.hp + mb('hp')));
   const h = {
     def, maxHp, hp: maxHp,
-    baseAtk: def.atk * (1 + tb.atk) * (1 + gb.atk) * (1 + mb('atk')),
-    atkMul: 1, spdMul: 1 + tb.spd + mb('spd') + gb.spd,
+    baseAtk: def.atk * (1 + softBucket(tb.atk + gb.atk + mb('atk'))),
+    atkMul: 1, spdMul: 1 + Math.min(1.5, tb.spd + mb('spd') + gb.spd),
     interval: def.interval, range: def.range / 48, // 換算成世界距離
     hits: def.hits + tb.hits, crit: (def.crit || 0.05) + gb.crit + tb.crit + mb('crit'), critDmg: (def.critDmg || 1.5) + tb.critDmg + gb.critDmg,
     block: (def.block || 0) + tb.block + gb.block, dbl: tb.dbl, life: (def.life || 0) + tb.life + gb.life, splash: (def.splash || 0) + tb.splash, thorns: (def.thorns || 0) + tb.thorns,
-    bossDmg: tb.bossDmg + gb.bossDmg, skillDropBonus: tb.skillDrop + (gb.skills.lucky || 0) / 100, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen + gb.regen,
+    bossDmg: Math.min(1, tb.bossDmg + gb.bossDmg), skillDropBonus: tb.skillDrop + (gb.skills.lucky || 0) / 100, phoenix: tb.phoenix > 0, regen: 0.15 + tb.regen + gb.regen,
     magnet: (def.magnet || 0) + tb.magnet,
     critSplash: 0, counter: 0, fullHealWave: false, // 技能滿級獎勵
     // 職業專屬技能用到的數值
@@ -42,7 +43,7 @@ export function createHero(def, save) {
     meteorEvery: 0, meteorMul: 0, frost: 0,
     sawNeed: 12, sawMul: 0.6, rage: 0, rageSpd: 0, killHeal: 0, killGrow: 0,
     // 近戰／遠程／法術技能
-    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: Math.min(0.6, tb.dr + gb.dr), opener: 0, openerStun: false, openerUsed: false,
+    cleave: 0, cleaveAll: false, stun: 0, stunAmp: 0, dr: Math.min(0.3, tb.dr + gb.dr), opener: 0, openerStun: false, openerUsed: false,
     snipe: 0, snipeCrit: false, dot: 0, dotColor: '#7dff5a', dotTime: 3, critEvery: 0, hitCount: 0, slowWalk: 0, slowAtk: 0,
     chainEvery: 0, chainMul: 0, chainJumps: 3, shieldPct: 0, shield: 0, shieldBurst: 0, killBlast: 0,
     interest: tb.interest, interestCap: 1,
@@ -54,15 +55,31 @@ export function createHero(def, save) {
     breathEvery: 4, breathTwice: false, breathMul: 1.5,
     starNeed: 15, starCount: 1, starMul: 2, starCrit: false,
     switchMul: 2, switchCd: 6, switchHeal: 0, switchStun: 0, // 雙職業：換手斬
-    stealCoins: def.id === 'thief' ? 3 : 0, stealBig: false, goldBonus: def.id === 'thief' ? 0.3 : 0, chestEvery: false,
+    stealCoins: def.id === 'thief' ? 3 : 0, stealBig: false, goldBonus: def.id === 'thief' ? 0.2 : 0, chestEvery: false,
     ballsPerKill: 5 + gb.ball + tb.ball + mb('ball'), mount: mt, critCharges: 0,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
   };
   applyJewels(h, gb.skills);
   applyGearExtra(h, gb);
+  // 帳號來源的攻擊次數最多 +2、連擊最多 40%（局內技能不受限）
+  h.hits = Math.min(h.hits, def.hits + 2);
+  h.dbl = Math.min(h.dbl, 0.4);
   return h;
 }
+
+// 分桶加成的遞減：+300% 以內照算，300～600% 的部分只算一半，再往上只算四分之一
+export function softBucket(x) {
+  if (x <= 3) return x;
+  if (x <= 6) return 3 + (x - 3) * 0.5;
+  return 4.5 + (x - 6) * 0.25;
+}
+// 暴擊上限：暴擊率最多 75%，超過的部分一半轉成暴擊傷害；暴擊傷害最多 400%
+export const CRIT_CAP = 0.75, CRIT_DMG_CAP = 4;
+export const critRate = h => Math.min(CRIT_CAP, h.crit);
+export const critMul = h => Math.min(CRIT_DMG_CAP, h.critDmg + Math.max(0, h.crit - CRIT_CAP) * 0.5);
+// 格擋＋閃避合計最多 60%；減傷最多 60%
+export const EVADE_CAP = 0.6, DR_CAP = 0.6;
 
 // 套裝效果與傳說特效
 function applyGearExtra(h, gb) {
@@ -136,17 +153,19 @@ export class Battle {
     const w = stageWave(run, run.wave); // 無盡塔用循環內的波數
     const ch = CHAPTERS[(run.chapter - 1) % CHAPTERS.length];
     const diff = run.diff;
-    const chMul = Math.pow(1.8, run.chapter - 1);
+    const chMul = Math.pow(CHAPTER_GROWTH, run.chapter - 1);
     const cur = waveCurve(w);
     // 魔王用舊版的成長再乘 10 倍（無盡塔 3 倍）
     const bossScale = (1 + 0.16 * (w - 1)) * (run.endless ? ENDLESS_BOSS_MUL : BOSS_MUL);
+    // 3.0：魔王攻擊只乘 4 倍（血量維持 10 倍），改用「拖越久越強」逼玩家輸出
+    const bossAtkScale = (1 + 0.16 * (w - 1)) * (run.endless ? ENDLESS_BOSS_MUL : BOSS_ATK_MUL);
     // 一隻怪 = 種類（圖鑑）× 等級（普通／隊長／菁英／寶箱怪／魔王）
     const mk = (key, tier) => {
       const mon = MONSTERS[key];
       const t = TIERS[tier];
       const mods = run.mods || {};
       const hpS = (tier === 'boss' ? bossScale : cur.hp) * chMul;
-      const atkS = (tier === 'boss' ? bossScale : cur.atk) * chMul;
+      const atkS = (tier === 'boss' ? bossAtkScale : cur.atk) * chMul;
       const maxHp = 18 * hpS * mon.hp * t.hp * diffScale(diff.hp, w) * (run.nextHpMul || 1)
         * (mods.tanky ? 1.4 : 1) * (mods.giant && tier === 'boss' ? 2 : 1);
       return {
@@ -245,6 +264,19 @@ export class Battle {
       const s = slot(i, e.kind === 'boss');
       const dx = s.x - e.x, dz = s.z - e.z;
       const d = Math.hypot(dx, dz);
+      // 魔王越戰越強：開打一段時間後，每隔幾秒攻擊力上升
+      if (e.kind === 'boss' && !this.bossIntro) {
+        e.age = (e.age || 0) + dt;
+        if (e.age > BOSS_FURY_AT) {
+          e.furyT = (e.furyT || 0) + dt;
+          if (e.furyT >= BOSS_FURY_EVERY) {
+            e.furyT = 0;
+            e.atk *= BOSS_FURY_MUL;
+            e.fury = (e.fury || 0) + 1;
+            this.text(e.x, e.z, e.size + 0.7, `越戰越強 x${e.fury}`, '#ff7a3b', 16);
+          }
+        }
+      }
       // 中毒／燃燒：每 0.5 秒扣一次血
       if (e.dotT > 0) {
         e.dotT -= dt;
@@ -320,10 +352,10 @@ export class Battle {
       return;
     }
     h.hitCount++;
-    const crit = Math.random() < h.crit || (h.critEvery && h.hitCount % h.critEvery === 0) || h.nextCrit || h.critCharges > 0;
+    const crit = Math.random() < critRate(h) || (h.critEvery && h.hitCount % h.critEvery === 0) || h.nextCrit || h.critCharges > 0;
     h.nextCrit = false;
     if (h.critCharges > 0) h.critCharges--; // 戰狼「狼嚎」
-    let dmg = heroAtk(h) * (crit ? h.critDmg : 1) * rand(0.9, 1.1);
+    let dmg = heroAtk(h) * (crit ? critMul(h) : 1) * rand(0.9, 1.1);
     // 處決：血少的敵人受到更多傷害
     if (h.exec && t.hp < t.maxHp * h.execAt) dmg *= 1 + h.exec;
     if (crit && h.critDot) { t.dotDps = heroAtk(h) * h.critDot; t.dotT = 3; t.dotColor = '#9a8cff'; }
@@ -375,7 +407,7 @@ export class Battle {
     if (h.snipe > 0) {
       const alive = this.enemies.filter(e => !e.dead && e !== t);
       const last = alive[alive.length - 1];
-      if (last) { this.streak(h, last, '#d8ff8a', 0.2, 'arrow'); this.damage(last, dmg * h.snipe * (h.snipeCrit && !crit ? h.critDmg : 1), h.snipeCrit, !h.snipeCrit); }
+      if (last) { this.streak(h, last, '#d8ff8a', 0.2, 'arrow'); this.damage(last, dmg * h.snipe * (h.snipeCrit && !crit ? critMul(h) : 1), h.snipeCrit, !h.snipeCrit); }
     }
     if (h.life > 0) h.hp = Math.min(h.maxHp, h.hp + dmg * h.life);
     sfx(crit ? 'crit' : 'hit');
@@ -389,7 +421,7 @@ export class Battle {
   // 打中所有敵人的範圍攻擊（聖光、榴彈、龍息、星落、切換攻擊共用）
   blast(mul, label, color, o = {}) {
     const h = this.g.run.hero;
-    const dmg = heroAtk(h) * mul * (o.crit ? h.critDmg : 1);
+    const dmg = heroAtk(h) * mul * (o.crit ? critMul(h) : 1);
     if (label) this.text(h.x + 0.5, h.z, 1.4, label, color, 16);
     for (const e of this.enemies) {
       if (e.dead) continue;
@@ -415,8 +447,8 @@ export class Battle {
     let total = 0;
     for (const e of this.enemies) {
       if (e.dead) continue;
-      const crit = Math.random() < h.crit;
-      const dmg = heroAtk(h) * h.switchMul * (crit ? h.critDmg : 1);
+      const crit = Math.random() < critRate(h);
+      const dmg = heroAtk(h) * h.switchMul * (crit ? critMul(h) : 1);
       this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.25, rot: rand(-0.8, 0.8), crit: true });
       this.fx(h.x, h.z, 0.5, e.x, e.z, e.size * 0.5, color, 0.25, 'beam');
       this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.3, rot: rand(0.6, 1.0), crit: true, big: true, color });
@@ -526,7 +558,7 @@ export class Battle {
 
   swordWave() {
     const h = this.g.run.hero;
-    const dmg = heroAtk(h) * h.swordMul * (h.swordCrit ? h.critDmg : 1);
+    const dmg = heroAtk(h) * h.swordMul * (h.swordCrit ? critMul(h) : 1);
     this.text(h.x + 0.6, h.z, 1.2, '劍氣!', '#7fd1ff', 15);
     for (const e of this.enemies) if (!e.dead) this.damage(e, dmg, h.swordCrit, !h.swordCrit);
     this.fx(h.x + 0.3, h.z, 0.45, 4, 9, 0.45, '#7fd1ff', 0.4, 'wave');
@@ -685,12 +717,16 @@ export class Battle {
   enemyHit(e) {
     const h = this.g.run.hero;
     // 閃避（刺客）
-    if (h.dodge && Math.random() < h.dodge) {
+    // 閃避＋格擋合計最多 60%
+    const dodge = Math.min(EVADE_CAP, h.dodge || 0);
+    const block = Math.min(h.block, Math.max(0, 1 - (1 - EVADE_CAP) / (1 - dodge)));
+    if (dodge && Math.random() < dodge) {
       this.text(h.x, h.z, 1.2, '閃避', '#9a8cff', 14);
       if (h.dodgeCrit) h.nextCrit = true;
+      if (h.dodgeHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.dodgeHeal);
       return;
     }
-    if (Math.random() < h.block) {
+    if (Math.random() < block) {
       this.text(h.x, h.z, 1.2, '格擋', '#9fe3ff', 14);
       sfx('block');
       if (h.blockHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.blockHeal);
@@ -702,7 +738,7 @@ export class Battle {
       }
       return;
     }
-    let dmg = e.atk * (1 - h.dr);
+    let dmg = e.atk * (1 - Math.min(DR_CAP, h.dr));
     // 魔力護盾先擋
     if (h.shield > 0) {
       const absorbed = Math.min(h.shield, dmg);

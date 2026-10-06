@@ -4,6 +4,8 @@ import { shareResult } from './share.js';
 import { statsHtml, refreshStats, dps } from './stats.js';
 import { MOUNTS, FEEDS, MAX_STAR, mountById, ensureMounts, mountState, expNeed, lvCap, breakCost, atCap, buyMount, feed, breakthrough, rideExp, riding, statText as mountStatText, isMaxMount } from './mount.js';
 import { loadSave, writeSave } from './save.js';
+import { ensureProgress, maxCh, diffUnlocked, unlockText, balChapter, anyChapter, clearChapter } from './progress.js';
+import { savePower, recommended, powerBand } from './power.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -26,6 +28,10 @@ loadSettings(save);
 ensureMeta(save);
 ensureTalents(save);
 ensureMounts(save);
+ensureProgress(save);
+// 選到還沒解鎖的難度（舊存檔）就退回休閒
+if (!diffUnlocked(save, difficultyOf(save.difficulty))) save.difficulty = 'casual';
+save.chapter = Math.min(save.chapter, maxCh(save));
 // 已經玩過的老玩家不用再看教學
 if (save.tutorialDone === undefined) save.tutorialDone = save.gold > 0 || save.maxChapter > 1 || save.owned.length > 1;
 setMuted(save.muted);
@@ -230,7 +236,7 @@ function updateLive(dt) {
   liveT = 0.25;
   const h = run.hero;
   const html = `<span>${iconTag(ICON.sword, 12)}<b>${fmtNum(heroAtkOf(h))}</b></span><span class="hot">秒傷 <b>${fmtNum(dps(h))}</b></span>
-    <span>攻速 <b>${(h.spdMul / h.interval).toFixed(2)}</b></span><span>暴擊 <b>${Math.round(Math.min(1, h.crit) * 100)}%</b></span>
+    <span>攻速 <b>${(h.spdMul / h.interval).toFixed(2)}</b></span><span>暴擊 <b>${Math.round(Math.min(0.75, h.crit) * 100)}%</b></span>
     <span>次數 <b>x${h.hits}</b></span>${h.shield > 0 ? `<span>護盾 <b>${fmt(h.shield)}</b></span>` : ''}`;
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
 }
@@ -640,7 +646,7 @@ function updateShop() {
 // 商店下方：目前上場角色的主要數值
 function shopStats() {
   const h = game.run.hero;
-  return `<span>${iconTag(ICON.heart, 12)}${fmt(Math.max(0, h.hp))}/${fmt(h.maxHp)}</span><span>${iconTag(ICON.sword, 12)}${fmtNum(heroAtkOf(h))}</span><span>秒傷 ${fmtNum(dps(h))}</span><span>攻速 ${(h.spdMul / h.interval).toFixed(2)}</span><span>暴擊 ${Math.round(Math.min(1, h.crit) * 100)}%</span><span>次數 x${h.hits}</span>`;
+  return `<span>${iconTag(ICON.heart, 12)}${fmt(Math.max(0, h.hp))}/${fmt(h.maxHp)}</span><span>${iconTag(ICON.sword, 12)}${fmtNum(heroAtkOf(h))}</span><span>秒傷 ${fmtNum(dps(h))}</span><span>攻速 ${(h.spdMul / h.interval).toFixed(2)}</span><span>暴擊 ${Math.round(Math.min(0.75, h.crit) * 100)}%</span><span>次數 x${h.hits}</span>`;
 }
 
 // 卡片上的等級：Lv.2 → 3 / 5，加上一排小格子（已有的實心、這次會加的閃爍）
@@ -802,10 +808,16 @@ function endRun(win) {
   if (rideMax) setTimeout(() => banner(`${ride.m.name} 完全體！`), 1500);
   const rideHtml = ride ? `<p class="ride-exp">${iconTag(['ic', ride.m.icon, ride.m.color], 18)} ${ride.m.name} +${ride.exp} 經驗${ride.ups ? `，升到 Lv.${ride.st.lv}！` : ''}</p>` : '';
   let unlocked = '';
-  if (win && run.chapter === save.maxChapter && !run.endless) {
-    save.maxChapter++;
-    save.chapter = save.maxChapter;
-    unlocked = `<p class="good">解鎖第 ${save.maxChapter} 章：${chapterName(save.maxChapter)}</p>`;
+  if (win && !run.endless && !run.daily) {
+    const r = clearChapter(save, run.diff.id, run.chapter);
+    if (r.next) {
+      if (save.difficulty === run.diff.id) save.chapter = maxCh(save, run.diff.id);
+      unlocked = `<p class="good">${run.diff.name}：解鎖第 ${maxCh(save, run.diff.id)} 章「${chapterName(maxCh(save, run.diff.id))}」</p>`;
+    }
+    if (r.diff) {
+      unlocked += `<p class="good">新難度開放：${r.diff.name}！</p>`;
+      setTimeout(() => banner(`新難度開放：${r.diff.name}`), 1800);
+    }
   }
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
@@ -817,7 +829,7 @@ function endRun(win) {
     ${unlocked}${dailyHtml}${rideHtml}${jewelHtml}
     ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `
       <span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.9 + i * 0.25}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
-    ${gemsGot.length ? `<p>獲得寶石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
+    ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
     ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
     <button class="btn big" id="btn-home">回到主畫面</button>
     <button class="btn small" id="btn-share">${iconTag(['ic', 1057], 16)} 分享戰績</button>`;
@@ -879,6 +891,32 @@ function goHome() {
   $('screen-home').scrollTop = 0;
   onHomeScroll();
   showScreen('screen-home');
+  setTimeout(rebalanceGift, 400);
+}
+
+// 3.0 平衡大修：舊裝備數值換算後的補償（只發一次）
+function rebalanceGift() {
+  const g = ensureGear(save);
+  if (!g.rebalanced || game.run) return;
+  const r = g.rebalanced;
+  delete g.rebalanced;
+  g.shards += r.shards;
+  save.gold += r.gold;
+  writeSave(save);
+  $('info-body').innerHTML = `
+    <h2>3.0 平衡大修</h2>
+    <p>為了讓每個難度都有挑戰性，裝備、天賦的數值重新調整了：</p>
+    <ul class="plain">
+      <li>裝備稀有度、裝備等級、強化的加成變小，裝備等級最高 10</li>
+      <li>同類加成先相加再計算，太高的部分效果遞減；暴擊率最多 75%</li>
+      <li>難度要逐級解鎖，每個難度各自記錄章節</li>
+      <li>魔王攻擊降低，但拖太久會越戰越強</li>
+    </ul>
+    <p>補償已經發到你的帳號：</p>
+    <div class="reward gift-row"><span>${iconTag(ICON.gold, 26)} <b>+${fmt(r.gold)}</b></span><span><b>✦ +${r.shards}</b> 魔晶</span></div>
+    <button class="btn big gift" id="btn-info-close">收下</button>`;
+  showScreen('screen-info', 'screen-home');
+  renderHome();
 }
 
 // 雙職業：選主職業與副職業（副職業可以不帶）
@@ -912,6 +950,13 @@ function unlockHidden() {
 const unlockAch = h => ACHIEVEMENTS.find(x => x.id === h.unlock);
 const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>`).join(' ');
 
+// 首頁：目前戰力 vs 這個難度、這一章的推薦戰力
+function powerLine() {
+  const p = savePower(save), rec = recommended(save.difficulty, save.chapter);
+  const b = powerBand(p, rec);
+  return `<span class="power-line ${b.cls}" style="--pc:${b.color}">戰力 <b>${fmt(p)}</b>／${fmt(rec)} <em>${b.text}</em></span>`;
+}
+
 function renderHome() {
   unlockHidden();
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
@@ -941,7 +986,7 @@ function renderHome() {
       <div class="side right">
         ${side('btn-ach', ICON.trophy, '成就', achN ? 'dot' : '')}
         ${side('btn-daily', ['ic', 630, '#ffd84a'], '每日', dailyDone(save) ? '' : 'dot')}
-        ${side('btn-endless', ['ic', 1023, '#d06bff'], '無盡塔', '', offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔'))}
+        ${side('btn-endless', ['ic', 1023, '#d06bff'], '無盡塔', '', offAttr(anyChapter(save) < 2, '通關第 1 章後開放無盡塔'))}
       </div>
       <button class="hero-tap" id="btn-heroes" aria-label="選擇職業"></button>
       <div class="hero-plate">
@@ -951,7 +996,7 @@ function renderHome() {
       <div class="chapter">
         <button class="icon-btn" id="ch-prev" ${offAttr(save.chapter <= 1, '已經是第一章')}>◀</button>
         <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b><em>${boardOf(save.chapter).rule}</em></div>
-        <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= save.maxChapter, '通關這一章才能解鎖下一章')}>▶</button>
+        <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= maxCh(save), `在「${difficultyOf(save.difficulty).name}」通關這一章才能解鎖下一章`)}>▶</button>
       </div>
       <div class="version-row"><span>v${VERSION}</span><button class="link" id="btn-changelog">更新日誌</button></div>
     </div>
@@ -959,9 +1004,12 @@ function renderHome() {
     <div class="home-content">
     <div class="home-bottom">
       <div class="grip"><i></i><small>往上滑看更多</small></div>
-      <div class="diffs" role="radiogroup" aria-label="難度">${DIFFICULTIES.map(d => `
-        <button class="diff ${d.id === save.difficulty ? 'sel' : ''}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}">
-          <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
+      <div class="diffs" role="radiogroup" aria-label="難度">${DIFFICULTIES.map(d => {
+        const open = diffUnlocked(save, d);
+        return `
+        <button class="diff ${d.id === save.difficulty ? 'sel' : ''} ${open ? '' : 'locked'}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}" ${offAttr(!open, unlockText(d) + '才能選這個難度')}>
+          <b>${open ? '' : '🔒'}${d.name}</b><small>${open ? `金幣 x${d.gold}` : `${difficultyOf(d.unlock[0]).name}第${d.unlock[1]}章`}</small></button>`;
+      }).join('')}
       </div>
       ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(['dg', hero.sprite], 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
     </div>
@@ -974,7 +1022,7 @@ function renderHome() {
       <div class="meta-row">
         <button class="meta-btn" data-act="btn-ach">${iconTag(ICON.trophy, 20)} 成就${achN ? `<b class="badge">${achN}</b>` : ''}</button>
         <button class="meta-btn ${dailyDone(save) ? 'done' : 'fresh'}" data-act="btn-daily">${iconTag(['ic', 630, '#ffd84a'], 20)} 每日挑戰<small>${dailyDone(save) ? '今日完成 ✓' : '尚未挑戰'}</small></button>
-        <button class="meta-btn" data-act="btn-endless" ${offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔')}>${iconTag(['ic', 1023, '#d06bff'], 20)} 無盡塔<small>${save.records && save.records.length ? `最高 ${save.records[0].wave} 層` : save.maxChapter < 2 ? '通關第 1 章開放' : '尚無紀錄'}</small></button>
+        <button class="meta-btn" data-act="btn-endless" ${offAttr(anyChapter(save) < 2, '通關第 1 章後開放無盡塔')}>${iconTag(['ic', 1023, '#d06bff'], 20)} 無盡塔<small>${save.records && save.records.length ? `最高 ${save.records[0].wave} 層` : anyChapter(save) < 2 ? '通關第 1 章開放' : '尚無紀錄'}</small></button>
       </div>
       <div class="hero-info">
         <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
@@ -995,7 +1043,7 @@ function renderHome() {
       <button class="link back-top" data-act="back-top">▲ 回到上面</button>
     </div>
     </div>
-    <div class="start-dock"><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button></div>`;
+    <div class="start-dock"><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}　${powerLine()}</small></button></div>`;
 }
 
 // 選職業：主副職業都在這裡挑（也可以買新職業）
@@ -1098,10 +1146,11 @@ $('home-body').addEventListener('click', ev => {
   if (t.dataset.act) t = { id: t.dataset.act, dataset: {} };
   if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
+    save.chapter = Math.min(save.chapter, maxCh(save));
     const d = difficultyOf(save.difficulty);
     toast(`${d.name}：敵人血量 x${d.hp}、攻擊 x${d.atk}${d.count ? `、每波多 ${d.count} 隻` : ''}${d.traps ? `、${d.traps} 道陷阱門` : ''}；技能價格 x${d.price}、每升一級再 x${d.lvGrow}、每波刷新${d.rerolls === Infinity ? '不限' : ' ' + d.rerolls + ' 次'}；金幣 x${d.gold}`);
   } else if (t.id === 'ch-prev') save.chapter = Math.max(1, save.chapter - 1);
-  else if (t.id === 'ch-next') save.chapter = Math.min(save.maxChapter, save.chapter + 1);
+  else if (t.id === 'ch-next') save.chapter = Math.min(maxCh(save), save.chapter + 1);
   else if (t.id === 'btn-mute') { save.muted = !save.muted; setMuted(save.muted); }
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
@@ -1116,7 +1165,17 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
-  else if (t.id === 'btn-start') { writeSave(save); launch(); return; }
+  else if (t.id === 'btn-start') {
+    // 戰力不足只提醒一次，不擋
+    const p = savePower(save), rec = recommended(save.difficulty, save.chapter);
+    if (p < rec * 0.6 && t.dataset.warned !== '1' && !game.warnedLow) {
+      game.warnedLow = true;
+      toast(`戰力 ${fmt(p)}，推薦 ${fmt(rec)}：可能會很辛苦。再按一次開始冒險`);
+      return;
+    }
+    game.warnedLow = false;
+    writeSave(save); launch(); return;
+  }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
   writeSave(save);
   renderHome();
@@ -1507,7 +1566,7 @@ function gearSummary() {
   }).join('');
   const m = mergeableCount(save);
   const fresh = freshCount(save);
-  return `<b>背包</b>${slots}<small>戰力 ${fmt(gearPower(save))}・${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
+  return `<b>背包</b>${slots}<small>戰力 ${fmt(savePower(save))}・${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
 }
 
 let gearSel = null; // 目前點選的裝備 id
@@ -1519,7 +1578,7 @@ let gearTab = 'all', gearSort = 'rarity', gearView = 'equip', gemPick = null, cr
 // 鑲嵌時挑寶石的清單
 function gemPicker() {
   const gems = Object.entries(ensureGear(save).gems).filter(([, n]) => n > 0).sort((a, b) => parseGem(b[0]).lv - parseGem(a[0]).lv);
-  if (!gems.length) return '<p class="hint">還沒有寶石：冒險結束會掉落寶石</p>';
+  if (!gems.length) return '<p class="hint">還沒有符石：冒險結束會掉落符石</p>';
   return `<div class="gem-pick">${gems.map(([k, n]) => `<button class="gpk" data-putgem="${k}">${gemTag(k, 14)}<small>${gemName(k)} x${n}</small></button>`).join('')}</div>`;
 }
 // 寶石頁：所有寶石＋一鍵合成
@@ -1535,9 +1594,9 @@ function gemsView() {
     return `<div class="grow"><b>${GEMS[id].name}</b><small>${STATS[GEMS[id].stat].name}</small><span class="gcells">${cells.join('')}</span></div>`;
   }).join('');
   const canMerge = Object.entries(gear.gems).some(([k, n]) => n >= 3 && parseGem(k).lv < GEM_MAX);
-  return `<p class="hint">裝備上有鑲嵌孔（稀有 1 孔、史詩 1 孔、傳說 2 孔、神話 3 孔）。點裝備的孔就能鑲嵌；分解或合成裝備時寶石會退回。</p>
+  return `<p class="hint">裝備上有鑲嵌孔（稀有 1 孔、史詩 1 孔、傳說 2 孔、神話 3 孔）。點裝備的孔就能鑲嵌；分解或合成裝備時符石會退回。同一件裝備，同種符石只能鑲一顆。</p>
     <div class="gem-list">${rows}</div>
-    <button class="btn" id="btn-gem-merge" ${offAttr(!canMerge, '需要 3 顆同種、同等級的寶石')}>一鍵合成寶石（3 顆 → 高一級）</button>`;
+    <button class="btn" id="btn-gem-merge" ${offAttr(!canMerge, '需要 3 顆同種、同等級的符石')}>一鍵合成符石（3 顆 → 高一級）</button>`;
 }
 // 鍛造頁：指定種類打造
 function craftView() {
@@ -1549,7 +1608,7 @@ function craftView() {
     const why = gear.items.length >= MAX_ITEMS ? '背包滿了' : gear.shards < t.shards ? `魔晶不足（需要 ${t.shards}）` : save.gold < t.gold ? `金幣不足（需要 ${fmt(t.gold)}）` : '';
     return `<div class="ctier"><span><b>${t.name}</b><small>${odds}</small></span><button class="btn small gift" data-craft="${i}" ${offAttr(!!why, why)}>✦${t.shards}・${iconTag(ICON.gold, 11)}${fmt(t.gold)}</button></div>`;
   }).join('');
-  return `<p class="hint">選一種裝備，用魔晶和金幣打造。打造出來的裝備等級 = 目前最高章節（Lv.${save.maxChapter}）。</p>
+  return `<p class="hint">選一種裝備，用魔晶和金幣打造。打造出來的裝備等級 = 平衡難度（休閒以外）打到的最高章節（Lv.${Math.min(10, balChapter(save))}）。</p>
     <div class="ctypes">${types}</div>${tiers}`;
 }
 // 裝備方案：存下身上的整套裝備，一鍵換回
@@ -1626,7 +1685,7 @@ function renderGear() {
         <span class="gd-ic" style="--rc:${r.color}">${iconTag(itemIcon(sel), 34)}</span>
         <span class="gd-info"><b style="color:${r.color}">${itemName(sel)} <i class="rar" style="--rc:${r.color}">${r.name}${TYPES[sel.type].name}</i></b>
           ${itemLines(sel, true)}
-          ${sel.sockets && sel.sockets.length ? `<div class="socks">${sel.sockets.map((g, i) => `<button class="sock ${g ? 'on' : ''} ${gemPick === i ? 'pick' : ''}" data-sock="${i}">${g ? gemTag(g, 14) + `<small>${statText(GEMS[parseGem(g).id].stat, gemValue(g))}</small>` : '<small>＋ 鑲嵌寶石</small>'}</button>`).join('')}</div>` : ''}
+          ${sel.sockets && sel.sockets.length ? `<div class="socks">${sel.sockets.map((g, i) => `<button class="sock ${g ? 'on' : ''} ${gemPick === i ? 'pick' : ''}" data-sock="${i}">${g ? gemTag(g, 14) + `<small>${statText(GEMS[parseGem(g).id].stat, gemValue(g))}</small>` : '<small>＋ 鑲嵌符石</small>'}</button>`).join('')}</div>` : ''}
           ${gemPick !== null && sel.sockets && sel.sockets[gemPick] === null ? gemPicker() : ''}
           <small class="rf-hint">↻ = 重鑄這條副屬性（✦${reforgeCost(sel).shards} 魔晶＋${fmt(reforgeCost(sel).gold)} 金幣）</small>
           ${sel.skill ? `<span class="jlv">飾品 Lv.${sel.jlv}/${JEWEL_MAX_LV}${sel.jlv < JEWEL_MAX_LV ? `<i style="width:${(sel.jexp || 0) / jewelExpNeed(sel.jlv) * 100}%"></i>` : ''}</span>` : ''}
@@ -1645,13 +1704,13 @@ function renderGear() {
   const junk = gear.items.filter(it => it.rarity === 0 && !it.lock && !it.plus && !isWorn(save, it.id) && !isBetter(save, it)).length;
   $('gear-body').innerHTML = `
     <h2>背包</h2>
-    <div class="gear-top"><span class="pill power">戰力 <b>${fmt(gearPower(save))}</b></span><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
+    <div class="gear-top"><span class="pill power">戰力 <b>${fmt(savePower(save))}</b></span><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
     <div class="doll8">
       <div class="dcol">${slotBtn('helm')}${slotBtn('armor')}${slotBtn('gloves')}${slotBtn('boots')}</div>
       <span class="doll-hero">${iconTag(['dg', hero.sprite], 64)}<small>${hero.name.split(' ')[1]}</small></span>
       <div class="dcol">${slotBtn('weapon')}${slotBtn('necklace')}${slotBtn('ring1')}${slotBtn('ring2')}</div>
     </div>
-    <div class="vtabs">${[['equip', '裝備'], ['gems', '寶石'], ['craft', '鍛造']].map(([k, n]) => `<button class="vtab ${gearView === k ? 'sel' : ''}" data-view="${k}">${n}</button>`).join('')}</div>
+    <div class="vtabs">${[['equip', '裝備'], ['gems', '符石'], ['craft', '鍛造']].map(([k, n]) => `<button class="vtab ${gearView === k ? 'sel' : ''}" data-view="${k}">${n}</button>`).join('')}</div>
     ${gearView === 'gems' ? gemsView() : gearView === 'craft' ? craftView() : `
     <div class="chips">${bonusChips(gearBonus(save))}</div>
     ${setStrip()}
@@ -1675,10 +1734,11 @@ $('gear-body').addEventListener('click', ev => {
   if (t.dataset.view) { gearView = t.dataset.view; gemPick = null; }
   else if (t.dataset.sock !== undefined) {
     const i = +t.dataset.sock;
-    if (sel.sockets[i]) { unsocketGem(save, sel.id, i); toast('寶石已取下'); gemPick = null; }
+    if (sel.sockets[i]) { unsocketGem(save, sel.id, i); toast('符石已取下'); gemPick = null; }
     else gemPick = gemPick === i ? null : i;
   } else if (t.dataset.putgem) {
     if (socketGem(save, sel.id, gemPick, t.dataset.putgem)) { sfx('buy'); celebrate(t, '#7fffd4'); toast(`鑲嵌：${gemName(t.dataset.putgem)}`); }
+    else toast('同一件裝備，同種符石只能鑲一顆');
     gemPick = null;
   } else if (t.dataset.reforge !== undefined) {
     const c = reforgeCost(sel);
@@ -1687,10 +1747,10 @@ $('gear-body').addEventListener('click', ev => {
     else toast(`重鑄需要 ✦${c.shards} 魔晶、${fmt(c.gold)} 金幣`);
   } else if (t.id === 'btn-gem-merge') {
     const n = mergeGems(save);
-    if (n) { sfx('win'); banner(`合成 ${n} 顆寶石！`); }
+    if (n) { sfx('win'); banner(`合成 ${n} 顆符石！`); }
   } else if (t.dataset.ctype) craftType = t.dataset.ctype;
   else if (t.dataset.craft !== undefined) {
-    const it = craft(save, craftType, +t.dataset.craft, save.maxChapter);
+    const it = craft(save, craftType, +t.dataset.craft, balChapter(save));
     if (it) {
       sfx('win');
       celebrate(t, RARITIES[it.rarity].color);
@@ -2100,4 +2160,59 @@ window.__test = {
     return true;
   },
   reroll(render) { rollOffer(); if (render) renderShop(); },
+  power: (hero, diff, ch) => ({ p: savePower(save, [hero || save.selected]), rec: recommended(diff || save.difficulty, ch || 1) }),
+  // 平衡測試用：不畫畫面，直接用機器人跑完一整局（存檔會在結束後還原）
+  // opts: { hero, hero2, diff, chapter, aim: 0~1（瞄準準度）, revive }
+  sim(opts = {}) {
+    const keep = JSON.stringify(save);
+    const restore = () => { const o = JSON.parse(keep); for (const k of Object.keys(save)) delete save[k]; Object.assign(save, o); };
+    save.tutorialDone = true;
+    if (opts.hero) { save.selected = opts.hero; if (!save.owned.includes(opts.hero)) save.owned.push(opts.hero); }
+    save.second = opts.hero2 || null;
+    if (opts.hero2 && !save.owned.includes(opts.hero2)) save.owned.push(opts.hero2);
+    if (opts.diff) save.difficulty = opts.diff;
+    const aim = opts.aim === undefined ? 0.85 : opts.aim;
+    startRun({ chapter: opts.chapter || 1 });
+    const run = game.run;
+    const dt = 1 / 30;
+    let ticks = 0, deathWave = 0, bossT = 0;
+    while (run.phase !== 'over' && ticks < 200000) {
+      ticks++;
+      if (run.phase === 'fight' || run.phase === 'settle') {
+        // 瞄準：大部分時間對準最好的門，偶爾失手
+        if (ticks % 5 === 0) {
+          const val = g => (g.type[0] === 'x' ? 100 : 0) + parseFloat(g.type.slice(1));
+          const good = board.gates.filter(g => !g.trap && g.vis !== 0).sort((a, b) => val(b) - val(a));
+          const g = Math.random() < aim ? good[0] : board.gates[Math.floor(Math.random() * board.gates.length)];
+          if (g) board.targetX = g.x + g.w / 2 + (Math.random() - 0.5) * 30 * (1 - aim);
+        }
+        update(dt);
+        if (isBossWave(run, run.wave) && run.phase === 'fight') bossT += dt;
+      } else if (run.phase === 'event') {
+        const e = run.events[Math.floor(Math.random() * run.events.length)];
+        e.apply({ run, board, randomSkill: makeRandomSkill(run, isMaxed), gainSkill });
+        openShop();
+      } else if (run.phase === 'shop') {
+        // 商店：先買高星、再買便宜的；錢多就刷新一次
+        for (let round = 0; round < 3; round++) {
+          const buyable = run.offer.filter(o => !o.bought && o.price <= run.coins).sort((a, b) => b.sk.star - a.sk.star || a.price - b.price);
+          for (const o of buyable) { if (o.price > run.coins) continue; run.coins -= o.price; o.bought = true; gainSkill(o.sk); }
+          if (run.rerollsLeft > 0 && run.coins > run.rerollCost * 4) { run.coins -= run.rerollCost; run.rerollsLeft--; run.rerollCost += 10; rollOffer(); } else break;
+        }
+        run.shopDiscount = 1;
+        showScreen(null);
+        nextWave();
+      } else if (run.phase === 'dead') {
+        deathWave = deathWave || run.wave;
+        if (!run.revived && opts.revive !== false) { run.revived = true; for (const h of run.heroes) if (h.hp <= 0) h.hp = h.maxHp * 0.6; run.phase = 'fight'; showScreen(null); }
+        else endRun(false);
+      } else break;
+    }
+    const out = { win: run.phase === 'over' && run.wave >= MAX_WAVE && run.heroes.some(h => h.hp > 0), wave: run.wave, deathWave, coins: Math.round(run.coins), skills: run.skills.length, ticks, boss: isBossWave(run, run.wave), bossT: Math.round(bossT), dps: Math.round(dps(run.hero)), hp: Math.round(run.hero.maxHp) };
+    game.run = null;
+    restore();
+    writeSave(save);
+    showScreen(null);
+    return out;
+  },
 };

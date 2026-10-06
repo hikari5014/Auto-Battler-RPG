@@ -162,7 +162,7 @@ export const infPoints = save => Object.entries(save.talents || {}).reduce((s, [
 
 export function talentCost(save, n) {
   const lv = tLv(save, n.id);
-  if (n.kind === 'inf') return Math.round(n.base * Math.pow(1.12, lv)); // 無極：每級貴 12%
+  if (n.kind === 'inf') return Math.round(n.base * Math.pow(1.1, lv)); // 無極：每級貴 10%
   return Math.round(n.base * Math.pow(1.5, lv) * (1 + INFLATE * totalPoints(save)));
 }
 export function canReach(save, n) {
@@ -207,15 +207,24 @@ export function talentBonus(save) {
   if (!save.talents) return tb;
   for (const n of TALENTS) {
     const lv = tLv(save, n.id);
-    if (lv) for (const [k, per] of n.eff) tb[k] += per * lv;
+    if (lv) for (const [k, per] of n.eff) tb[k] += per * (n.kind === 'inf' ? infEff(lv) : lv);
   }
   for (const b of BRANCHES) if (mastered(save, b)) for (const [k, v] of b.mastery) tb[k] += v;
   // 便宜類有上限，避免變成免費
   tb.price = Math.min(0.6, tb.price);
   tb.rerollDisc = Math.min(0.8, tb.rerollDisc);
+  // 無極的金幣、好運另有上限
+  tb.gold = Math.min(tb.gold, goldNodes(save) + 0.3);
+  tb.luck = Math.min(tb.luck, luckNodes(save) + 0.5);
   return tb;
 }
-export const talentDesc = (save, n, lv = tLv(save, n.id)) => n.kind === 'core' ? '冒險的起點（已點亮）' : effText(n.eff, Math.max(1, lv));
+export const talentDesc = (save, n, lv = tLv(save, n.id)) => n.kind === 'core' ? '冒險的起點（已點亮）' : effText(n.eff, n.kind === 'inf' ? infEff(Math.max(1, lv)) : Math.max(1, lv));
+// 無極天賦效果遞減：第 n 級效果 = 1 級 × 20/(20+n)，越後面越少（但永遠會長）
+export const infEff = lv => 20 * Math.log(1 + lv / 20);
+// 非無極節點給的金幣、好運（無極部分另外封頂）
+const sumNonInf = (save, key) => TALENTS.filter(n => n.kind !== 'inf').reduce((s, n) => s + n.eff.filter(([k]) => k === key).reduce((a, [, per]) => a + per * tLv(save, n.id), 0), 0) + BRANCHES.filter(b => mastered(save, b)).reduce((s, b) => s + b.mastery.filter(([k]) => k === key).reduce((a, [, v]) => a + v, 0), 0);
+const goldNodes = save => sumNonInf(save, 'gold');
+const luckNodes = save => sumNonInf(save, 'luck');
 // 加總後的效果，一行一行（給「總加成」看）
 export function bonusLines(save) {
   const tb = talentBonus(save);
