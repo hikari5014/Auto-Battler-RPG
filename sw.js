@@ -1,13 +1,14 @@
 // 離線快取（Service Worker）
 // 每個版本有自己的一份快取；新版本下載完會「等待」，玩家按下更新才切換，
 // 這樣不會玩到一半，一部分是舊檔案、一部分是新檔案。
-const VERSION = '3.11.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
+const VERSION = '3.12.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
 const CACHE = 'marble-brave-' + VERSION;
 const ASSETS = [
   './',
   'index.html',
   'style.css',
   'manifest.webmanifest',
+  'js/arcade.js',
   'js/audio.js',
   'js/battle.js',
   'js/board.js',

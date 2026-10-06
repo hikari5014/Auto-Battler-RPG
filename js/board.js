@@ -297,6 +297,7 @@ export class Board {
             b.vy -= 1.5 * vn * ny;
             b.vx += rand(-15, 15);
             p.lit = 1;
+            b.hits = (b.hits || 0) + 1; // 3.12 彈珠射手：撞越多釘子越痛
             this.onPeg();
             sfx('peg');
             if (p.kind === 'gold' && !p.cd) { p.cd = 0.5; this.onGoldPeg(p); }
@@ -379,6 +380,7 @@ export class Board {
     }
     for (let k = 0; k < copies; k++) {
       this.spawn(b.x + rand(-3, 3), b.y + 1, b.vx + rand(-60, 60), b.vy * rand(0.5, 0.85), b.v, b.mask);
+      this.balls[this.balls.length - 1].hits = b.hits || 0;
     }
   }
 

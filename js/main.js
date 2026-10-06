@@ -14,6 +14,7 @@ import * as modes from './modes.js';
 import * as camp from './campaign.js';
 import * as expd from './expedition.js';
 import * as live from './live.js';
+import * as arcade from './arcade.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -147,7 +148,7 @@ function startRun(opts = {}) {
     diff: difficultyOf(spec && spec.diffId ? spec.diffId : opts.daily ? 'easy' : save.difficulty), // 難度
     rules: boardOf(chapter),               // 這一章的彈珠台與特殊規則
   };
-  if (spec) { Object.assign(game.run, spec); game.run.coins += spec.startCoins || 0; }
+  if (spec) { Object.assign(game.run, spec); game.run.coins += spec.startCoins || 0; if (spec.init) spec.init(game.run); }
   // 每日挑戰「玻璃大砲」
   if (mods.glass) {
     for (const h of heroes) {
@@ -271,6 +272,7 @@ function onKill(e) {
   if (run.hero.stealCoins) run.coins += run.hero.stealCoins * (run.hero.stealBig && e.kind !== 'normal' ? 10 : 1);
   if (run.hero.bounty && e.kind !== 'normal') board.pour(run.hero.bounty); // 傳說特效「賞金」
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
+  if (run.mode === 'shooter') { run.coins += Math.round(n * 6); return; } // 彈珠射手：擊敗直接給球幣
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
 
@@ -405,7 +407,15 @@ $('event-body').addEventListener('click', ev => {
 
 board.onCatch = (b, mult) => {
   const run = game.run;
-  const gain = b.v * mult * (run.mods.rich ? 1.5 : 1) * (1 + (run.hero.greed || 0));
+  // 3.12 彈珠射手：球就是砲彈
+  if (run.mode === 'shooter') {
+    if (run.phase === 'fight') battle.strikeFront(b.v * mult * (1 + 0.25 * (b.hits || 0)) * 1.3, mult > 1 ? '砲彈!' : '', mult > 1 ? '#ffd84a' : '#cfd8ff', 'bullet');
+    run.caught++;
+    return;
+  }
+  let gain = b.v * mult * (run.mods.rich ? 1.5 : 1) * (1 + (run.hero.greed || 0));
+  // 3.12 杯中軍團：一半變成士兵
+  if (run.mode === 'army') { run.army = Math.min(200, (run.army || 0) + gain * 0.15); gain *= 0.5; }
   run.coins += gain;
   save.stats.coins += gain;
   run.caught++;
@@ -459,6 +469,16 @@ function update(dt) {
     lastCoins = run.coins;
   }
 
+  // 3.12 杯中軍團：士兵定時攻擊；彈珠射手：定時掉砲彈球
+  if (run.phase === 'fight' && !game.paused) {
+    if (run.mode === 'army' && run.army >= 1) {
+      run.armyT = (run.armyT || 0) + dt;
+      if (run.armyT >= 0.6) { run.armyT = 0; battle.strikeFront(arcade.armyHit(run.army), '', '#9fe3ff', 'arrow'); }
+    } else if (run.mode === 'shooter') {
+      run.shotT = (run.shotT || 0) + dt;
+      if (run.shotT >= 0.7 && board.balls.length < 8 && board.queue === 0) { run.shotT = 0; board.pour(1); }
+    }
+  }
   // 3.11 世界王：限時
   if (run.timer && run.phase === 'fight') {
     run.tT = (run.tT || 0) + dt;
@@ -851,6 +871,12 @@ function endModeRun(win) {
     title = win ? '競技場 勝利！' : '競技場 落敗';
     sub = `對手：${run.opp.name}・打倒 ${cleared}/3 個幻影`;
     lines = [`積分 ${d >= 0 ? '+' : ''}${d} → ${save.arena.pts}（${live.rankOf(save.arena.pts).name}）`];
+  } else if (run.mode === 'army' || run.mode === 'shooter') {
+    const A = arcade.ARCADE[run.mode];
+    title = win ? `${A.name} 全破！` : `${A.name} 結束`;
+    sub = `完成 ${cleared}/10 波`;
+    const gem = arcade.arcadeReward(save, run.mode, cleared);
+    lines = [gem ? `今天第一次：+${gem} 寶石、+${Math.floor(gem / 2)} 星塵` : '今天的寶石已經領過了（明天再來）'];
   } else if (run.mode === 'expedition') {
     title = win ? '遠征 全破！' : '遠征結束';
     sub = `完成 ${cleared}/12 波・遺物 ${(run.relics || []).length} 個`;
@@ -2077,7 +2103,7 @@ const rushDiff = () => (save.difficulty === 'casual' ? 'easy' : save.difficulty)
 const modeCh = diffId => Math.max(1, maxCh(save, diffId) - 1);
 function renderModes() {
   modes.ensureModes(save);
-  const tabs = [['dungeon', '每日副本'], ['wb', '世界王'], ['arena', '競技場'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['exp', '遠征'], ['puzzle', '謎題'], ['endless', '無盡塔']];
+  const tabs = [['dungeon', '每日副本'], ['wb', '世界王'], ['arena', '競技場'], ['rush', '魔王連戰'], ['trial', '試煉塔'], ['exp', '遠征'], ['army', '杯中軍團'], ['shooter', '彈珠射手'], ['puzzle', '謎題'], ['endless', '無盡塔']];
   let body = '';
   if (modesTab === 'dungeon') {
     const ids = Object.keys(modes.DUNGEONS);
@@ -2117,6 +2143,11 @@ function renderModes() {
       <div class="arena-opps">${a.opp.map((o, i) => `<button class="arena-opp" data-arena="${i}" ${offAttr(a.tries >= live.ARENA_TRIES, '今天的次數用完了')}><span>${o.team.map(id => iconTag(heroRef(HEROES.find(h => h.id === id)), 24)).join('')}</span><b>${o.name}</b><small>${['弱', '相當', '強'][i]}・贏 +${o.win}／輸 ${o.lose}</small></button>`).join('')}</div>
       <div class="g-btns"><button class="btn" id="btn-arena-reroll">換一批對手</button><button class="btn gift" id="btn-arena-claim" ${offAttr(a.claimed, '這週已經領過了')}>領段位獎勵<small>${eco.giftText(live.rankOf(a.best).gift)}</small></button></div>
       <p class="hint">今天剩 ${live.ARENA_TRIES - a.tries} 次</p>`;
+  } else if (modesTab === 'army' || modesTab === 'shooter') {
+    const A = arcade.ARCADE[modesTab], a = arcade.ensureArcade(save, modesTab);
+    body = `<p class="hint">${A.desc}</p>
+      <p class="dg-info">10 波（第 10 波魔王），使用目前難度與章節。<br>${a.done ? '今天的寶石已領（還是可以再玩）' : '今天第一次：每過一波 +5 寶石'}・最佳 ${a.best}/10</p>
+      <button class="btn big gift" id="btn-arcade-go" data-arc="${modesTab}">開始${A.name}</button>`;
   } else if (modesTab === 'exp') {
     const e = expd.ensureExp(save);
     body = `<p class="hint">12 波的冒險（第 12 波是魔王）。每打完一波選一條路：戰鬥、精英（打贏選遺物）、營火（回血）、寶箱（選遺物）、商人（技能 6 折）。遺物只在這次遠征有效。使用目前難度與章節。</p>
@@ -2158,6 +2189,10 @@ $('modes-body').addEventListener('click', ev => {
   } else if (t.id === 'btn-rush-go') {
     writeSave(save);
     startRun({ chapter: modeCh(rushDiff()), spec: { ...modes.rushRun(), diffId: rushDiff() } });
+    return;
+  } else if (t.id === 'btn-arcade-go') {
+    writeSave(save);
+    startRun({ chapter: save.chapter, spec: t.dataset.arc === 'army' ? arcade.armyRun() : arcade.shooterRun() });
     return;
   } else if (t.id === 'btn-wb-go') {
     live.ensureWb(save).tries++;
@@ -3022,7 +3057,9 @@ window.__test = {
     else if (opts.mode === 'trial') { save.trial = { floor: opts.floor || 0 }; spec = modes.trialRun(save); }
     else if (opts.mode === 'expedition') spec = expd.expeditionRun();
     if (opts.fit) opts.chapter = fitCh();
-    if (opts.mode === 'worldboss') spec = { ...live.wbRun(), diffId: 'normal' };
+    if (opts.mode === 'army') spec = arcade.armyRun();
+    else if (opts.mode === 'shooter') spec = arcade.shooterRun();
+    else if (opts.mode === 'worldboss') spec = { ...live.wbRun(), diffId: 'normal' };
     else if (opts.mode === 'arena') spec = { ...live.arenaRun(live.rollOpponents(opts.pts || 0)[opts.opp || 1]), diffId: 'normal' };
     else if (opts.mode === 'puzzle') spec = expd.puzzleRun(opts.puzzle || 0);
     startRun({ chapter: opts.chapter || 1, spec });

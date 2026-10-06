@@ -443,7 +443,7 @@ export class Battle {
     // 英雄攻擊：最前面的敵人進入射程就開打
     // 射程要加上敵人的身體半徑：魔王體型大、站得比較遠，近戰也要打得到
     const front = this.enemies[0];
-    if (front && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2 + front.size * 0.4) {
+    if (front && !h.noAuto && Math.hypot(front.x - h.x, front.z - h.z) <= h.range + 0.2 + front.size * 0.4) { // 彈珠射手模式不自動攻擊
       if (h.hasteT > 0) h.hasteT -= dt;
       h.timer += dt * h.spdMul * (raging(h) ? 1 + h.rageSpd : 1) * (h.hasteT > 0 ? 1.6 : 1);
       if (h.timer >= h.interval && h.hitQueue <= 0) {
@@ -985,6 +985,13 @@ export class Battle {
     let dmg = e.atk * (1 - Math.min(DR_CAP, h.dr));
     // 3.5 後排站位：遠程、法術英雄被魔王打到的傷害 -25%（近戰有格擋、吸血技能可以撐）
     if (e.kind === 'boss' && h.def.cls !== 'melee') dmg *= 0.75;
+    // 3.12 杯中軍團：士兵幫忙擋（最多擋 60%，每擋 2% 血量的傷害倒一個士兵）
+    const run = this.g.run;
+    if (run.army >= 1) {
+      const per = h.maxHp * 0.02, ab = Math.min(run.army * per, dmg * 0.6);
+      dmg -= ab;
+      run.army = Math.max(0, run.army - ab / per);
+    }
     // 衝鋒：第一下特別痛
     if (e.ai === 'charge' && !e.charged) { e.charged = true; dmg *= 2.5; this.text(e.x, e.z, e.size + 0.5, '衝撞!', '#ff8a6b', 14); }
     // 魔力護盾先擋
@@ -1199,6 +1206,18 @@ export class Battle {
       ctx.fillStyle = '#5a3b12'; ctx.fillRect(q.x - r, q.y - r * 1.2, r * 2, r * 1.2);
       ctx.fillStyle = '#e8b23a'; ctx.beginPath(); ctx.arc(q.x, q.y - r * 1.4, r, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#3a2a10'; ctx.fillRect(q.x, q.y - r * 1.7, r * 1.6, r * 0.6);
+    }
+    // 3.12 杯中軍團：英雄身後的小士兵
+    const run = this.g.run;
+    if (run && run.army >= 1 && h === run.hero) {
+      const n = Math.min(10, Math.ceil(run.army / 15));
+      for (let k = 0; k < n; k++) {
+        const q = this.scene.project(x + 0.45 + (k % 5) * 0.2, h.z + (k < 5 ? -0.3 : 0.32) + (k % 2) * 0.08, Math.abs(Math.sin(this.scene.t * 8 + k)) * 0.05);
+        drawSprite(ctx, 16, q.x, q.y, 0.5 * q.s, false, 0, 'tc');
+      }
+      const q = this.scene.project(x + 0.8, h.z, 0.75);
+      ctx.fillStyle = '#ffd84a'; ctx.font = 'bold 13px Fusion12, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(`士兵 ${Math.floor(run.army)}`, q.x, q.y);
     }
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
