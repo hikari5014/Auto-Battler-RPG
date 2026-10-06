@@ -146,6 +146,13 @@ export const HEIRLOOMS = {
   dragoon: { name: '屠龍槍', desc: s => `龍息傷害 +${50 + s * 10}%`, apply: (h, s) => { h.breathMul += 0.5 + s * 0.1; } },
   sage: { name: '星辰之書', desc: s => `星落傷害 +${30 + s * 8}%`, apply: (h, s) => { h.starMul *= 1.3 + s * 0.08; } },
   thief: { name: '黃金鉤爪', desc: s => `結算金幣 +${10 + s * 2}%、每殺一隻多 1 球幣`, apply: (h, s) => { h.goldBonus += 0.1 + s * 0.02; h.stealCoins += 1; } },
+  // 3.8 傳奇英雄專武（抽到傳奇英雄時附贈；之後裝備池也抽得到）
+  ignis: { sig: true, name: '焚天之杖', desc: s => `隕石傷害 +${50 + s * 10}%`, apply: (h, s) => { h.meteorMul += 0.5 + s * 0.1; } },
+  evira: { sig: true, name: '翠影長弓', desc: s => `毒傷 +${15 + s * 3}%`, apply: (h, s) => { h.dot += 0.15 + s * 0.03; } },
+  leos: { sig: true, name: '獅心聖劍', desc: s => `聖光傷害 +${40 + s * 10}%`, apply: (h, s) => { h.holyMul += 0.4 + s * 0.1; } },
+  lilith: { sig: true, name: '血月鐮刀', desc: s => `吸血 +${4 + s}%`, apply: (h, s) => { h.life += 0.04 + s * 0.01; } },
+  omega: { sig: true, name: '終焉核心砲', desc: s => `砲台傷害 +${30 + s * 6}%`, apply: (h, s) => { h.turretMul += 0.3 + s * 0.06; } },
+  seraph: { sig: true, name: '六翼聖典', desc: s => `聖光傷害 +${30 + s * 8}%、每秒回血 +0.2%`, apply: (h, s) => { h.holyMul += 0.3 + s * 0.08; h.regenPs += 0.002; } },
 };
 export function applyHeirloom(h, gb) {
   const x = gb.heir;
@@ -695,7 +702,10 @@ export function transferPlus(save, id) {
 export function forgeItem(save, rarity, ilv, kind) {
   const gear = ensureGear(save);
   let it;
-  if (kind === 'heir') it = makeItem(gear, 'weapon', 3, ilv, { heir: Object.keys(HEIRLOOMS)[Math.floor(Math.random() * 11)] });
+  if (kind === 'heir') {
+    const pool = Object.keys(HEIRLOOMS).filter(k => !HEIRLOOMS[k].sig || (save.owned || []).includes(k));
+    it = makeItem(gear, 'weapon', 3, ilv, { heir: pool[Math.floor(Math.random() * pool.length)] });
+  } else if (kind && HEIRLOOMS[kind]) it = makeItem(gear, 'weapon', 3, ilv, { heir: kind }); // 指定的專武
   else if (kind === 'imprint') it = makeItem(gear, randomType(), 3, ilv, { set: IMPRINT_SETS[Math.floor(Math.random() * IMPRINT_SETS.length)] });
   else it = makeItem(gear, randomType(), rarity, ilv);
   gear.items.push(it);

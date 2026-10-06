@@ -179,6 +179,49 @@ export const HEROES = [
     passive: '黃金加農：每第 3 擊發射加農砲打全體（120%）；身上每 100 球幣攻擊力 +4%（最多 +40%）',
     perks: { s3: ['加農砲擊暈 0.5 秒', h => { h.grenadeStun = true; }], s5: ['海上霸主：加農砲傷害 +60%，球幣加攻上限 +20%', h => { h.grenadeMul += 0.6; h.coinCap += 0.2; }] },
   },
+  // ---------- 3.8 傳奇英雄（扭蛋 0.6%，51 抽起機率上升、70 抽必出；每 14 天輪流當主打） ----------
+  {
+    id: 'ignis', name: '炎帝 伊格尼斯', sprite: ['hx', 68], price: 0, gacha: true, rarity: 'legend', role: '火雨・法術', cls: 'spell', tags: ['fire', 'dragon'],
+    hp: 205, atk: 16, interval: 1.15, range: 200, hits: 1, splash: 0.25,
+    init: h => { h.dot = 0.35; h.dotColor = '#ff7a3b'; h.dotTime = 3; h.meteorEvery = 5; h.meteorMul = 1.6; h.shieldPct += 0.12; },
+    passive: '烈焰：濺射 25%，攻擊點燃敵人（每秒 35%）；每 5 次攻擊召喚隕石打全體（160%）；每波開始有 12% 血量的火焰護盾',
+    perks: { s3: ['隕石傷害 +40%', h => { h.meteorMul += 0.4; }], s5: ['焚天：隕石改成每 3 次攻擊，燃燒 +20%', h => { h.meteorEvery = 3; h.dot += 0.2; }] },
+  },
+  {
+    id: 'evira', name: '森林女王 艾薇拉', sprite: ['hx', 72], price: 0, gacha: true, rarity: 'legend', role: '毒箭・遠程', cls: 'ranged', tags: ['poison', 'beast'],
+    hp: 225, atk: 12, interval: 0.85, range: 260, hits: 1,
+    init: h => { h.multiShot += 1; h.dot = 0.25; h.dotColor = '#7dff5a'; h.dotTime = 4; h.turrets = 1; h.turretMul = 0.5; h.petSprite = ['tc', 13]; },
+    passive: '森之箭：每次多射一箭，箭會讓敵人中毒（每秒 25%）；身邊有一株食人花（每秒攻擊 50%）',
+    perks: { s3: ['再多射一箭', h => { h.multiShot += 1; }], s5: ['萬木之心：毒傷 +30%，食人花再多一株', h => { h.dot += 0.3; h.turrets += 1; }] },
+  },
+  {
+    id: 'leos', name: '獅心王 雷歐斯', sprite: ['hx', 76], price: 0, gacha: true, rarity: 'legend', role: '聖騎坦克・近戰', cls: 'melee', tags: ['holy', 'martial'],
+    hp: 270, atk: 12, interval: 1.05, range: 60, hits: 1, block: 0.12,
+    init: h => { h.holyOn = true; h.holyEvery = 4; h.holyMul = 1; h.regenPs += 0.004; h.roarEvery = 16; },
+    passive: '獅心：天生格擋 12%、每秒回 0.4% 血；每 4 擊放聖光（100%）；每 16 擊獅吼擊暈全體',
+    perks: { s3: ['聖光傷害 +40%', h => { h.holyMul += 0.4; }], s5: ['不屈王者：受到的傷害 -10%，格擋時回 2% 血', h => { h.dr = Math.min(0.6, h.dr + 0.1); h.blockHeal += 0.02; }] },
+  },
+  {
+    id: 'lilith', name: '夜之女王 莉莉絲', sprite: ['hx', 80], price: 0, gacha: true, rarity: 'legend', role: '吸血爆發・法術', cls: 'spell', tags: ['shadow', 'poison'],
+    hp: 205, atk: 16, interval: 1.0, range: 200, hits: 1, life: 0.1, crit: 0.15, dodge: 0.15,
+    init: h => { h.killBlast += 0.35; h.dot = 0.2; h.dotColor = '#b98bff'; h.dotTime = 3; },
+    passive: '血月：10% 吸血、15% 暴擊、15% 閃避；敵人死掉時暗影爆炸打全體（35%）',
+    perks: { s3: ['暗影爆炸 35% → 60%', h => { h.killBlast += 0.25; }], s5: ['夜之女王：吸血 +6%，暴擊傷害 +50%', h => { h.life += 0.06; h.critDmg += 0.5; }] },
+  },
+  {
+    id: 'omega', name: '終焉機甲 歐米茄', sprite: ['hx', 84], price: 0, gacha: true, rarity: 'legend', role: '砲台雷擊・遠程', cls: 'ranged', tags: ['mech', 'thunder'],
+    hp: 215, atk: 13, interval: 1.1, range: 260, hits: 1,
+    init: h => { h.turrets = 2; h.turretMul = 0.45; h.chainEvery = 3; h.chainMul = 0.8; h.dr = Math.min(0.3, h.dr + 0.1); },
+    passive: '終焉協議：兩座砲台（每秒 45%）；每 3 次攻擊放出連鎖閃電（80%）；裝甲受到的傷害 -10%',
+    perks: { s3: ['砲台傷害 +30%', h => { h.turretMul += 0.3; }], s5: ['過載：閃電多跳 3 隻，傷害 +60%', h => { h.chainJumps += 3; h.chainMul += 0.6; }] },
+  },
+  {
+    id: 'seraph', name: '熾天使 賽拉芙', sprite: ['hx', 88], price: 0, gacha: true, rarity: 'legend', role: '聖光復活・法術', cls: 'spell', tags: ['holy', 'star'],
+    hp: 210, atk: 15, interval: 1.1, range: 220, hits: 1, splash: 0.15,
+    init: h => { h.holyOn = true; h.holyEvery = 4; h.holyMul = 0.9; h.phoenix = true; h.regenPs += 0.003; },
+    passive: '六翼：濺射 15%；每 4 次攻擊放聖光（90%）；每局一次倒下時復活（50% 血）；每秒回 0.3% 血',
+    perks: { s3: ['聖光改成每 3 次攻擊', h => { h.holyEvery = 3; }], s5: ['天堂之門：聖光傷害 +50%，聖光給 8% 血量護盾', h => { h.holyMul += 0.5; h.holyShield += 0.08; }] },
+  },
 ];
 
 // 角色圖：Kenney「Tiny Dungeon」（CC0），數字是 assets/tiny-dungeon.png 裡第幾格
@@ -474,6 +517,31 @@ export const SKILLS = [
     maxDesc: '球幣加攻上限 +20%', maxApply: h => { h.coinCap += 0.2; } },
   { id: 'mg_powder', hero: 'morgan', icon: ['ic', 616, '#ffb347'], star: 2, max: 1, name: '火藥桶', desc: '加農砲傷害 +40%', apply: h => { h.grenadeMul += 0.4; },
     maxDesc: '加農砲改成每 2 擊', maxApply: h => { h.grenadeEvery = 2; } },
+  // 3.8 傳奇英雄專屬技能
+  { id: 'ig_core', hero: 'ignis', icon: ['ic', 616, '#ff7a3b'], star: 1, max: 1, name: '熔岩核心', desc: '燃燒傷害 +12%', apply: h => { h.dot += 0.12; },
+    maxDesc: '隕石傷害 +80%', maxApply: h => { h.meteorMul += 0.8; } },
+  { id: 'ig_wing', hero: 'ignis', icon: ['ic', 712, '#ff5a5a'], star: 2, max: 1, name: '炎翼', desc: '攻擊速度 +8%', apply: h => { h.spdMul += 0.08; },
+    maxDesc: '擊殺時爆炸打全體（25%）', maxApply: h => { h.killBlast += 0.25; } },
+  { id: 'ev_vine', hero: 'evira', icon: ['ic', 233, '#7dff5a'], star: 1, max: 1, name: '荊棘藤', desc: '食人花傷害 +20%', apply: h => { h.turretMul += 0.2; },
+    maxDesc: '被打時反彈 60% 傷害', maxApply: h => { h.thorns += 0.6; } },
+  { id: 'ev_toxin', hero: 'evira', icon: ['ic', 616, '#7dff5a'], star: 2, max: 1, name: '劇毒箭頭', desc: '毒傷 +12%', apply: h => { h.dot += 0.12; },
+    maxDesc: '中毒的敵人死掉時，毒傳染給全體', maxApply: h => { h.plague = true; } },
+  { id: 'le_mane', hero: 'leos', icon: ['ic', 233, '#ffd84a'], star: 1, max: 1, name: '金鬃', desc: '格擋 +5%', apply: h => { h.block = Math.min(0.8, h.block + 0.05); },
+    maxDesc: '格擋時反擊（100% 攻擊）', maxApply: h => { h.counter += 1; } },
+  { id: 'le_oath', hero: 'leos', icon: ['ic', 576, '#fff2a8'], star: 2, max: 1, name: '王者誓約', desc: '聖光傷害 +20%', apply: h => { h.holyMul += 0.2; },
+    maxDesc: '獅吼改成每 10 擊', maxApply: h => { h.roarEvery = 10; } },
+  { id: 'li_kiss', hero: 'lilith', icon: ['ic', 576, '#b98bff'], star: 1, max: 1, name: '血之吻', desc: '吸血 +4%', apply: h => { h.life += 0.04; },
+    maxDesc: '擊殺回 3% 血', maxApply: h => { h.killHeal += 0.03; } },
+  { id: 'li_moon', hero: 'lilith', icon: ['ic', 712, '#b98bff'], star: 2, max: 1, name: '血月', desc: '暴擊率 +6%', apply: h => { h.crit += 0.06; },
+    maxDesc: '暗影爆炸 +40%', maxApply: h => { h.killBlast += 0.4; } },
+  { id: 'om_core', hero: 'omega', icon: ['ic', 233, '#c0c8d8'], star: 1, max: 1, name: '反應爐', desc: '閃電傷害 +20%', apply: h => { h.chainMul += 0.2; },
+    maxDesc: '閃電改成每 2 次攻擊', maxApply: h => { h.chainEvery = 2; } },
+  { id: 'om_turret', hero: 'omega', icon: ['ic', 616, '#c0c8d8'], star: 2, max: 1, name: '量產砲台', desc: '砲台傷害 +15%', apply: h => { h.turretMul += 0.15; },
+    maxDesc: '多一座砲台', maxApply: h => { h.turrets += 1; } },
+  { id: 'se_halo', hero: 'seraph', icon: ['ic', 576, '#fff2a8'], star: 1, max: 1, name: '光環', desc: '每秒回血 +0.2%', apply: h => { h.regenPs += 0.002; },
+    maxDesc: '聖光傷害 +60%', maxApply: h => { h.holyMul += 0.6; } },
+  { id: 'se_wing', hero: 'seraph', icon: ['ic', 712, '#fff2a8'], star: 2, max: 1, name: '六翼', desc: '濺射 +8%', apply: h => { h.splash += 0.08; },
+    maxDesc: '聖光擊暈 0.6 秒', maxApply: h => { h.holyStun = true; } },
 ];
 
 // 技能分類：通用（大家都有）、近戰、遠程、法術（看英雄的職業類型）

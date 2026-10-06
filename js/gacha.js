@@ -79,6 +79,11 @@ export function heroRates() {
   ];
 }
 export const ELITE_PITY = 20, LEGEND_SOFT = 51, LEGEND_HARD = 70;
+// 3.8 主打傳奇：每 14 天換一位
+export const FEATURED_RATE = 0.7, FEATURE_DAYS = 14;
+const dayIndex = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+export const featuredLegend = () => { const p = pool('legend'); return p[Math.floor(dayIndex() / FEATURE_DAYS) % p.length]; };
+export const featuredDaysLeft = () => FEATURE_DAYS - (dayIndex() % FEATURE_DAYS);
 
 function rollHeroOnce(save, chapter, guarantee) {
   const g = save.gacha.hero;
@@ -102,7 +107,18 @@ function rollHeroOnce(save, chapter, guarantee) {
 }
 function grantHeroResult(save, k, chapter) {
   const g = save.gacha.hero;
-  if (k === 'legend') { g.sinceLegend = 0; g.sinceElite = 0; return { ...giveHero(save, pick(pool('legend'))), r: 'legend' }; }
+  if (k === 'legend') {
+    g.sinceLegend = 0; g.sinceElite = 0;
+    // 主打傳奇：70% 是主打；歪了的話下一隻傳奇保證是主打（大保底）
+    const feat = featuredLegend();
+    let def = feat;
+    if (!g.lost && Math.random() >= FEATURED_RATE) { def = pick(pool('legend').filter(h => h !== feat)) || feat; g.lost = true; }
+    else g.lost = false;
+    const res = giveHero(save, def);
+    // 第一次抽到：附贈專武
+    if (res.isNew) { res.sig = forgeItem(save, 3, forgeIlv(chapter), def.id); res.sig.fresh = true; }
+    return { ...res, r: 'legend', featured: def === feat };
+  }
   if (k === 'elite') { g.sinceElite = 0; return { ...giveHero(save, pick(pool('elite'))), r: 'elite' }; }
   if (k === 'rare') return { ...giveHero(save, pick(pool('rare'))), r: 'rare' };
   if (k.endsWith('Frag') && k !== 'anyFrag') {

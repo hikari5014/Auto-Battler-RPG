@@ -1784,7 +1784,7 @@ const capsule = (r, open) => `<i class="capsule" style="--cx:${CAPSULE[r] || 10}
 function resultCard(o, i) {
   const r = o.r || 'normal', col = heroP.RARITY[r].color;
   let ic, name, sub = '';
-  if (o.kind === 'hero') { ic = iconTag(heroRef(o.def), 40); name = o.def.name.split(' ')[1]; sub = o.isNew ? '<b class="new">NEW!</b>' : `轉成碎片 x${o.frag}${o.dust ? `（滿星→星塵 ${o.dust}）` : ''}`; }
+  if (o.kind === 'hero') { ic = iconTag(heroRef(o.def), 40); name = o.def.name.split(' ')[1]; sub = o.isNew ? `<b class="new">NEW!${o.sig ? '＋專武' : ''}</b>` : `轉成碎片 x${o.frag}${o.dust ? `（滿星→星塵 ${o.dust}）` : ''}`; }
   else if (o.kind === 'frag') { ic = iconTag(heroRef(o.def), 32); name = `${o.def.name.split(' ')[1]}碎片`; sub = `x${o.n}${o.dust ? `→星塵 ${o.dust}` : ''}`; }
   else if (o.kind === 'any') { ic = iconTag(ICON.stardust, 32); name = '萬能碎片'; sub = `x${o.n}`; }
   else if (o.kind === 'item') { ic = iconTag(itemIcon(o.it), 34); name = itemName(o.it); sub = o.it.heir ? '<b class="new">傳家武器</b>' : o.special ? `<b class="new">${SETS[o.it.set].name}刻印</b>` : `${RARITIES[o.it.rarity].name}${TYPES[o.it.type].name}`; }
@@ -1808,6 +1808,7 @@ function renderGacha() {
         <b>${nb ? '新手召喚・半價' : '英雄召喚'}</b>
         <small>${nb ? `剩 ${g.newbie} 抽・第一次十連必出稀有英雄` : '抽到整隻英雄或英雄碎片；重複的英雄會變成碎片'}</small>
         <div class="g-pity">每 ${gacha.ELITE_PITY} 抽必出精英英雄：還差 <b>${gacha.ELITE_PITY - g.hero.sinceElite}</b> 抽　十連必有精英以上</div>
+        ${nb ? '' : featBox(g)}
       </div>
       <div class="g-btns">
         <button class="btn gift" id="btn-pull1" ${offAttr(w.gem < c1, '寶石不足')}>單抽<small>${iconTag(ICON.diamond, 14)}${c1}</small></button>
@@ -1818,7 +1819,7 @@ function renderGacha() {
         <button class="btn" id="btn-tick10" ${offAttr(w.heroTicket < 10, '英雄召喚券不到 10 張')}>用券十連<small>${iconTag(ICON.heroTicket, 14)}10</small></button></div>`}
       <button class="link" id="btn-g-rates">${gachaShowRates ? '▲ 收起機率' : '▼ 查看機率'}</button>
       ${gachaShowRates ? `<div class="g-rates">${rates.map(r => `<span>${r.name}</span><b>${(r.p * 100).toFixed(1)}%</b>`).join('')}</div>
-        <p class="hint">每抽送 ${gacha.DUST_PER_PULL} 星塵。傳奇英雄 3.8 版加入。滿星英雄的碎片會換成星塵。</p>` : ''}`;
+        <p class="hint">每抽送 ${gacha.DUST_PER_PULL} 星塵。第一次抽到傳奇英雄附贈專武。滿星英雄的碎片會換成星塵。</p>` : ''}`;
   } else if (gachaTab === 'forge') {
     const f = g.forge, room = bagRoomLeft();
     body = `<div class="g-banner forge">
@@ -1866,6 +1867,13 @@ function renderGacha() {
     ${gachaResult ? '' : `<div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${gachaTab === k ? 'sel' : ''}" data-gtab="${k}">${n}${k === 'res' && gacha.resFreeLeft(save) ? ' •' : ''}</button>`).join('')}</div>`}
     ${body}
     ${gachaResult ? '' : '<button class="btn" id="btn-gacha-close">關閉</button>'}`;
+}
+// 3.8 主打傳奇
+function featBox(g) {
+  const f = gacha.featuredLegend();
+  if (!f) return '';
+  return `<div class="feat"><span class="feat-ic">${iconTag(heroRef(f), 44)}</span><span><b>主打傳奇：${f.name}</b><small>${f.role}・還剩 ${gacha.featuredDaysLeft()} 天</small>
+    <small>傳奇保底 ${g.hero.sinceLegend}/${gacha.LEGEND_HARD}（${gacha.LEGEND_SOFT} 抽起機率上升）・${g.hero.lost ? '<b class="big-pity">下一隻傳奇必定是主打！</b>' : '抽到傳奇有 70% 是主打'}</small></span></div>`;
 }
 const dustOk = it => { const h = HEROES.find(x => x.id === dustHero); return h && heroP.rarityOf(h) === it.need; };
 const bagRoomLeft = () => MAX_ITEMS - ensureGear(save).items.length;
@@ -2151,7 +2159,7 @@ function itemLines(it, withTools) {
   if (it.ench) h += `<p class="il ench">✦ 附魔：${statText(it.ench.stat, it.ench.value)}</p>`;
   if (it.heir) {
     const hd = HEROES.find(x => x.id === it.heir), on = save.selected === it.heir;
-    h += `<p class="il uniq ${on ? '' : 'locked'}">★ 傳家：${hd.name.split(' ')[1]}當主職業時，攻擊力 +${10 + (it.star || 0) * 3}%、${HEIRLOOMS[it.heir].desc(it.star || 0)}</p>`;
+    h += `<p class="il uniq ${on ? '' : 'locked'}">★ ${HEIRLOOMS[it.heir].sig ? '專武' : '傳家'}：${hd.name.split(' ')[1]}當主職業時，攻擊力 +${10 + (it.star || 0) * 3}%、${HEIRLOOMS[it.heir].desc(it.star || 0)}</p>`;
   }
   if (it.uniq) h += `<p class="il uniq">★ 傳說特效「${UNIQUES[it.uniq].name}」：${UNIQUES[it.uniq].desc}</p>`;
   if (it.set) {
