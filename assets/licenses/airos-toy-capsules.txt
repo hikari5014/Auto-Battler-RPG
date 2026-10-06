@@ -1,0 +1,7 @@
+Name: 32px Toy Capsules
+Source: https://opengameart.org/content/32px-toy-capsules
+Author: Airos
+License: CC0 1.0
+Attribution: Airos（非必要）
+Notes: 扭蛋膠囊
+Downloaded: 2026-10-06 for 彈珠勇者 (Marble Brave) asset evaluation

@@ -37,9 +37,9 @@ export async function makeShareImage(r) {
   g.fillStyle = '#ffd84a';
   g.fillText('彈珠勇者', W / 2, 100);
   // 英雄（從圖集裁出來放大）
-  const dg = SHEETS.dg;
+  const [key, idx] = Array.isArray(r.hero.sprite) ? r.hero.sprite : ['dg', r.hero.sprite];
+  const dg = SHEETS[key];
   if (dg.img) {
-    const idx = r.hero.sprite;
     g.fillStyle = 'rgba(0,0,0,0.3)';
     g.beginPath();
     g.ellipse(W / 2, 330, 110, 24, 0, 0, Math.PI * 2);

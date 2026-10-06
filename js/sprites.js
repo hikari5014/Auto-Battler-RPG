@@ -10,7 +10,8 @@ export const SHEETS = {
   bg: { src: 'assets/img/pixel-platformer-bg.png', tile: 24, cols: 8 },
   ic: { src: 'assets/img/icons-1bit.png', tile: 16, cols: 49 },
   tc: { src: 'assets/img/tiny-creatures.png', tile: 16, cols: 10 },
-  it: { src: 'assets/img/items.png', tile: 32, cols: 12 }, // 道具：寶石、召喚券、星塵、寶箱…（SpriteAttack 寶石、7Soul1 496 RPG icons，CC0） // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
+  it: { src: 'assets/img/items.png', tile: 32, cols: 12 },
+  hx: { src: 'assets/img/heroes-x.png', tile: 28, cols: 4 }, // 3.4 新英雄：0x72「DungeonTileset II」角色換色（CC0），每位 4 格待機動畫 // 道具：寶石、召喚券、星塵、寶箱…（SpriteAttack 寶石、7Soul1 496 RPG icons，CC0） // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
 };
 
 // 像素中文字型「俐方體11號」（Cubic 11，免費授權）
@@ -44,7 +45,7 @@ export function loadSprites() {
       g.fillStyle = '#fff';
       g.fillRect(0, 0, c.width, c.height);
       white[key] = c;
-      if (key === 'dg' || key === 'tc') {
+      if (key === 'dg' || key === 'tc' || key === 'hx') {
         const r = document.createElement('canvas');
         r.width = c.width;
         r.height = c.height;

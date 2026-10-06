@@ -90,7 +90,12 @@ export function createHero(def, save) {
     ballsPerKill: 5 + gb.ball + tb.ball + mb('ball'), mount: mt, critCharges: 0,
     x: HERO_POS.x, z: HERO_POS.z, timer: 0, hitQueue: 0, hitTimer: 0, swings: 0,
     lunge: 0, hurt: 0,
+    // 3.4 新英雄用的通用機制（任何英雄都能被技能打開）
+    swordOn: false, holyOn: false, grenadeOn: false, breathOn: false,
+    freezeEvery: 0, freezeTime: 0.8, frozenAmp: 0, bashEvery: 0, bashMul: 1.2, blocks: 0,
+    turrets: 0, turretMul: 0.4, turretT: 0, turretCoins: 0,
   };
+  if (def.init) def.init(h);
   applyJewels(h, gb.skills);
   applyGearExtra(h, gb);
   // 帳號來源的攻擊次數最多 +2、連擊最多 40%（局內技能不受限）
@@ -257,6 +262,21 @@ export class Battle {
       run.mountT = (run.mountT || 0) + dt;
       if (run.mountT >= h.mount.cdNow) { run.mountT = 0; this.mountSkill(h); }
     }
+    // 砲台：每座每秒射一發（不會被打壞）
+    if (h.turrets > 0 && this.enemies.some(e => !e.dead)) {
+      h.turretT += dt * h.turrets;
+      if (h.turretT >= 1) {
+        h.turretT -= 1;
+        const t = this.enemies.find(e => !e.dead);
+        if (t) {
+          const side = (h.turretShot = (h.turretShot || 0) + 1) % 2 ? -0.5 : 0.5;
+          this.fx(h.x + side * 0.4, h.z - 0.3 + side * 0.2, 0.5, t.x, t.z, t.size * 0.4, '#ffd84a', 0.2, 'bullet');
+          const was = t.dead;
+          this.damage(t, heroAtk(h) * h.turretMul, false, true, '#ffd84a');
+          if (!was && t.dead && h.turretCoins) this.g.run.coins += h.turretCoins;
+        }
+      }
+    }
     // 飾品技能：雷霆、星隕
     if (h.jewels && h.jewels.length && this.enemies.some(e => !e.dead)) {
       for (const j of h.jewels) {
@@ -317,6 +337,7 @@ export class Battle {
         if (e.dotAcc >= 0.5) { e.dotAcc = 0; this.damage(e, e.dotDps * 0.5, false, true, e.dotColor); }
       }
       // 擊暈：站著不動、不攻擊
+      if (e.frozen > 0) e.frozen -= dt;
       if (e.stun > 0) { e.stun -= dt; e.flash = Math.max(e.flash, 0.3); return; }
       const step = 3.2 * (e.speed || 1) * dt * (e.kind === 'boss' && this.bossIntro ? 0.5 : 1) * (1 - h.slowWalk);
       if (d > step) { e.x += dx / d * step; e.z += dz / d * step; } else { e.x = s.x; e.z = s.z; }
@@ -347,16 +368,16 @@ export class Battle {
         h.hitTimer = 0;
         if (rounds > 1) this.text(h.x, h.z, 1.3, '連擊!', '#ffdd55', 14);
         h.swings++;
-        if (h.def.id === 'blade' && h.swings % h.swordEvery === 0) {
+        if ((h.def.id === 'blade' || h.swordOn) && h.swings % h.swordEvery === 0) {
           this.swordWave();
           if (h.swordTwice) setTimeout(() => this.g.run && this.swordWave(), 160);
         }
         if (h.meteorEvery && h.swings % h.meteorEvery === 0) this.meteor();
         if (h.chainEvery && h.swings % h.chainEvery === 0) this.chain();
         const id = h.def.id;
-        if (id === 'paladin' && h.swings % h.holyEvery === 0) this.holy();
-        if (id === 'gunner' && h.swings % h.grenadeEvery === 0) this.blast(h.grenadeMul, '榴彈!', '#ffb347', { stun: h.grenadeStun ? 1 : 0, style: 'grenade' });
-        if (id === 'dragoon' && h.swings % h.breathEvery === 0) {
+        if ((id === 'paladin' || h.holyOn) && h.swings % h.holyEvery === 0) this.holy();
+        if ((id === 'gunner' || h.grenadeOn) && h.swings % h.grenadeEvery === 0) this.blast(h.grenadeMul, '榴彈!', '#ffb347', { stun: h.grenadeStun ? 1 : 0, style: 'grenade' });
+        if ((id === 'dragoon' || h.breathOn) && h.swings % h.breathEvery === 0) {
           this.breath();
           if (h.breathTwice) setTimeout(() => this.g.run && this.breath(), 220);
         }
@@ -399,6 +420,14 @@ export class Battle {
       dmg *= 1 + h.opener;
       this.text(h.x + 0.5, h.z, 1.4, '衝鋒!', '#ff8a6b', 16);
       if (h.openerStun) for (const e of this.enemies) if (!e.dead) e.stun = 1.5;
+    }
+    // 凍結：每第 N 擊把敵人凍住（魔王只凍一小段），凍住的敵人受到更多傷害
+    if (h.freezeEvery && h.hitCount % h.freezeEvery === 0) {
+      const ft = h.freezeTime * (t.kind === 'boss' ? 0.35 : 1);
+      t.stun = Math.max(t.stun || 0, ft);
+      t.frozen = ft;
+      this.text(t.x, t.z, t.size + 0.5, '凍結', '#9fe3ff', 12);
+      if (!settings.lowFx) this.anim('ice', t.x, t.z, t.size * 0.5, 1.1, null, 0, 0.5);
     }
     if (h.stun && Math.random() < h.stun) { t.stun = 1; this.text(t.x, t.z, t.size + 0.5, '暈眩', '#ffd84a', 12); }
     if (h.dot) { t.dotDps = heroAtk(h) * h.dot; t.dotT = h.dotTime; t.dotColor = h.dotColor; }
@@ -722,6 +751,7 @@ export class Battle {
     if (e.dead) return;
     if (!this.g.run.hero.ignoreArmor) dmg *= 1 - (e.armor || 0); // 骷髏兵等有減傷（穿甲彈無視）
     if (e.stun > 0) dmg *= 1 + (this.g.run.hero.stunAmp || 0); // 重擊滿級
+    if (e.frozen > 0) dmg *= 1 + (this.g.run.hero.frozenAmp || 0); // 凍結增傷
     if (e.kind !== 'normal') dmg *= 1 + (this.g.run.hero.bossDmg || 0); // 天賦「獵王者」
     e.hp -= dmg;
     e.flash = 1;
@@ -773,6 +803,8 @@ export class Battle {
       this.text(h.x, h.z, 1.2, '格擋', '#9fe3ff', 14);
       sfx('block');
       if (h.blockHeal) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * h.blockHeal);
+      // 盾擊：每格擋幾次就打全體並擊暈
+      if (h.bashEvery && ++h.blocks % h.bashEvery === 0) this.blast(h.bashMul, '盾擊!', '#c0c8d8', { stun: 0.5, style: 'saw' });
       // 鐵壁滿級：格擋後立刻反擊
       if (h.counter > 0) {
         this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.18, rot: rand(-0.6, 0.6), crit: true });
@@ -887,7 +919,8 @@ export class Battle {
     const w = size * p.s * (1 - breathe);
     const hgt = size * p.s * (1 + breathe);
     ctx.globalAlpha = 1 - sc.fogAt(z) * 0.85;
-    const [key, idx] = Array.isArray(sprite) ? sprite : ['dg', sprite]; // 怪物可以用其他圖集：['tc', 編號]
+    let [key, idx] = Array.isArray(sprite) ? sprite : ['dg', sprite]; // 怪物可以用其他圖集：['tc', 編號]
+    if (key === 'hx') idx += Math.floor(sc.t * 6 + phase * 3) % 4; // 新英雄：4 格待機動畫
     drawSprite(ctx, idx, p.x, p.y + 1, w, false, flash, key, hgt, rage);
     ctx.globalAlpha = 1;
     return { p, top: p.y - hgt };
@@ -972,6 +1005,15 @@ export class Battle {
       else drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
       ctx.globalAlpha = 1;
       lift += size * (h.showcase ? 0.5 : 0.42) + bob;
+    }
+    // 砲台：英雄兩側的小黃銅砲
+    for (let i = 0; i < Math.min(3, h.turrets || 0); i++) {
+      const side = i % 2 ? 0.5 : -0.5;
+      const q = this.scene.project(x + side * 0.4, h.z - 0.3 + side * 0.2 - i * 0.15, 0);
+      const r = 0.13 * q.s;
+      ctx.fillStyle = '#5a3b12'; ctx.fillRect(q.x - r, q.y - r * 1.2, r * 2, r * 1.2);
+      ctx.fillStyle = '#e8b23a'; ctx.beginPath(); ctx.arc(q.x, q.y - r * 1.4, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a2a10'; ctx.fillRect(q.x, q.y - r * 1.7, r * 1.6, r * 0.6);
     }
     const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;

@@ -8,6 +8,7 @@ import { ensureProgress, maxCh, diffUnlocked, unlockText, balChapter, anyChapter
 import { savePower, recommended, powerBand } from './power.js';
 import * as eco from './economy.js';
 import * as heroP from './heroes.js';
+import * as gacha from './gacha.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -33,6 +34,7 @@ ensureMounts(save);
 ensureProgress(save);
 eco.ensureEconomy(save);
 heroP.ensureHeroes(save);
+gacha.ensureGacha(save);
 eco.rollDay(save);
 eco.welcomeMails(save, VERSION, save.progress);
 // 選到還沒解鎖的難度（舊存檔）就退回休閒
@@ -260,7 +262,7 @@ function openStats() {
   $('info-body').innerHTML = `
     <h2>完整數值</h2>
     ${defs.length > 1 ? `<div class="gtabs">${defs.map((d, i) => `<button class="gtab ${i === statsTab ? 'sel' : ''}" data-stab="${i}">${i ? '副' : '主'}・${d.name.split(' ')[1]}</button>`).join('')}</div>` : ''}
-    <p class="st-head">${iconTag(['dg', def.sprite], 28)} <b>${def.name}</b></p>
+    <p class="st-head">${iconTag(heroRef(def), 28)} <b>${def.name}</b></p>
     <div id="stats-box">${statsHtml(h, bareHero(def))}</div>
     <p class="hint">綠色 = 天賦、裝備、坐騎額外加的。戰鬥中買到的技能還會再往上加，可以在戰鬥畫面左上角或「技能」裡看到。</p>
     <button class="btn" id="btn-info-close">關閉</button>`;
@@ -274,7 +276,7 @@ function renderSwitch() {
   const bench = run && run.heroes.length > 1 ? run.heroes.find(h => h !== run.hero) : null;
   b.classList.toggle('hidden', !bench);
   if (!bench) return;
-  $('switch-ic').innerHTML = iconTag(['dg', bench.def.sprite], 26);
+  $('switch-ic').innerHTML = iconTag(heroRef(bench.def), 26);
   b.style.setProperty('--hp', Math.max(0, bench.hp) / bench.maxHp);
   b.classList.toggle('down', bench.hp <= 0);
   updateSwitchCd();
@@ -483,7 +485,7 @@ function openSkillPanel() {
     ${run.heroes.length > 1 ? `<div class="gtabs">${run.heroes.map((x, i) => `<button class="gtab ${i === hi ? 'sel' : ''}" data-shero="${i}">${x === run.hero ? '上場' : '待命'}・${x.def.name.split(' ')[1]}</button>`).join('')}</div>` : ''}
     <div id="skill-stats">${statsHtml(run.heroes[hi], run.bare[hi])}</div>
     <h3 class="sub-h">技能</h3>
-    ${run.heroes.map(x => `<p class="hero-pass ${x === h ? '' : 'bench'}">${iconTag(['dg', x.def.sprite], 24)} ${x.def.passive}</p>`).join('')}
+    ${run.heroes.map(x => `<p class="hero-pass ${x === h ? '' : 'bench'}">${iconTag(heroRef(x.def), 24)} ${x.def.passive}</p>`).join('')}
     <div class="sk-list">${rows || '<p class="hint">還沒有技能，打完一波就能在商店購買</p>'}</div>
     <button class="btn big" id="btn-skills-close">${wasLive ? '繼續戰鬥' : '關閉'}</button>`;
   $('skills-body').dataset.resume = wasLive ? '1' : '';
@@ -848,7 +850,7 @@ function endRun(win) {
   if (gemsWon) eco.grant(save, { gem: gemsWon });
   // 3.3 英雄碎片：帶誰出戰就掉誰的碎片
   const frags = heroP.runFrags(save, run.heroIds, cleared);
-  const fragHtml = frags.length ? `<p class="frag-got">${frags.map(f => `${iconTag(['dg', f.def.sprite], 18)} ${f.def.name.split(' ')[1]}碎片 +${f.n}`).join('　')}</p>` : '';
+  const fragHtml = frags.length ? `<p class="frag-got">${frags.map(f => `${iconTag(heroRef(f.def), 18)} ${f.def.name.split(' ')[1]}碎片 +${f.n}`).join('　')}</p>` : '';
   const gemHtml = gemsWon || gemNotes.length ? `<p class="gem-got">${iconTag(ICON.diamond, 22)} <b>${gemsWon ? '+' + gemsWon : '+0'}</b> 寶石 <small>${gemNotes.join('・')}</small></p>` : '';
   writeSave(save);
   if (win) { sfx('win'); setTimeout(() => playMusic('victory'), 900); }
@@ -959,9 +961,9 @@ function duoBar() {
   const main = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const sec = save.second && HEROES.find(h => h.id === save.second);
   return `<div class="duo">
-    <button class="duo-slot ${duoPick === 'main' ? 'on' : ''}" id="duo-main"><i>主</i>${iconTag(['dg', main.sprite], 26)}<span>${main.name.split(' ')[1]}</span></button>
+    <button class="duo-slot ${duoPick === 'main' ? 'on' : ''}" id="duo-main"><i>主</i>${iconTag(heroRef(main), 26)}<span>${main.name.split(' ')[1]}</span></button>
     <span class="duo-mid">⇄<small>戰鬥中可切換</small></span>
-    <button class="duo-slot second ${duoPick === 'second' ? 'on' : ''} ${sec ? '' : 'empty'}" id="duo-second"><i>副</i>${sec ? iconTag(['dg', sec.sprite], 26) + `<span>${sec.name.split(' ')[1]}</span>` : '<span>＋ 選副職業</span>'}</button>
+    <button class="duo-slot second ${duoPick === 'second' ? 'on' : ''} ${sec ? '' : 'empty'}" id="duo-second"><i>副</i>${sec ? iconTag(heroRef(sec), 26) + `<span>${sec.name.split(' ')[1]}</span>` : '<span>＋ 選副職業</span>'}</button>
     ${sec ? '<button class="duo-x" id="duo-clear" aria-label="不帶副職業">✕</button>' : ''}
   </div>`;
 }
@@ -982,6 +984,8 @@ function unlockHidden() {
 const unlockAch = h => ACHIEVEMENTS.find(x => x.id === h.unlock);
 const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>`).join(' ');
 
+// 英雄圖：舊英雄用 Tiny Dungeon 的編號；3.4 新英雄用 ['hx', 編號]（0x72 動畫角色）
+const heroRef = d => Array.isArray(d.sprite) ? [d.sprite[0], d.sprite[1]] : ['dg', d.sprite];
 // 坐騎圖：3.1 起用 Tiny Creatures 的生物圖（舊的單色圖示當備用）
 const mountRef = m => m.sprite || ['ic', m.icon, m.color];
 
@@ -1023,6 +1027,7 @@ function renderHome() {
       <div class="side right">
         ${side('btn-ach', ICON.trophy, '成就', achN ? 'dot' : '')}
         ${side('btn-daily', ['ic', 630, '#ffd84a'], '每日', dailyDone(save) ? '' : 'dot')}
+        ${side('btn-gacha', ICON.diamond, '扭蛋', gacha.resFreeLeft(save) > 0 ? 'dot' : '')}
         ${side('btn-endless', ['ic', 1023, '#d06bff'], '無盡塔', '', offAttr(anyChapter(save) < 2, '通關第 1 章後開放無盡塔'))}
       </div>
       <button class="hero-tap" id="btn-heroes" aria-label="選擇職業"></button>
@@ -1048,12 +1053,12 @@ function renderHome() {
           <b>${open ? '' : '🔒'}${d.name}</b><small>${open ? `金幣 x${d.gold}` : `${difficultyOf(d.unlock[0]).name}第${d.unlock[1]}章`}</small></button>`;
       }).join('')}
       </div>
-      ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(['dg', hero.sprite], 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
+      ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(heroRef(hero), 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
     </div>
     <div class="home-more">
       <div class="heroes">${HEROES.filter(h => save.owned.includes(h.id) || !h.hidden).map(h => {
         const own = save.owned.includes(h.id);
-        return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'}" data-act="btn-heroes" data-fx="tilt">${iconTag(['dg', h.sprite], 40, 'hero-emoji')}<span class="hero-name">${h.name.split(' ')[1]}</span>${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}</button>`;
+        return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'}" data-act="btn-heroes" data-fx="tilt">${iconTag(heroRef(h), 40, 'hero-emoji')}<span class="hero-name">${h.name.split(' ')[1]}</span>${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}</button>`;
       }).join('')}</div>
       <button class="gear-btn" data-act="btn-gear">${gearSummary()}</button>
       <div class="meta-row">
@@ -1095,6 +1100,9 @@ function selectHero(id, el) {
     if (save.selected !== h.id) heroHop = performance.now();
     if (h.id === save.second) save.second = save.selected; // 點到副職業 → 主副互換
     save.selected = h.id;
+  } else if (h.gacha) {
+    heroFocus = h.id; // 扭蛋英雄：只顯示資料，碎片湊齊才能解鎖
+    return true;
   } else if (h.hidden) {
     const a = unlockAch(h);
     toast(`隱藏職業：達成成就「${a.name}」（${a.desc}）就會解鎖`);
@@ -1120,7 +1128,16 @@ function selectHero(id, el) {
 
 // 3.3 英雄升星面板
 function starPanel(hero) {
-  if (!save.owned.includes(hero.id)) return '';
+  if (!save.owned.includes(hero.id)) {
+    if (!hero.gacha) return '';
+    const st = heroP.heroState(save, hero.id), need = heroP.UNLOCK_FRAGS[heroP.rarityOf(hero)];
+    const rar = heroP.RARITY[heroP.rarityOf(hero)];
+    return `<div class="star-box" style="--rc:${rar.color}">
+      <div class="star-head"><span class="rar-tag">${rar.name}</span><b>扭蛋英雄</b><small>角色池抽到整隻，或碎片湊齊解鎖</small></div>
+      <div class="frag-bar"><i style="width:${Math.min(1, st.frag / need) * 100}%"></i><em>碎片 ${st.frag} / ${need}</em></div>
+      <div class="row"><button class="btn small ${gacha.canUnlock(save, hero) ? 'gift' : ''}" id="btn-fragunlock" ${offAttr(!gacha.canUnlock(save, hero), '碎片不夠')}>用碎片解鎖</button><button class="btn small" id="btn-to-gacha">去扭蛋</button></div>
+    </div>`;
+  }
   const st = heroP.heroState(save, hero.id);
   const rar = heroP.RARITY[heroP.rarityOf(hero)];
   const c = heroP.nextCost(save, hero.id);
@@ -1134,6 +1151,7 @@ function starPanel(hero) {
     ${perks ? perkRow(3, perks.s3) + perkRow(5, perks.s5) : ''}
     <div class="row">
       ${c ? `<button class="btn small ${why ? '' : 'gift'}" id="btn-starup" ${offAttr(!!why, why)}>升到 ${st.star + 1} 星 ${iconTag(ICON.gold, 14)}${fmt(c.gold)}</button>` : ''}
+      ${c && save.wallet.anyFrag ? `<button class="btn small" id="btn-anyfrag">萬能碎片 ${save.wallet.anyFrag}</button>` : ''}
       ${shop && c ? `<button class="btn small" id="btn-buyfrag" ${offAttr(shop.left <= 0 || save.gold < shop.price, shop.left <= 0 ? '今天的碎片已經買完了，明天再來' : '金幣不足')}>買碎片 ${iconTag(ICON.gold, 14)}${fmt(shop.price)}<small>今日剩 ${shop.left}</small></button>` : ''}
     </div>
     <small class="hint">帶這位英雄冒險（主、副都算）每 ${heroP.FRAG_RULE[heroP.rarityOf(hero)][0]} 波掉 1 片碎片，一局最多 ${heroP.FRAG_RULE[heroP.rarityOf(hero)][1]} 片</small>
@@ -1145,18 +1163,22 @@ function openHeroes(slot) {
   renderHeroes();
   showScreen('screen-heroes', 'screen-home');
 }
+let heroFocus = null;
 function renderHeroes() {
-  const focusId = duoPick === 'second' && save.second ? save.second : save.selected;
+  const focusId = heroFocus || (duoPick === 'second' && save.second ? save.second : save.selected);
   const hero = HEROES.find(h => h.id === focusId) || HEROES[0];
   const full = createHero(hero, save);
-  const cards = HEROES.map(h => {
+  // 排序：已擁有的在前（依稀有度），再來是金幣可買、扭蛋、隱藏
+  const RANK = { legend: 0, elite: 1, rare: 2, normal: 3 };
+  const order = h => (save.owned.includes(h.id) ? 0 : h.gacha ? 2 : h.hidden ? 3 : 1) * 10 + RANK[heroP.rarityOf(h)];
+  const cards = HEROES.slice().sort((a, b) => order(a) - order(b)).map(h => {
     const own = save.owned.includes(h.id);
     const secret = h.hidden && !own;
-    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
-      ${iconTag(['dg', h.sprite], 40, 'hero-emoji')}
+    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''} ${h.id === heroFocus ? 'focus' : ''} r-${heroP.rarityOf(h)}" data-hero="${h.id}" data-fx="tilt">
+      ${iconTag(heroRef(h), 40, 'hero-emoji')}
       <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
       ${own ? `<span class="hero-stars" style="--rc:${heroP.RARITY[heroP.rarityOf(h)].color}">${'★'.repeat(heroP.heroStar(save, h.id))}</span>` : ''}
-      ${secret ? '<span class="hero-price secret">隱藏</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}
+      ${secret ? '<span class="hero-price secret">隱藏</span>' : own ? '' : h.gacha ? `<span class="hero-price gacha" style="--rc:${heroP.RARITY[heroP.rarityOf(h)].color}">${heroP.RARITY[heroP.rarityOf(h)].name}・扭蛋</span>` : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}
     </button>`;
   }).join('');
   const two = save.owned.length > 1;
@@ -1189,7 +1211,7 @@ $('heroes-body').addEventListener('click', ev => {
   const t = ev.target.closest('button');
   if (!t || isOff(t)) return;
   sfx('tap');
-  if (t.dataset.hero) { if (!selectHero(t.dataset.hero, t)) return; }
+  if (t.dataset.hero) { const was = heroFocus; heroFocus = null; if (!selectHero(t.dataset.hero, t)) { heroFocus = was; return; } }
   else if (t.dataset.slot) duoPick = t.dataset.slot;
   else if (t.id === 'btn-no-second') { save.second = null; duoPick = 'main'; }
   else if (t.id === 'btn-stats') { statsTab = duoPick === 'second' && save.second ? 1 : 0; openStats(); return; }
@@ -1200,7 +1222,18 @@ $('heroes-body').addEventListener('click', ev => {
       sfx('maxup'); celebrate(t, '#ffd84a'); banner(`${def.name.split(' ')[1]} 升到 ${heroP.heroStar(save, id)} 星！`);
     } else if (t.id === 'btn-buyfrag' && heroP.buyFrag(save, id)) { sfx('coin'); }
   }
-  else if (t.id === 'btn-heroes-ok') { writeSave(save); duoPick = 'main'; renderHome(); showScreen('screen-home'); return; }
+  else if (t.id === 'btn-fragunlock') {
+    const def = HEROES.find(h => h.id === heroFocus);
+    if (def && gacha.unlockByFrags(save, def)) { sfx('jackpot'); celebrate(t); banner(`解鎖英雄：${def.name}！`); }
+  }
+  else if (t.id === 'btn-to-gacha') { writeSave(save); heroFocus = null; openGacha(); return; }
+  else if (t.id === 'btn-anyfrag') {
+    const id = duoPick === 'second' && save.second ? save.second : save.selected;
+    const def = HEROES.find(h => h.id === id), c = heroP.nextCost(save, id);
+    const n = c ? gacha.useAnyFrag(save, def, c.frag) : 0;
+    toast(n ? `用萬能碎片補了 ${n} 片` : '萬能碎片不夠，或這一星已經補到一半上限');
+  }
+  else if (t.id === 'btn-heroes-ok') { writeSave(save); duoPick = 'main'; heroFocus = null; renderHome(); showScreen('screen-home'); return; }
   writeSave(save);
   renderHeroes();
 });
@@ -1224,6 +1257,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-changelog') { showChangelog(CHANGELOG, '更新日誌'); return; }
   else if (t.id === 'btn-settings') { openSettings(); return; }
   else if (t.id === 'btn-quest') { openQuest(); return; }
+  else if (t.id === 'btn-gacha') { openGacha(); return; }
   else if (t.id === 'btn-mail') { openMail(); return; }
   else if (t.id === 'btn-gear') { openGear(); return; }
   else if (t.id === 'btn-talent') { openTalent(); return; }
@@ -1662,6 +1696,118 @@ $('quest-body').addEventListener('click', ev => {
   renderQuest();
 });
 
+// ---------- 3.4 扭蛋 ----------
+let gachaTab = 'hero', gachaShowRates = false, gachaResult = null, dustHero = null;
+function openGacha() {
+  gacha.ensureGacha(save);
+  if (gachaTab === 'newbie' && save.gacha.newbie <= 0) gachaTab = 'hero';
+  gachaResult = null;
+  renderGacha();
+  showScreen('screen-gacha', 'screen-home');
+  playMusic('gacha');
+}
+const CAPSULE = { normal: 10, rare: 2, elite: 0, legend: 6 };
+const capsule = (r, open) => `<i class="capsule" style="--cx:${CAPSULE[r] || 10};--cy:${open ? 2 : 0}"></i>`;
+function resultCard(o, i) {
+  const r = o.r || 'normal', col = heroP.RARITY[r].color;
+  let ic, name, sub = '';
+  if (o.kind === 'hero') { ic = iconTag(heroRef(o.def), 40); name = o.def.name.split(' ')[1]; sub = o.isNew ? '<b class="new">NEW!</b>' : `轉成碎片 x${o.frag}${o.dust ? `（滿星→星塵 ${o.dust}）` : ''}`; }
+  else if (o.kind === 'frag') { ic = iconTag(heroRef(o.def), 32); name = `${o.def.name.split(' ')[1]}碎片`; sub = `x${o.n}${o.dust ? `→星塵 ${o.dust}` : ''}`; }
+  else if (o.kind === 'any') { ic = iconTag(ICON.stardust, 32); name = '萬能碎片'; sub = `x${o.n}`; }
+  else if (o.kind === 'res') { ic = o.gift.gold ? iconTag(ICON.gold, 30) : '<b class="shard-ic">✦</b>'; name = o.gift.gold ? '金幣' : '魔晶'; sub = '+' + fmt(o.gift.gold || o.gift.shards); }
+  else { ic = o.big ? iconTag(ICON.chest, 32) : iconTag(ICON.chestOpen, 30); name = o.name; sub = o.gift.def ? o.gift.def.name.split(' ')[1] : ''; }
+  return `<div class="g-card r-${r} ${o.kind === 'hero' ? 'hero' : ''}" style="--rc:${col};animation-delay:${0.15 + i * 0.18}s">${capsule(r, true)}<span class="g-ic">${ic}</span><b>${name}</b><small>${sub}</small></div>`;
+}
+function renderGacha() {
+  const g = save.gacha, w = save.wallet, ch = balChapter(save);
+  const tabs = [['hero', '角色池'], ...(g.newbie > 0 ? [['newbie', '新手池']] : []), ['res', '資源池'], ['shop', '星塵商店']];
+  let body = '';
+  if (gachaResult) {
+    body = `<div class="g-results ${gachaResult.length > 1 ? 'ten' : ''}">${gachaResult.map(resultCard).join('')}</div>
+      <button class="btn big" id="btn-g-again">繼續</button>`;
+  } else if (gachaTab === 'hero' || gachaTab === 'newbie') {
+    const nb = gachaTab === 'newbie';
+    const rates = gacha.heroRates().filter(r => r.p > 0);
+    const c1 = gacha.PULL_COST * (nb ? 0.5 : 1), c10 = gacha.TEN_COST * (nb ? 0.5 : 1);
+    body = `<div class="g-banner ${nb ? 'newbie' : ''}">
+        <div class="g-capsules">${['elite', 'rare', 'legend', 'normal', 'elite'].map(r => capsule(r)).join('')}</div>
+        <b>${nb ? '新手召喚・半價' : '英雄召喚'}</b>
+        <small>${nb ? `剩 ${g.newbie} 抽・第一次十連必出稀有英雄` : '抽到整隻英雄或英雄碎片；重複的英雄會變成碎片'}</small>
+        <div class="g-pity">每 ${gacha.ELITE_PITY} 抽必出精英英雄：還差 <b>${gacha.ELITE_PITY - g.hero.sinceElite}</b> 抽　十連必有精英以上</div>
+      </div>
+      <div class="g-btns">
+        <button class="btn gift" id="btn-pull1" ${offAttr(w.gem < c1, '寶石不足')}>單抽<small>${iconTag(ICON.diamond, 14)}${c1}</small></button>
+        <button class="btn gift" id="btn-pull10" ${offAttr(w.gem < c10 || (nb && g.newbie < 10), nb && g.newbie < 10 ? '新手池剩不到 10 抽' : '寶石不足')}>十連<small>${iconTag(ICON.diamond, 14)}${c10}</small></button>
+      </div>
+      ${nb ? '' : `<div class="g-btns">
+        <button class="btn" id="btn-tick1" ${offAttr(w.heroTicket < 1, '沒有英雄召喚券')}>用券單抽<small>${iconTag(ICON.heroTicket, 14)}1</small></button>
+        <button class="btn" id="btn-tick10" ${offAttr(w.heroTicket < 10, '英雄召喚券不到 10 張')}>用券十連<small>${iconTag(ICON.heroTicket, 14)}10</small></button></div>`}
+      <button class="link" id="btn-g-rates">${gachaShowRates ? '▲ 收起機率' : '▼ 查看機率'}</button>
+      ${gachaShowRates ? `<div class="g-rates">${rates.map(r => `<span>${r.name}</span><b>${(r.p * 100).toFixed(1)}%</b>`).join('')}</div>
+        <p class="hint">每抽送 ${gacha.DUST_PER_PULL} 星塵。傳奇英雄 3.8 版加入。滿星英雄的碎片會換成星塵。</p>` : ''}`;
+  } else if (gachaTab === 'res') {
+    const free = gacha.resFreeLeft(save), gp = gacha.resGoldPrice(save);
+    body = `<div class="g-banner res"><b>補給召喚</b><small>金幣、魔晶、符石、坐騎經驗、萬能碎片、召喚券（不會抽到寶石）</small></div>
+      <div class="g-btns">
+        <button class="btn ${free ? 'gift' : ''}" id="btn-res-free" ${offAttr(!free, '今天的免費抽已經用了')}>免費抽<small>每天 1 次</small></button>
+        <button class="btn" id="btn-res-gold" ${offAttr(!gp || save.gold < gp, !gp ? '今天的金幣抽用完了' : '金幣不足')}>金幣抽<small>${gp ? iconTag(ICON.gold, 14) + fmt(gp) : '明天再來'}</small></button>
+      </div>
+      <div class="g-btns">
+        <button class="btn" id="btn-res1" ${offAttr(w.gem < gacha.RES_COST, '寶石不足')}>單抽<small>${iconTag(ICON.diamond, 14)}${gacha.RES_COST}</small></button>
+        <button class="btn" id="btn-res10" ${offAttr(w.gem < gacha.RES_TEN, '寶石不足')}>十連<small>${iconTag(ICON.diamond, 14)}${gacha.RES_TEN}</small></button>
+      </div>
+      <div class="g-rates">${gacha.RES_RATES.map(r => `<span>${r.name}</span><b>${(r.p * 100).toFixed(1)}%</b>`).join('')}</div>`;
+  } else {
+    const items = gacha.DUST_SHOP.map(it => {
+      const left = gacha.dustLeft(save, it);
+      return `<div class="q-row"><span><b>${it.name}</b><small>本月剩 ${left} 次</small></span>
+        <button class="btn small" data-dust="${it.id}" ${offAttr(left <= 0 || w.stardust < it.cost || (it.need && !dustOk(it)), left <= 0 ? '本月已買完' : it.need && !dustOk(it) ? '先在下面選一位' + heroP.RARITY[it.need].name + '英雄' : '星塵不足')}>${iconTag(ICON.stardust, 14)}${it.cost}</button></div>`;
+    }).join('');
+    const pickable = HEROES.filter(h => h.gacha && ['rare', 'elite'].includes(heroP.rarityOf(h)));
+    body = `<p class="hint">每次召喚送 ${gacha.DUST_PER_PULL} 星塵，抽不到想要的也能慢慢換。</p>
+      <div class="q-list">${items}</div>
+      <p class="hint">自選碎片要給誰：</p>
+      <div class="dust-heroes">${pickable.map(h => `<button class="dust-h ${dustHero === h.id ? 'sel' : ''}" data-dusth="${h.id}" style="--rc:${heroP.RARITY[heroP.rarityOf(h)].color}">${iconTag(heroRef(h), 28)}<small>${h.name.split(' ')[1]}</small></button>`).join('')}</div>`;
+  }
+  $('gacha-body').innerHTML = `
+    <h2>扭蛋</h2>
+    <div class="wallet-row">${['gem', 'heroTicket', 'stardust'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(w[k])}</b></span>`).join('')}<span class="pill">萬能碎片 <b>${fmt(w.anyFrag || 0)}</b></span></div>
+    ${gachaResult ? '' : `<div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${gachaTab === k ? 'sel' : ''}" data-gtab="${k}">${n}${k === 'res' && gacha.resFreeLeft(save) ? ' •' : ''}</button>`).join('')}</div>`}
+    ${body}
+    ${gachaResult ? '' : '<button class="btn" id="btn-gacha-close">關閉</button>'}`;
+}
+const dustOk = it => { const h = HEROES.find(x => x.id === dustHero); return h && heroP.rarityOf(h) === it.need; };
+function showPull(out) {
+  if (!out) { toast('不夠，無法召喚'); return; }
+  writeSave(save); // 先存檔再播動畫
+  gachaResult = out;
+  const best = out.some(o => o.r === 'legend') ? 'legend' : out.some(o => o.r === 'elite') ? 'elite' : out.some(o => o.r === 'rare') ? 'rare' : null;
+  sfx(best === 'legend' || best === 'elite' ? 'jackpot' : 'jingle');
+  if (out.some(o => o.kind === 'hero' && o.isNew)) setTimeout(() => banner(`新英雄：${out.find(o => o.kind === 'hero' && o.isNew).def.name.split(' ')[1]}！`), 900);
+  renderGacha();
+}
+$('gacha-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  const ch = balChapter(save), nb = gachaTab === 'newbie';
+  if (t.dataset.gtab) gachaTab = t.dataset.gtab;
+  else if (t.id === 'btn-g-rates') gachaShowRates = !gachaShowRates;
+  else if (t.id === 'btn-pull1') return showPull(gacha.pullHero(save, 1, 'gem', ch, nb));
+  else if (t.id === 'btn-pull10') return showPull(gacha.pullHero(save, 10, 'gem', ch, nb));
+  else if (t.id === 'btn-tick1') return showPull(gacha.pullHero(save, 1, 'ticket', ch));
+  else if (t.id === 'btn-tick10') return showPull(gacha.pullHero(save, 10, 'ticket', ch));
+  else if (t.id === 'btn-res-free') return showPull(gacha.pullRes(save, 1, 'free', ch));
+  else if (t.id === 'btn-res-gold') return showPull(gacha.pullRes(save, 1, 'gold', ch));
+  else if (t.id === 'btn-res1') return showPull(gacha.pullRes(save, 1, 'gem', ch));
+  else if (t.id === 'btn-res10') return showPull(gacha.pullRes(save, 10, 'gem', ch));
+  else if (t.id === 'btn-g-again') { gachaResult = null; if (gachaTab === 'newbie' && save.gacha.newbie <= 0) gachaTab = 'hero'; }
+  else if (t.dataset.dusth) dustHero = t.dataset.dusth;
+  else if (t.dataset.dust) { if (gacha.buyDust(save, t.dataset.dust, dustHero)) { sfx('coin'); toast('兌換成功'); writeSave(save); } }
+  else if (t.id === 'btn-gacha-close') { writeSave(save); playMusic('home'); renderHome(); showScreen('screen-home'); return; }
+  renderGacha();
+});
+
 // ---------- 3.2 信箱 ----------
 function openMail() {
   renderMail();
@@ -1698,7 +1844,7 @@ function openEndless() {
   const rows = recs.map((r, i) => {
     const h = HEROES.find(x => x.id === r.hero) || HEROES[0];
     const h2 = r.hero2 && HEROES.find(x => x.id === r.hero2);
-    return `<div class="rec ${i === 0 ? 'top' : ''}"><b>${i + 1}</b>${iconTag(['dg', h.sprite], 24)}${h2 ? iconTag(['dg', h2.sprite], 18) : ''}<span>${h.name.split(' ')[1]}${h2 ? '＋' + h2.name.split(' ')[1] : ''}・${difficultyOf(r.diff).name}</span><em>${r.wave} 層</em><small>${r.date.slice(5)}</small></div>`;
+    return `<div class="rec ${i === 0 ? 'top' : ''}"><b>${i + 1}</b>${iconTag(heroRef(h), 24)}${h2 ? iconTag(heroRef(h2), 18) : ''}<span>${h.name.split(' ')[1]}${h2 ? '＋' + h2.name.split(' ')[1] : ''}・${difficultyOf(r.diff).name}</span><em>${r.wave} 層</em><small>${r.date.slice(5)}</small></div>`;
   }).join('');
   $('endless-body').innerHTML = `
     <h2>無盡塔</h2>
@@ -1890,7 +2036,7 @@ function renderGear() {
     <div class="gear-top"><span class="pill power">戰力 <b>${fmt(savePower(save))}</b></span><span class="pill">${iconTag(ICON.gold, 16)} <b>${fmt(save.gold)}</b></span><span class="pill shards">✦ <b>${gear.shards}</b> 魔晶</span></div>
     <div class="doll8">
       <div class="dcol">${slotBtn('helm')}${slotBtn('armor')}${slotBtn('gloves')}${slotBtn('boots')}</div>
-      <span class="doll-hero">${iconTag(['dg', hero.sprite], 64)}<small>${hero.name.split(' ')[1]}</small></span>
+      <span class="doll-hero">${iconTag(heroRef(hero), 64)}<small>${hero.name.split(' ')[1]}</small></span>
       <div class="dcol">${slotBtn('weapon')}${slotBtn('necklace')}${slotBtn('ring1')}${slotBtn('ring2')}</div>
     </div>
     <div class="vtabs">${[['equip', '裝備'], ['gems', '符石'], ['craft', '鍛造']].map(([k, n]) => `<button class="vtab ${gearView === k ? 'sel' : ''}" data-view="${k}">${n}</button>`).join('')}</div>
@@ -2077,6 +2223,8 @@ const CREDITS = [
   ['角色、怪物、圖示、介面、音效', 'Kenney（kenney.nl）', 'CC0'],
   ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
+  ['扭蛋英雄', '0x72「DungeonTileset II」', 'CC0'],
+  ['扭蛋膠囊、寶石與道具圖示', 'Airos「Toy Capsules」、SpriteAttack、7Soul1「496 RPG icons」', 'CC0'],
   ['平原、墓地、火山、天空背景', 'Ansimuz「Tall Forest」「Gothicvania Cemetery」「Mountain at Dusk」', 'CC0'],
   ['天空神殿背景', 'Ansimuz「Magic Cliffs」', 'CC-BY 3.0'],
   ['沙漠背景', 'Emcee Flesher「Rocky Desert」', 'CC0'],

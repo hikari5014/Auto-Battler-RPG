@@ -1350,3 +1350,46 @@ ul.plain { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: 
 .star-box .row .btn { flex: 1; font-size: 13px; white-space: nowrap; padding: 6px 4px; margin: 0; }
 .star-box .row .btn small { font-size: 9px; opacity: 0.85; }
 .star-box > .hint { display: block; font-size: 10px; margin-top: 4px; }
+
+/* ---------- 3.4 扭蛋 ---------- */
+.capsule { display: inline-block; width: 40px; height: 40px; background: url("assets/ui/capsules.png") no-repeat; background-size: 440px 160px; background-position: calc(var(--cx) * -40px) calc(var(--cy) * -40px); image-rendering: pixelated; }
+.g-banner { margin: 6px 0 8px; padding: 10px; border-radius: 12px; background: radial-gradient(circle at 50% 30%, rgba(255,216,74,0.25), rgba(0,0,0,0.35)); border: 1px solid rgba(255,216,74,0.4); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.g-banner.newbie { background: radial-gradient(circle at 50% 30%, rgba(127,232,255,0.3), rgba(0,0,0,0.35)); border-color: #7fe8ff; }
+.g-banner.res { background: radial-gradient(circle at 50% 30%, rgba(141,255,159,0.22), rgba(0,0,0,0.35)); border-color: #8dff9f; }
+.g-banner b { font-size: 18px; }
+.g-banner small { font-size: 11px; color: var(--muted); }
+.g-capsules { display: flex; gap: 2px; animation: bob 1.6s ease-in-out infinite alternate; }
+@keyframes bob { from { translate: 0 -2px; } to { translate: 0 3px; } }
+.g-pity { font-size: 11px; color: #ffd84a; }
+.g-btns { display: flex; gap: 8px; margin: 6px 0; }
+.g-btns .btn { flex: 1; margin: 0; font-size: 16px; }
+.g-btns .btn small { display: block; font-size: 11px; }
+.g-rates { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 12px; text-align: left; background: rgba(0,0,0,0.25); padding: 6px 10px; border-radius: 8px; margin: 4px 0; }
+.g-rates b { font-weight: normal; color: #ffd84a; }
+.g-results { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 8px 0 12px; }
+.g-results.ten .g-card { width: calc(20% - 6px); }
+.g-card { width: 46%; min-height: 96px; border-radius: 10px; background: rgba(0,0,0,0.35); border: 2px solid var(--rc); box-shadow: 0 0 10px var(--rc) inset; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px; opacity: 0; animation: g-pop 0.45s cubic-bezier(.2,1.5,.4,1) forwards; position: relative; }
+.g-card .capsule { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; background-size: 220px 80px; background-position: calc(var(--cx) * -20px) calc(var(--cy) * -20px); }
+.g-card b { font-size: 11px; font-weight: normal; line-height: 1.1; text-align: center; }
+.g-card small { font-size: 9px; color: var(--muted); text-align: center; line-height: 1.1; }
+.g-card .new { color: #ffd84a; font-size: 12px; }
+.g-card.r-elite, .g-card.r-legend { animation: g-pop 0.45s cubic-bezier(.2,1.5,.4,1) forwards, g-shine 1.2s 0.6s ease-in-out infinite alternate; }
+.g-card .shard-ic { font-size: 26px; color: #c38bff; }
+.g-ic { min-height: 40px; display: flex; align-items: center; }
+@keyframes g-pop { from { opacity: 0; transform: rotateY(90deg) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes g-shine { from { box-shadow: 0 0 6px var(--rc), 0 0 10px var(--rc) inset; } to { box-shadow: 0 0 22px var(--rc), 0 0 16px var(--rc) inset; } }
+.dust-heroes { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.dust-h { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.3); border: 2px solid transparent; border-radius: 8px; padding: 2px 4px; color: #fff; font: inherit; }
+.dust-h small { font-size: 9px; }
+.dust-h.sel { border-color: var(--rc); box-shadow: 0 0 8px var(--rc); }
+.hero-price.gacha { color: var(--rc); font-size: 10px; }
+.hero.r-rare { box-shadow: 0 0 0 2px #36d6ff inset; }
+.hero.r-elite { box-shadow: 0 0 0 2px #d06bff inset; }
+.hero.r-legend { box-shadow: 0 0 0 2px #ffb820 inset; }
+.hero.focus { outline: 3px solid #fff; }
+.hero-grid { grid-template-columns: repeat(5, 1fr); max-height: 38vh; }
+.hero-grid .hero .hero-emoji { width: 34px; height: 34px; }
+.hero-grid .hero-name { font-size: 10px; }
+.star-box .row { flex-wrap: wrap; }
+.star-box .row .btn { min-width: 30%; }
+.star-box .row .btn { flex: 1 1 0; min-width: 0; font-size: 12px; white-space: normal; line-height: 1.2; padding: 6px 2px; }

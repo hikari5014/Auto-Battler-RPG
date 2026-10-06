@@ -85,6 +85,7 @@ export function starUp(save, id) {
   st.frag -= c.frag;
   save.gold -= c.gold;
   st.star++;
+  st.anyUsed = 0;
   return true;
 }
 

@@ -1,0 +1,7 @@
+Pack: 0x72-dungeontileset-ii
+Source URL: https://0x72.itch.io/dungeontileset-ii
+Author: 0x72 (Robert)
+License: CC0 1.0
+Attribution: Not required (author: "Credit is not necessary"). Optional: "16x16 DungeonTileset II by 0x72".
+Notes: Downloaded 0x72_DungeonTilesetII_v1.7.zip via itch.io free download. Page states CC-0; redistribution allowed.
+Downloaded: 2026-10-06 (candidate only; not yet in repo)

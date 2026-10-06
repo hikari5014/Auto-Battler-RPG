@@ -1,7 +1,7 @@
 // 離線快取（Service Worker）
 // 每個版本有自己的一份快取；新版本下載完會「等待」，玩家按下更新才切換，
 // 這樣不會玩到一半，一部分是舊檔案、一部分是新檔案。
-const VERSION = '3.3.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
+const VERSION = '3.4.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
 const CACHE = 'marble-brave-' + VERSION;
 const ASSETS = [
   './',
@@ -15,6 +15,7 @@ const ASSETS = [
   'js/economy.js',
   'js/events.js',
   'js/feedback.js',
+  'js/gacha.js',
   'js/gear.js',
   'js/heroes.js',
   'js/levels.js',
@@ -33,6 +34,7 @@ const ASSETS = [
   'js/tutorial.js',
   'js/update.js',
   'js/version.js',
+  'assets/img/heroes-x.png',
   'assets/img/icons-1bit.png',
   'assets/img/items.png',
   'assets/img/pixel-platformer-bg.png',
@@ -41,6 +43,7 @@ const ASSETS = [
   'assets/img/tiny-dungeon.png',
   'assets/ui/ancient-brown.png',
   'assets/ui/ancient-tan_inlay.png',
+  'assets/ui/capsules.png',
   'assets/ui/colored-blue.png',
   'assets/ui/colored-green.png',
   'assets/ui/colored-green_pressed.png',
