@@ -1118,3 +1118,33 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 #flash.go { animation: flash-go 0.5s ease-out; }
 @keyframes flash-go { 0% { opacity: 0.85; } 100% { opacity: 0; } }
 #screen-home { z-index: 0; isolation: isolate; }
+
+/* ---------- 首頁上滑收合 ---------- */
+#screen-home { overflow-y: auto; overflow-x: hidden; scroll-snap-type: y proximity; overscroll-behavior: contain; scrollbar-width: none; }
+#screen-home::-webkit-scrollbar { display: none; }
+#home-body.home { display: block; height: auto; position: relative; }
+.home-stage {
+  position: sticky; top: 0; z-index: 3;
+  height: var(--stage-now, var(--home-stage));
+  margin-bottom: calc(-1 * var(--stage-now, var(--home-stage)));
+  overflow: hidden;
+}
+.home-space { position: relative; height: var(--home-stage); scroll-snap-align: start; pointer-events: none; }
+.snap-pt { position: absolute; left: 0; top: var(--collapse-dist); height: 1px; width: 1px; scroll-snap-align: start; }
+.home-bottom { min-height: calc(var(--app-h) - var(--home-stage)); position: relative; z-index: 1; }
+.grip { display: flex; flex-direction: column; align-items: center; margin: -4px 0 -2px; opacity: calc(1 - var(--collapse, 0) * 2); }
+.grip i { width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.35); }
+.grip small { font-size: 9px; color: var(--muted); margin-top: 1px; animation: grip-bob 1.6s ease-in-out infinite; }
+@keyframes grip-bob { 50% { translate: 0 -3px; } }
+.home-more { position: relative; z-index: 1; padding: 6px 14px calc(var(--safe-bottom) + 24px); background: #120c24; }
+.home-more .heroes { margin-top: 2px; }
+.back-top { display: block; margin: 10px auto 0; color: var(--gold); }
+/* 收合時：標題、側邊按鈕、角色名牌慢慢淡出往上縮；章節列留著 */
+.home-stage .logo, .home-stage .sub { opacity: calc(1 - var(--collapse, 0) * 1.8); translate: 0 calc(var(--collapse, 0) * -24px); scale: calc(1 - var(--collapse, 0) * 0.25); }
+.home-stage .side { opacity: calc(1 - var(--collapse, 0) * 2); }
+.home-stage .side.left { translate: calc(var(--collapse, 0) * -40px) 0; }
+.home-stage .side.right { translate: calc(var(--collapse, 0) * 40px) 0; }
+.home-stage .hero-plate, .home-stage .version-row { opacity: calc(1 - var(--collapse, 0) * 1.6); }
+#screen-home.collapsed .side, #screen-home.collapsed .hero-plate, #screen-home.collapsed .hero-tap, #screen-home.collapsed .logo, #screen-home.collapsed .version-row { pointer-events: none; }
+#screen-home.launching .home-more { opacity: 0; transition: opacity 0.3s; }
+.home-content { position: relative; z-index: 1; clip-path: inset(var(--clip, 0px) 0 0 0); }

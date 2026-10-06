@@ -68,7 +68,11 @@ function resize() {
   // 首頁：展示台佔畫面 3/4，下面留給難度、職業、開始按鈕（太矮的手機至少留 196px）
   const stagePx = Math.max(r.height * 0.58, Math.min(r.height * 0.75, r.height - 196));
   game.homeStage = stagePx / scale;
+  game.homeStagePx = stagePx;
   document.documentElement.style.setProperty('--home-stage', stagePx + 'px');
+  document.documentElement.style.setProperty('--app-h', r.height + 'px');
+  document.documentElement.style.setProperty('--collapse-dist', (stagePx - game.battleH * scale) + 'px');
+  onHomeScroll();
 }
 window.addEventListener('resize', resize);
 
@@ -850,6 +854,8 @@ function goHome() {
   $('hud').classList.add('hidden');
   $('btn-switch').classList.add('hidden');
   renderHome();
+  $('screen-home').scrollTop = 0;
+  onHomeScroll();
   showScreen('screen-home');
 }
 
@@ -927,13 +933,46 @@ function renderHome() {
       </div>
       <div class="version-row"><span>v${VERSION}</span><button class="link" id="btn-changelog">更新日誌</button></div>
     </div>
+    <div class="home-space"><i class="snap-pt"></i></div>
+    <div class="home-content">
     <div class="home-bottom">
+      <div class="grip"><i></i><small>往上滑看更多</small></div>
       <div class="diffs" role="radiogroup" aria-label="難度">${DIFFICULTIES.map(d => `
         <button class="diff ${d.id === save.difficulty ? 'sel' : ''}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}">
           <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
       </div>
       ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(['dg', hero.sprite], 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button>
+    </div>
+    <div class="home-more">
+      <div class="heroes">${HEROES.filter(h => save.owned.includes(h.id) || !h.hidden).map(h => {
+        const own = save.owned.includes(h.id);
+        return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'}" data-act="btn-heroes" data-fx="tilt">${iconTag(['dg', h.sprite], 40, 'hero-emoji')}<span class="hero-name">${h.name.split(' ')[1]}</span>${own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}</button>`;
+      }).join('')}</div>
+      <button class="gear-btn" data-act="btn-gear">${gearSummary()}</button>
+      <div class="meta-row">
+        <button class="meta-btn" data-act="btn-ach">${iconTag(ICON.trophy, 20)} 成就${achN ? `<b class="badge">${achN}</b>` : ''}</button>
+        <button class="meta-btn ${dailyDone(save) ? 'done' : 'fresh'}" data-act="btn-daily">${iconTag(['ic', 630, '#ffd84a'], 20)} 每日挑戰<small>${dailyDone(save) ? '今日完成 ✓' : '尚未挑戰'}</small></button>
+        <button class="meta-btn" data-act="btn-endless" ${offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔')}>${iconTag(['ic', 1023, '#d06bff'], 20)} 無盡塔<small>${save.records && save.records.length ? `最高 ${save.records[0].wave} 層` : save.maxChapter < 2 ? '通關第 1 章開放' : '尚無紀錄'}</small></button>
+      </div>
+      <div class="hero-info">
+        <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
+        <div class="stats">
+          <span>${iconTag(ICON.heart, 14)} ${Math.round(full.maxHp)}</span>
+          <span>${iconTag(ICON.sword, 14)} ${fmtNum(heroAtkOf(full))}</span>
+          <span>${iconTag(ICON.target, 14)} ${(full.spdMul / full.interval).toFixed(2)} 下/秒</span>
+          <span class="hot">秒傷 ${fmtNum(dps(full))}</span>
+        </div>
+        <button class="link stats-link" data-act="btn-stats">${iconTag(ICON.target, 12)} 查看完整數值（含天賦、裝備、坐騎）▶</button>
+        <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
+        <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
+        <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
+      </div>
+      ${mountBtn().replace('id="btn-mount"', 'data-act="btn-mount"')}
+      <button class="talent-btn ${talentReady() ? 'ready' : ''}" data-act="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
+      <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
+      <button class="link back-top" data-act="back-top">▲ 回到上面</button>
+    </div>
     </div>`;
 }
 
@@ -1028,10 +1067,13 @@ $('heroes-body').addEventListener('click', ev => {
 });
 
 $('home-body').addEventListener('click', ev => {
-  const t = ev.target.closest('button');
+  let t = ev.target.closest('button');
   if (!t || isOff(t)) return;
   initAudio();
   sfx('tap');
+  // 下面「更多」區塊的按鈕用 data-act，對應到上面同樣功能的按鈕
+  if (t.dataset.act === 'back-top') { $('screen-home').scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (t.dataset.act) t = { id: t.dataset.act, dataset: {} };
   if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
     const d = difficultyOf(save.difficulty);
@@ -1749,6 +1791,26 @@ function draw() {
 let heroHop = 0;
 // 主畫面：上方是 2.5D 展示台（選中的英雄＋遠方霧中的魔王），下方金幣慢慢落下
 const idle = Array.from({ length: 36 }, () => ({ x: Math.random() * 360, y: Math.random() * 800, v: 30 + Math.random() * 60 }));
+// ---------- 首頁上滑：展示台跟著收成戰鬥畫面的高度，露出下面更多選項 ----------
+game.homeStageNow = 0;
+function onHomeScroll() {
+  const sc = $('screen-home');
+  const full = game.homeStagePx || 0;
+  const min = game.battleH * scale;
+  const dist = Math.max(1, full - min);
+  const st = Math.max(0, sc.scrollTop);
+  const c = Math.min(1, st / dist);
+  const now = full - Math.min(st, dist);
+  game.homeStageNow = now / scale;
+  const root = document.documentElement.style;
+  root.setProperty('--stage-now', now + 'px');
+  root.setProperty('--collapse', c.toFixed(3));
+  // 收到底之後內容會滑到展示台後面：把那一段切掉，不要透出來
+  root.setProperty('--clip', Math.max(0, st - dist) + 'px');
+  sc.classList.toggle('collapsed', c > 0.55);
+}
+$('screen-home').addEventListener('scroll', onHomeScroll, { passive: true });
+
 // ---------- 開始冒險的過場動畫 ----------
 // 展示台往上收成戰鬥畫面的高度、英雄走到戰鬥位置、遠方的怪淡出、彈珠台從下面升上來，最後白光一閃開打
 const LAUNCH_T = 1.05;
@@ -1783,7 +1845,7 @@ function drawHome() {
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   const e = launching ? ease(Math.min(1, launching.t / (LAUNCH_T * 0.9))) : 0;
   const lerp = (a, b) => a + (b - a) * e;
-  battle.layout(game.W, 0, lerp(game.homeStage, game.battleH));
+  battle.layout(game.W, 0, lerp(game.homeStageNow || game.homeStage, game.battleH));
   // 換英雄時跳一下
   const k = Math.min(1, (performance.now() - heroHop) / 450);
   const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
