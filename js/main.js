@@ -65,6 +65,10 @@ function resize() {
   board.layout(game.battleH, game.H - 6, game.W);
   battle.layout(game.W, 0, game.battleH);
   document.documentElement.style.setProperty('--stage-h', game.battleH * scale + 'px');
+  // 首頁：展示台佔畫面 3/4，下面留給難度、職業、開始按鈕（太矮的手機至少留 196px）
+  const stagePx = Math.max(r.height * 0.58, Math.min(r.height * 0.75, r.height - 196));
+  game.homeStage = stagePx / scale;
+  document.documentElement.style.setProperty('--home-stage', stagePx + 'px');
 }
 window.addEventListener('resize', resize);
 
@@ -124,6 +128,7 @@ function startRun(opts = {}) {
       h.hp = h.maxHp;
     }
   }
+  battle.layout(game.W, 0, game.battleH); // 首頁的展示台比較高，換回戰鬥用的高度
   board.reset(game.run);
   // 天賦：接球杯、倍率、開局分裂門
   board.cupW = Math.min(220, board.cupW * (1 + tb.cupW));
@@ -882,23 +887,17 @@ const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:
 function renderHome() {
   unlockHidden();
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
-  const heroes = HEROES.map(h => {
-    const own = save.owned.includes(h.id);
-    const secret = h.hidden && !own;
-    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
-      ${iconTag(['dg', h.sprite], 48, 'hero-emoji')}
-      <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
-      ${secret ? '<span class="hero-price secret">隱藏職業</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 14)}${h.price}</span>`}
-    </button>`;
-  }).join('');
-  const heroScroll = document.querySelector('.heroes') ? document.querySelector('.heroes').scrollLeft : null;
   const full = createHero(hero, save); // 算上天賦、裝備、坐騎
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
+  const achN = achClaimable(save).length;
+  const fresh = freshCount(save) + mergeableCount(save);
+  const side = (id, icon, label, extra = '', attr = '') => `<button class="side-btn ${extra}" id="${id}" ${attr}>${iconTag(icon, 26)}<small>${label}</small></button>`;
   $('home-body').innerHTML = `
     <div class="home-stage">
       <div class="top-row">
         <div class="pill" id="home-gold">${iconTag(ICON.gold, 20)} <b>${fmt(save.gold)}</b></div>
         <span class="top-btns">
+          ${installEvt ? `<button class="icon-btn" id="btn-install" aria-label="安裝到手機">${iconTag(ICON.install, 22)}</button>` : ''}
           <button class="icon-btn ${updateInfo && updateInfo.newer ? 'has-update' : ''}" id="btn-update" aria-label="檢查更新">${iconTag(ICON.refresh, 22)}</button>
           <button class="icon-btn" id="btn-settings" aria-label="設定">${iconTag(['ic', 829], 22)}</button>
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
@@ -906,91 +905,134 @@ function renderHome() {
       </div>
       <h1 class="logo">彈珠勇者</h1>
       <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
+      <div class="side left">
+        ${side('btn-gear', ['ic', 426, '#ffd84a'], '背包', fresh ? 'dot' : '')}
+        ${side('btn-talent', ['ic', 1023, '#ffd84a'], '天賦', talentReady() ? 'dot' : '')}
+        ${side('btn-mount', ['ic', 371, '#e8b878'], '坐騎')}
+      </div>
+      <div class="side right">
+        ${side('btn-ach', ICON.trophy, '成就', achN ? 'dot' : '')}
+        ${side('btn-daily', ['ic', 630, '#ffd84a'], '每日', dailyDone(save) ? '' : 'dot')}
+        ${side('btn-endless', ['ic', 1023, '#d06bff'], '無盡塔', '', offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔'))}
+      </div>
+      <button class="hero-tap" id="btn-heroes" aria-label="選擇職業"></button>
+      <div class="hero-plate">
+        <button class="plate-main" id="btn-heroes2"><b>${hero.name}</b><span class="tag">${hero.role}</span></button>
+        <button class="plate-stats" id="btn-stats">${iconTag(ICON.heart, 12)}${Math.round(full.maxHp)} ${iconTag(ICON.sword, 12)}${fmtNum(heroAtkOf(full))} <em>秒傷 ${fmtNum(dps(full))}</em> ▶</button>
+      </div>
       <div class="chapter">
         <button class="icon-btn" id="ch-prev" ${offAttr(save.chapter <= 1, '已經是第一章')}>◀</button>
         <div class="chapter-name"><small>第 ${save.chapter} 章</small><b>${chapterName(save.chapter)}</b><em>${boardOf(save.chapter).rule}</em></div>
         <button class="icon-btn" id="ch-next" ${offAttr(save.chapter >= save.maxChapter, '通關這一章才能解鎖下一章')}>▶</button>
       </div>
+      <div class="version-row"><span>v${VERSION}</span><button class="link" id="btn-changelog">更新日誌</button></div>
     </div>
     <div class="home-bottom">
       <div class="diffs" role="radiogroup" aria-label="難度">${DIFFICULTIES.map(d => `
         <button class="diff ${d.id === save.difficulty ? 'sel' : ''}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}">
           <b>${d.name}</b><small>金幣 x${d.gold}</small></button>`).join('')}
       </div>
-      ${duoBar()}
-      <div class="heroes">${heroes}</div>
-      <button class="gear-btn" id="btn-gear">${gearSummary()}</button>
-      <div class="meta-row">
-        <button class="meta-btn" id="btn-ach">${iconTag(ICON.trophy, 20)} 成就${achClaimable(save).length ? `<b class="badge">${achClaimable(save).length}</b>` : ''}</button>
-        <button class="meta-btn ${dailyDone(save) ? 'done' : 'fresh'}" id="btn-daily">${iconTag(['ic', 630, '#ffd84a'], 20)} 每日挑戰<small>${dailyDone(save) ? '今日完成 ✓' : '尚未挑戰'}</small></button>
-        <button class="meta-btn" id="btn-endless" ${offAttr(save.maxChapter < 2, '通關第 1 章後開放無盡塔')}>${iconTag(['ic', 1023, '#d06bff'], 20)} 無盡塔<small>${save.records && save.records.length ? `最高 ${save.records[0].wave} 層` : save.maxChapter < 2 ? '通關第 1 章開放' : '尚無紀錄'}</small></button>
-      </div>
-      <div class="hero-info">
-        <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
-        <div class="stats">
-          <span id="stat-hp">${iconTag(ICON.heart, 14)} ${Math.round(full.maxHp)}</span>
-          <span id="stat-atk">${iconTag(ICON.sword, 14)} ${fmtNum(heroAtkOf(full))}</span>
-          <span>${iconTag(ICON.target, 14)} ${(full.spdMul / full.interval).toFixed(2)} 下/秒</span>
-          <span class="hot">秒傷 ${fmtNum(dps(full))}</span>
-        </div>
-        <button class="link stats-link" id="btn-stats">${iconTag(ICON.target, 12)} 查看完整數值（含天賦、裝備、坐騎）▶</button>
-        <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
-        <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
-        <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
-      </div>
-      ${mountBtn()}
-      <button class="talent-btn ${talentReady() ? 'ready' : ''}" id="btn-talent">${iconTag(['ic', 1023, '#ffd84a'], 26)}<span><b>天賦網</b><small>已點亮 ${totalPoints(save)} 點${talentReady() ? '・有天賦可以升級' : ''}</small></span><em>▶</em></button>
+      ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(['dg', hero.sprite], 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
       <button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}</small></button>
-      <button class="btn small ghost ${installEvt ? '' : 'hidden'}" id="btn-install">${iconTag(ICON.install, 16)} 安裝到手機</button>
-      <p class="hint">${isIOS() && !isStandalone() ? 'iPhone：點 Safari「分享」→「加入主畫面」即可全螢幕離線玩' : ''}</p>
-      <div class="version-row">
-        <span>v${VERSION}</span>
-        <button class="link" id="btn-changelog">更新日誌</button>
-      </div>
     </div>`;
-  // 英雄列表可以左右滑：重畫後保持原本位置；第一次打開時捲到選中的英雄
-  const list = $('home-body').querySelector('.heroes');
-  if (heroScroll !== null) list.scrollLeft = heroScroll;
-  else { const sel = list.querySelector('.sel'); if (sel) list.scrollLeft = sel.offsetLeft - list.clientWidth / 2 + sel.offsetWidth / 2; }
 }
+
+// 選職業：主副職業都在這裡挑（也可以買新職業）
+// 回傳 false = 不能選（金幣不夠、隱藏職業）
+function selectHero(id, el) {
+  const h = HEROES.find(x => x.id === id);
+  if (save.owned.includes(h.id) && duoPick === 'second') {
+    if (h.id === save.selected) { save.selected = save.second || h.id; save.second = save.second ? h.id : null; }
+    else save.second = h.id;
+    toast(`副職業：${h.name}`);
+  } else if (save.owned.includes(h.id)) {
+    if (save.selected !== h.id) heroHop = performance.now();
+    if (h.id === save.second) save.second = save.selected; // 點到副職業 → 主副互換
+    save.selected = h.id;
+  } else if (h.hidden) {
+    const a = unlockAch(h);
+    toast(`隱藏職業：達成成就「${a.name}」（${a.desc}）就會解鎖`);
+    el.classList.add('fx-deny');
+    el.addEventListener('animationend', () => el.classList.remove('fx-deny'), { once: true });
+    return false;
+  } else if (save.gold >= h.price) {
+    save.gold -= h.price;
+    save.owned.push(h.id);
+    if (duoPick === 'second') save.second = h.id; else { save.selected = h.id; heroHop = performance.now(); }
+    sfx('buy');
+    celebrate(el);
+    banner(`解鎖職業：${h.name}！`);
+  } else {
+    toast(`還差 ${h.price - save.gold} 金幣才能解鎖`);
+    el.classList.add('fx-deny');
+    el.addEventListener('animationend', () => el.classList.remove('fx-deny'), { once: true });
+    return false;
+  }
+  return true;
+}
+
+function openHeroes(slot) {
+  duoPick = slot || 'main';
+  renderHeroes();
+  showScreen('screen-heroes', 'screen-home');
+}
+function renderHeroes() {
+  const focusId = duoPick === 'second' && save.second ? save.second : save.selected;
+  const hero = HEROES.find(h => h.id === focusId) || HEROES[0];
+  const full = createHero(hero, save);
+  const cards = HEROES.map(h => {
+    const own = save.owned.includes(h.id);
+    const secret = h.hidden && !own;
+    return `<button class="hero ${h.id === save.selected ? 'sel' : ''} ${h.id === save.second ? 'sel2' : ''} ${own ? '' : 'locked'} ${secret ? 'secret' : ''} ${h.hidden ? 'hidden-cls' : ''}" data-hero="${h.id}" data-fx="tilt">
+      ${iconTag(['dg', h.sprite], 40, 'hero-emoji')}
+      <span class="hero-name">${secret ? '？？？' : h.name.split(' ')[1]}</span>
+      ${secret ? '<span class="hero-price secret">隱藏</span>' : own ? '' : `<span class="hero-price">${iconTag(ICON.gold, 12)}${fmt(h.price)}</span>`}
+    </button>`;
+  }).join('');
+  const two = save.owned.length > 1;
+  $('heroes-body').innerHTML = `
+    <h2>選擇職業</h2>
+    ${two ? `<div class="gtabs">
+      <button class="gtab ${duoPick === 'main' ? 'sel' : ''}" data-slot="main">主職業</button>
+      <button class="gtab ${duoPick === 'second' ? 'sel' : ''}" data-slot="second">副職業${save.second ? '' : '（不帶）'}</button></div>` : ''}
+    <div class="hero-grid">${cards}</div>
+    <div class="hero-info">
+      <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
+      <div class="stats">
+        <span>${iconTag(ICON.heart, 14)} ${Math.round(full.maxHp)}</span>
+        <span>${iconTag(ICON.sword, 14)} ${fmtNum(heroAtkOf(full))}</span>
+        <span>${iconTag(ICON.target, 14)} ${(full.spdMul / full.interval).toFixed(2)} 下/秒</span>
+        <span class="hot">秒傷 ${fmtNum(dps(full))}</span>
+      </div>
+      <button class="link stats-link" id="btn-stats">${iconTag(ICON.target, 12)} 查看完整數值（含天賦、裝備、坐騎）▶</button>
+      <small class="passive">${iconTag(ICON.star, 14)} ${hero.passive}</small>
+      <small class="excl-list">專屬技能：${SKILLS.filter(k => k.hero === hero.id).map(k => k.name).join('、')}</small>
+      <small class="cls-line">技能類型：${clsTags(hero)} ＋ <span class="cat-tag" style="--cc:${CATS.any.color}">通用</span></small>
+    </div>
+    <div class="row">
+      ${duoPick === 'second' && save.second ? '<button class="btn small ghost" id="btn-no-second">不帶副職業</button>' : ''}
+      <button class="btn" id="btn-heroes-ok">確定</button>
+    </div>`;
+}
+$('heroes-body').addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t || isOff(t)) return;
+  sfx('tap');
+  if (t.dataset.hero) { if (!selectHero(t.dataset.hero, t)) return; }
+  else if (t.dataset.slot) duoPick = t.dataset.slot;
+  else if (t.id === 'btn-no-second') { save.second = null; duoPick = 'main'; }
+  else if (t.id === 'btn-stats') { statsTab = duoPick === 'second' && save.second ? 1 : 0; openStats(); return; }
+  else if (t.id === 'btn-heroes-ok') { writeSave(save); duoPick = 'main'; renderHome(); showScreen('screen-home'); return; }
+  writeSave(save);
+  renderHeroes();
+});
 
 $('home-body').addEventListener('click', ev => {
   const t = ev.target.closest('button');
   if (!t || isOff(t)) return;
   initAudio();
   sfx('tap');
-  if (t.dataset.hero) {
-    const h = HEROES.find(x => x.id === t.dataset.hero);
-    if (save.owned.includes(h.id) && duoPick === 'second') {
-      // 選副職業：選到主職業就互換
-      if (h.id === save.selected) { save.selected = save.second || h.id; save.second = save.second ? h.id : null; }
-      else save.second = h.id;
-      duoPick = 'main';
-      toast(`副職業：${h.name}`);
-    } else if (save.owned.includes(h.id)) {
-      if (save.selected !== h.id) heroHop = performance.now();
-      if (h.id === save.second) save.second = save.selected; // 點到副職業 → 主副互換
-      save.selected = h.id;
-    } else if (h.hidden) {
-      const a = unlockAch(h);
-      toast(`隱藏職業：達成成就「${a.name}」（${a.desc}）就會解鎖`);
-      t.classList.add('fx-deny');
-      t.addEventListener('animationend', () => t.classList.remove('fx-deny'), { once: true });
-      return;
-    } else if (save.gold >= h.price) {
-      save.gold -= h.price;
-      save.owned.push(h.id);
-      save.selected = h.id;
-      heroHop = performance.now();
-      sfx('buy');
-      celebrate(t);
-    } else {
-      toast(`還差 ${h.price - save.gold} 金幣才能解鎖`);
-      t.classList.add('fx-deny');
-      t.addEventListener('animationend', () => t.classList.remove('fx-deny'), { once: true });
-      return;
-    }
-  } else if (t.dataset.diff) {
+  if (t.dataset.diff) {
     save.difficulty = t.dataset.diff;
     const d = difficultyOf(save.difficulty);
     toast(`${d.name}：敵人血量 x${d.hp}、攻擊 x${d.atk}${d.count ? `、每波多 ${d.count} 隻` : ''}${d.traps ? `、${d.traps} 道陷阱門` : ''}，金幣 x${d.gold}`);
@@ -1003,14 +1045,14 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-talent') { openTalent(); return; }
   else if (t.id === 'btn-mount') { openMount(); return; }
   else if (t.id === 'btn-stats') { statsTab = 0; openStats(); return; }
-  else if (t.id === 'duo-main') duoPick = 'main';
-  else if (t.id === 'duo-second') { duoPick = 'second'; toast('點一位英雄當副職業'); }
+  else if (t.id === 'btn-heroes' || t.id === 'btn-heroes2' || t.id === 'duo-main') { openHeroes('main'); return; }
+  else if (t.id === 'duo-second') { openHeroes('second'); return; }
   else if (t.id === 'duo-clear') { save.second = null; duoPick = 'main'; }
   else if (t.id === 'btn-ach') { openAch(); return; }
   else if (t.id === 'btn-daily') { openDaily(); return; }
   else if (t.id === 'btn-endless') { openEndless(); return; }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
-  else if (t.id === 'btn-start') { writeSave(save); startRun(); return; }
+  else if (t.id === 'btn-start') { writeSave(save); launch(); return; }
   else if (t.id === 'btn-install' && installEvt) { installEvt.prompt(); installEvt = null; }
   writeSave(save);
   renderHome();
@@ -1686,6 +1728,7 @@ function frame(now) {
   let dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   dt *= game.speed;
+  if (launching) tickLaunch(dt);
   update(dt);
   draw();
   requestAnimationFrame(frame);
@@ -1706,19 +1749,63 @@ function draw() {
 let heroHop = 0;
 // 主畫面：上方是 2.5D 展示台（選中的英雄＋遠方霧中的魔王），下方金幣慢慢落下
 const idle = Array.from({ length: 36 }, () => ({ x: Math.random() * 360, y: Math.random() * 800, v: 30 + Math.random() * 60 }));
+// ---------- 開始冒險的過場動畫 ----------
+// 展示台往上收成戰鬥畫面的高度、英雄走到戰鬥位置、遠方的怪淡出、彈珠台從下面升上來，最後白光一閃開打
+const LAUNCH_T = 1.05;
+let launching = null;
+const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+function launch() {
+  if (launching) return;
+  initAudio();
+  launching = { t: 0 };
+  board.setChapter(save.chapter);
+  board.layout(game.battleH, game.H - 6, game.W);
+  $('screen-home').classList.add('launching');
+  heroHop = performance.now();
+  banner('出發！');
+  sfx('wave');
+  vibrate([20, 40, 30]);
+}
+function tickLaunch(dt) {
+  launching.t += dt;
+  if (launching.t >= LAUNCH_T) {
+    launching = null;
+    $('screen-home').classList.remove('launching');
+    $('flash').classList.remove('go');
+    void $('flash').offsetWidth;
+    $('flash').classList.add('go');
+    startRun();
+  }
+}
+
 function drawHome() {
   const def = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
+  const e = launching ? ease(Math.min(1, launching.t / (LAUNCH_T * 0.9))) : 0;
+  const lerp = (a, b) => a + (b - a) * e;
+  battle.layout(game.W, 0, lerp(game.homeStage, game.battleH));
   // 換英雄時跳一下
   const k = Math.min(1, (performance.now() - heroHop) / 450);
   const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
-  const hero = { def, mount: riding(save), x: 0, z: 5.6, scale: 1.35 + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
+  const hero = { def, mount: riding(save), x: lerp(0, -1.35), z: lerp(5.2, 4), scale: lerp(1.35, 1) + (k < 1 ? Math.sin(k * Math.PI) * 0.08 : 0), hurt: 0, lunge: 0, lift: hop, showcase: true };
   const teaser = [
     { sprite: MONSTERS[ch.boss].sprite, x: 2.7, z: 12, size: 1.85, kb: 0, lunge: 0, flash: 0, phase: 1, teaser: true },
     { sprite: MONSTERS[ch.enemies[0]].sprite, x: -1.6, z: 9, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 2, teaser: true },
     { sprite: MONSTERS[ch.enemies[1]].sprite, x: 2.4, z: 7.5, size: 0.75, kb: 0, lunge: 0, flash: 0, phase: 3, teaser: true },
   ];
+  for (const t of teaser) t.z += e * 6; // 遠方的怪退進霧裡
   battle.drawWorld(ctx, save.chapter, hero, teaser);
+  if (launching) {
+    // 彈珠台從下面升上來
+    ctx.save();
+    ctx.translate(0, (1 - e) * (game.H - board.top));
+    ctx.globalAlpha = Math.min(1, e * 1.5);
+    ctx.drawImage(board.bgCanvas(ctx), 0, board.top, game.W, board.h + 40);
+    const peg = board.pegSprite(ctx);
+    for (const p of board.pegs) ctx.drawImage(peg, p.x - 6, p.y - 6, 12, 12);
+    ctx.restore();
+    return;
+  }
   ctx.globalAlpha = 0.18;
   for (const b of idle) {
     b.y += b.v / 60;

@@ -1065,3 +1065,56 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .tweb-wrap.zoom .tlv { font-size: 10px; }
 .tzoom { position: relative; float: right; margin: -40px 2px 0 0; z-index: 3; padding: 3px 8px; border-radius: 8px; border: 2px solid #000; background: var(--glass); color: var(--gold); font-size: 12px; }
 .tlv { font-size: 8px; padding: 0 2px; bottom: -4px; right: -7px; }
+
+/* ---------- 首頁 3.0：上面 3/4 展示台，下面 1/4 只放難度、職業、開始 ---------- */
+#home-body.home { height: 100%; display: flex; flex-direction: column; }
+.home-stage { height: var(--home-stage); flex: none; padding-bottom: 6px; }
+.home-stage .logo { text-align: center; font-size: 42px; margin-top: 2px; }
+.home-stage .sub { text-align: center; }
+.side { position: absolute; top: 34%; display: flex; flex-direction: column; gap: 10px; z-index: 2; }
+.side.left { left: 8px; }
+.side.right { right: 8px; }
+.side-btn {
+  position: relative; width: 54px; padding: 5px 0 3px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  border-radius: 12px; border: 2px solid #000;
+  background: var(--glass); box-shadow: inset 0 0 0 2px var(--glass-line), 0 3px 0 rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+.side-btn small { font-size: 10px; }
+.side-btn.dot::after { content: ''; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b3b; border: 2px solid #000; }
+.hero-tap { position: absolute; left: 24%; right: 24%; top: 36%; bottom: 128px; background: none; border: none; z-index: 1; }
+.hero-plate { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 2; }
+.plate-main { display: flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 10px; border: 2px solid #000; background: rgba(14, 9, 30, 0.7); color: #fff; font-size: 15px; }
+.plate-main .tag { background: var(--gold); color: #3b1a05; }
+.plate-stats { display: flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 8px; border: none; background: rgba(0, 0, 0, 0.45); color: #fdf3d8; font-size: 12px; }
+.plate-stats em { font-style: normal; color: var(--gold); }
+.home-stage .chapter { margin-top: 6px; margin-bottom: 2px; }
+.home-stage .version-row { position: absolute; right: 10px; bottom: 2px; margin: 0; font-size: 10px; opacity: 0.75; }
+.home-bottom {
+  flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; gap: 6px;
+  padding: 8px 12px calc(var(--safe-bottom) + 8px);
+  background: linear-gradient(180deg, rgba(18, 12, 36, 0.92), #120c24 30%);
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.5);
+  border-top: 2px solid rgba(255, 216, 74, 0.35);
+}
+.home-bottom .diffs { margin: 0; }
+.home-bottom .duo { margin: 0; }
+.home-bottom .start { margin: 0; }
+/* 選職業視窗 */
+.hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-height: 34vh; overflow-y: auto; padding: 6px 2px; touch-action: pan-y; }
+.hero-grid .hero-name { font-size: 11px; }
+#heroes-body .hero-info { margin: 6px 0; }
+
+/* 開始冒險：上面的按鈕與標題往上飛走、下面的面板往下收，畫面交給過場動畫 */
+#screen-home.launching { pointer-events: none; }
+#screen-home .home-stage > *, #screen-home .home-bottom { transition: opacity 0.45s ease, translate 0.55s cubic-bezier(.6, -0.2, .7, 1); }
+#screen-home.launching .home-stage > .top-row, #screen-home.launching .home-stage > .logo, #screen-home.launching .home-stage > .sub { opacity: 0; translate: 0 -60px; }
+#screen-home.launching .side.left { opacity: 0; translate: -80px 0; }
+#screen-home.launching .side.right { opacity: 0; translate: 80px 0; }
+#screen-home.launching .hero-plate, #screen-home.launching .chapter, #screen-home.launching .version-row { opacity: 0; translate: 0 30px; }
+#screen-home.launching .home-bottom { opacity: 0; translate: 0 110%; }
+#flash { position: absolute; inset: 0; pointer-events: none; background: #fff; opacity: 0; z-index: 45; }
+#flash.go { animation: flash-go 0.5s ease-out; }
+@keyframes flash-go { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+#screen-home { z-index: 0; isolation: isolate; }
