@@ -1,10 +1,17 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.15.0';
+export const VERSION = '3.16.0';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.16.0', date: '2026-10-07',
+    notes: [
+      '修正第 2 章（沙漠）小球會卡在左右牆壁和沙丘中間的問題',
+      '所有彈珠台加上防卡球：小球幾乎不動時會被輕推一下，連續卡住就直接落地結算，不會再整波卡住',
+    ],
+  },
   {
     version: '3.15.0', date: '2026-10-07',
     notes: [

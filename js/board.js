@@ -265,7 +265,18 @@ export class Board {
       const py = b.y;
       // 保險：卡住太久的球直接落地結算，避免整波卡住
       b.age += dt;
-      if (b.age > 15) b.y = this.bottom;
+      if (b.age > 12) b.y = this.bottom;
+      // 3.16 防卡球：每 0.4 秒檢查一次，幾乎沒動就輕推一下；連續卡住 3 次直接落地結算
+      b.chkT = (b.chkT || 0) + dt;
+      if (b.chkT >= 0.4) {
+        b.chkT = 0;
+        if (b.cx !== undefined && Math.abs(b.x - b.cx) + Math.abs(b.y - b.cy) < 3) {
+          b.stuck = (b.stuck || 0) + 1;
+          if (b.stuck >= 3) b.y = this.bottom;
+          else { b.vx = (b.x < this.W / 2 ? 1 : -1) * rand(120, 200); b.vy = -rand(60, 120); }
+        } else b.stuck = 0;
+        b.cx = b.x; b.cy = b.y;
+      }
       b.vy += G * dt;
       if (b.vy > 650) b.vy = 650;
       if (windF) b.vx += windF * dt;
