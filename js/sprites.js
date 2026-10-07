@@ -11,7 +11,9 @@ export const SHEETS = {
   ic: { src: 'assets/img/icons-1bit.png', tile: 16, cols: 49 },
   tc: { src: 'assets/img/tiny-creatures.png', tile: 16, cols: 10 },
   it: { src: 'assets/img/items.png', tile: 32, cols: 12 },
-  m3: { src: 'assets/img/mounts3d.png', tile: 64, cols: 8 }, // 3.18 3D 坐騎：Quaternius 3D 模型（CC0）預先渲染成 8 格動畫
+  m3: { src: 'assets/img/mounts3d.png', tile: 64, cols: 8 },
+  h3: { src: 'assets/img/heroes3d.png', tile: 64, cols: 20 },
+  h3f: { src: 'assets/img/heroes3d-face.png', tile: 34, cols: 34 }, // 3D 英雄的半身頭像（圖示用） // 3.19 3D 英雄：Quaternius RPG Characters（CC0）預先渲染，每位 20 格 // 3.18 3D 坐騎：Quaternius 3D 模型（CC0）預先渲染成 8 格動畫
   hx: { src: 'assets/img/heroes-x.png', tile: 28, cols: 4 }, // 3.4 新英雄：0x72「DungeonTileset II」角色換色（CC0），每位 4 格待機動畫 // 道具：寶石、召喚券、星塵、寶箱…（SpriteAttack 寶石、7Soul1 496 RPG icons，CC0） // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
 };
 

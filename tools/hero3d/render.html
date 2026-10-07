@@ -1,0 +1,80 @@
+<!doctype html><html><body style="margin:0">
+<script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+const r = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(r.domElement);
+const TEX = { Bow_Texture: 'Ranger_Bow_Texture' };
+const texCache = {};
+const tex = name => texCache[name] || (texCache[name] = new Promise(res => new THREE.TextureLoader().load('chars/' + (TEX[name] || name) + '.png', t => { t.colorSpace = THREE.SRGBColorSpace; t.flipY = true; res(t); }, undefined, () => res(null))));
+const cache = {};
+async function get(name) {
+  if (!cache[name]) {
+    const obj = await new FBXLoader().loadAsync('chars/' + name + '.fbx');
+    const meshes = [];
+    for (const o of (() => { const a = []; obj.traverse(x => { if (x.isMesh) a.push(x); }); return a; })()) {
+      const ms = await Promise.all([].concat(o.material).map(async m => { const t = await tex(m.name); const mm = new THREE.MeshLambertMaterial({ map: t, flatShading: false }); mm.userData.base = m.name; return mm; }));
+      o.material = Array.isArray(o.material) ? ms : ms[0];
+      meshes.push(o);
+    }
+    const bones = {}; obj.traverse(x => { if (x.isBone) bones[x.name] = x; });
+    cache[name] = { obj, mixer: new THREE.AnimationMixer(obj), bones, meshes };
+  }
+  return cache[name];
+}
+// pose：坐姿（腿往前彎）
+function sit(bones, s) {
+  if (!s) return;
+  for (const side of ['L', 'R']) {
+    const u = bones['UpperLeg' + side], l = bones['LowerLeg' + side];
+    if (u) u.rotation[s.ax] += s.up * (side === 'L' ? 1 : s.mirror);
+    if (l) l.rotation[s.ax] += s.low * (side === 'L' ? 1 : s.mirror);
+  }
+}
+// opt: { clip, frames, t0, t1, size, yaw, pitch, tint, sit, box }
+window.strip = async (name, opt) => {
+  const { obj, mixer, bones, meshes } = await get(name);
+  for (const o of meshes) for (const m of [].concat(o.material)) m.color.set((opt.tint || {})[m.userData.base] || opt.tintAll || '#ffffff');
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9988bb, 3.2));
+  const d = new THREE.DirectionalLight(0xffffff, 1.8); d.position.set(-2, 4, 5); scene.add(d); const f = new THREE.DirectionalLight(0xffffff, 0.8); f.position.set(3, 1, 4); scene.add(f);
+  const pivot = new THREE.Group(); pivot.add(obj); pivot.rotation.y = opt.yaw || 0; scene.add(pivot);
+  mixer.stopAllAction();
+  const clip = obj.animations.find(c => c.name.endsWith('|' + opt.clip)) || obj.animations[0];
+  mixer.clipAction(clip).play();
+  const N = opt.frames || 4, t0 = opt.t0 ?? 0, t1 = opt.t1 ?? 1;
+  // 坐姿：先用站姿第 0 格＋彎腿算出腿的角度，之後每一格都把腿固定成這個角度（攻擊時腿才不會亂動）
+  let legs = null;
+  if (opt.sit) {
+    const ic = obj.animations.find(c => c.name.endsWith('|' + (opt.sitClip || 'Idle'))) || clip;
+    const a = mixer.clipAction(ic); mixer.stopAllAction(); a.play(); mixer.setTime(0); sit(bones, opt.sit);
+    legs = ['UpperLegL', 'UpperLegR', 'LowerLegL', 'LowerLegR', 'FootL', 'FootR'].filter(k => bones[k]).map(k => [k, bones[k].quaternion.clone(), bones[k].position.clone()]);
+    mixer.stopAllAction(); mixer.clipAction(clip).play();
+  }
+  const pose = i => { mixer.setTime(clip.duration * (t0 + (t1 - t0) * i / N)); if (legs) for (const [k, q, ps] of legs) { bones[k].quaternion.copy(q); bones[k].position.copy(ps); } pivot.updateMatrixWorld(true); };
+  // 鏡頭：用呼叫端給的固定外框（同一位英雄所有動作同一個鏡頭，大小才不會跳）
+  const [cx, cy, cz, R] = opt.box;
+  const S = opt.size || 64;
+  r.setSize(S, S);
+  const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.1, R * 100);
+  const pitch = opt.pitch ?? 0.3;
+  cam.position.set(cx, cy + Math.sin(pitch) * R * 10, cz + Math.cos(pitch) * R * 10);
+  cam.lookAt(cx, cy, cz);
+  const frames = [];
+  for (let i = 0; i < N; i++) { pose(i); r.render(scene, cam); frames.push(r.domElement.toDataURL()); }
+  scene.remove(pivot);
+  return frames;
+};
+// 量外框（idle 姿勢）
+window.measure = async (name, yaw) => {
+  const { obj, mixer } = await get(name);
+  const pivot = new THREE.Group(); pivot.add(obj); pivot.rotation.y = yaw;
+  mixer.stopAllAction(); const clip = obj.animations.find(c => c.name.endsWith('|Idle')); mixer.clipAction(clip).play(); mixer.setTime(0); pivot.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(pivot, true); const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  pivot.remove(obj);
+  return { c: [c.x, c.y, c.z], s: [s.x, s.y, s.z], min: box.min.y };
+};
+window.ready = true;
+</script></body></html>

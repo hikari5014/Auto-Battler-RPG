@@ -1,0 +1,6 @@
+Name: RPG Characters (Nov 2020)
+Source: https://opengameart.org/content/lowpoly-rpg-characters
+Author: Quaternius (https://quaternius.com)
+License: CC0 1.0（公有領域，可商用、不用署名）
+Used for: assets/img/heroes3d.png、heroes3d-face.png — Warrior、Ranger、Wizard、Rogue、Cleric、Monk 6 個模型換色後，用 three.js 預先渲染：站姿、攻擊、騎乘（腿部改成坐姿）動畫
+Downloaded: 2026-10-07 for 彈珠勇者 (Marble Brave)

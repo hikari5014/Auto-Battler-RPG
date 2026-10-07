@@ -10,6 +10,7 @@ import { diffScale, waveCurve, CHAPTER_GROWTH, BOSS_MUL, BOSS_ATK_MUL, ENDLESS_B
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus, applyHeirloom } from './gear.js';
+import { h3Frame } from './hero3d.js';
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -322,6 +323,7 @@ export class Battle {
     this.scene.update(dt);
     this.shake = Math.max(0, this.shake - dt * 30);
     h.lunge = Math.max(0, h.lunge - dt * 8);
+    for (const x of run.heroes) x.atkT = (x.atkT ?? 9) + dt;
     h.hurt = Math.max(0, h.hurt - dt * 4);
     this.updateFx(dt);
     this.updateBoss(dt);
@@ -494,6 +496,7 @@ export class Battle {
     const t = this.enemies.find(e => !e.dead);
     if (!t) { h.hitQueue = 0; return; }
     h.lunge = 1;
+    h.atkT = 0; // 3D 英雄播攻擊動畫
     // 墓地：敵人有機率閃避；飛行怪近戰比較難打到
     if (Math.random() < (this.g.run.rules.dodge || 0) + (t.dodge || 0) + (t.ai === 'fly' && h.range <= 2 ? 0.4 : 0)) {
       this.text(t.x, t.z, t.size + 0.3, '閃避', '#c9c2d1', 12);
@@ -1221,7 +1224,10 @@ export class Battle {
       ctx.fillStyle = '#ffd84a'; ctx.font = 'bold 13px Fusion12, sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(`士兵 ${Math.floor(run.army)}`, q.x, q.y);
     }
-    const { p, top } = this.drawActor(ctx, h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1), h.hurt * 0.6, 0, lift);
+    // 3.19 3D 英雄：站姿／攻擊／騎乘三種動作
+    const s3 = h3Frame(h.def.id, !!h.mount, h.atkT ?? 9, this.scene.t, h.x);
+    if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3); // 坐姿：腿彎起來，整個人往下放
+    const { p, top } = this.drawActor(ctx, s3 || h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1) * (s3 ? 1.2 : 1), h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
     // 護盾泡泡
