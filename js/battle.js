@@ -10,7 +10,7 @@ import { diffScale, waveCurve, CHAPTER_GROWTH, BOSS_MUL, BOSS_ATK_MUL, ENDLESS_B
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus, applyHeirloom } from './gear.js';
-import { h3Frame } from './hero3d.js';
+import { h3Frame, releaseTip, MOUNT_MOUTH } from './hero3d.js';
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -586,7 +586,7 @@ export class Battle {
     for (const e of this.enemies) {
       if (e.dead) continue;
       const style = o.style || (o.fromHero ? 'beam' : 'meteor');
-      if (o.fromHero || style === 'grenade' || style === 'fire') this.fx(h.x + 0.2, h.z, 0.6, e.x, e.z, e.size * 0.4, color, style === 'fire' ? 0.35 : 0.32, style);
+      if (o.fromHero || o.fromMouth || style === 'grenade' || style === 'fire') { const s0 = o.fromMouth ? this.mouth(h) : this.muzzle(h); this.fx(s0.x, s0.z, s0.h, e.x, e.z, e.size * 0.4, color, style === 'fire' ? 0.35 : 0.32, style); }
       else this.fx(e.x + 0.8, e.z, 4, e.x, e.z, 0.2, color, style === 'holy' ? 0.45 : 0.32, style);
       this.burst(e.x, e.z, e.size * 0.4, color, style === 'fire' ? 10 : 7, 2.6);
       if (o.stun) e.stun = Math.max(e.stun || 0, o.stun);
@@ -610,7 +610,7 @@ export class Battle {
       const crit = Math.random() < critRate(h);
       const dmg = heroAtk(h) * h.switchMul * (crit ? critMul(h) : 1);
       this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.25, rot: rand(-0.8, 0.8), crit: true });
-      this.fx(h.x, h.z, 0.5, e.x, e.z, e.size * 0.5, color, 0.25, 'beam');
+      { const s0 = this.muzzle(h); this.fx(s0.x, s0.z, s0.h, e.x, e.z, e.size * 0.5, color, 0.25, 'beam'); }
       this.slashes.push({ x: e.x, z: e.z, h: e.size * 0.5, life: 0.3, rot: rand(0.6, 1.0), crit: true, big: true, color });
       if (h.dot) { e.dotDps = heroAtk(h) * h.dot; e.dotT = h.dotTime; e.dotColor = h.dotColor; }
       if (h.stun && Math.random() < h.stun) e.stun = 1;
@@ -635,7 +635,7 @@ export class Battle {
     if (!front) return;
     if (m.id === 'horse') {
       h.lunge = 2;
-      this.fx(h.x, h.z, 0.4, front.x, front.z, front.size * 0.4, m.color, 0.25, 'dash');
+      { const s0 = this.mouth(h); this.fx(s0.x, s0.z, s0.h, front.x, front.z, front.size * 0.4, m.color, 0.25, 'dash'); }
       front.kb = 1.5;
       this.text(h.x + 0.5, h.z, 1.5, '衝刺!', m.color, 16);
       this.damage(front, heroAtk(h) * (2.5 + s), true);
@@ -656,7 +656,7 @@ export class Battle {
       this.g.onMountBalls && this.g.onMountBalls(4 + s * 4);
       sfx('buy');
     } else if (m.id === 'drake') {
-      this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, style: 'fire' });
+      this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, style: 'fire', fromMouth: true });
     }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
@@ -706,8 +706,10 @@ export class Battle {
     if (!alive.length) return;
     const dmg = heroAtk(h) * h.chainMul;
     let from = h;
+    const mz = this.muzzle(h);
     for (const e of alive) {
-      this.fx(from.x, from.z, from === h ? 0.6 : from.size * 0.5, e.x, e.z, e.size * 0.5, '#9fe3ff', 0.28, 'bolt');
+      if (from === h) this.fx(mz.x, mz.z, mz.h, e.x, e.z, e.size * 0.5, '#9fe3ff', 0.28, 'bolt');
+      else this.fx(from.x, from.z, from.size * 0.5, e.x, e.z, e.size * 0.5, '#9fe3ff', 0.28, 'bolt');
       this.burst(e.x, e.z, e.size * 0.5, '#cff4ff', 5, 2);
       this.damage(e, dmg, false, true, '#9fe3ff');
       from = e;
@@ -721,7 +723,7 @@ export class Battle {
     const dmg = heroAtk(h) * h.swordMul * (h.swordCrit ? critMul(h) : 1);
     this.text(h.x + 0.6, h.z, 1.2, '劍氣!', '#7fd1ff', 15);
     for (const e of this.enemies) if (!e.dead) this.damage(e, dmg, h.swordCrit, !h.swordCrit);
-    this.fx(h.x + 0.3, h.z, 0.45, 4, 9, 0.45, '#7fd1ff', 0.4, 'wave');
+    { const s0 = this.muzzle(h); this.fx(s0.x, s0.z, s0.h, 4, 9, 0.45, '#7fd1ff', 0.4, 'wave'); }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
@@ -754,8 +756,25 @@ export class Battle {
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
+  // 3.20 技能從武器尖端發出：用英雄這一格畫的位置＋出手那格武器在圖裡的位置換算成世界座標
+  muzzle(h) {
+    const g = h._hg, tip = g && releaseTip(h.def.id, !!h.mount);
+    if (!tip) return { x: h.x + 0.2, z: h.z, h: (h.mount ? 0.9 : 0.5) };
+    return { x: g.x + (tip[0] - 32) / 64 * g.size, z: h.z, h: g.lift + (64 - tip[1]) / 64 * g.size };
+  }
+  // 坐騎技能從嘴巴發出
+  mouth(h) {
+    const m = h.mount, g = h._mg;
+    const pts = m && (MOUNT_MOUTH[m.id] || null);
+    if (!g || !pts) return { x: h.x + 0.6, z: h.z, h: 0.6 };
+    const q = pts[g.fi % pts.length];
+    const tx = m.flip ? 64 - q[0] : q[0];
+    return { x: g.x + (tx - 32) / 64 * g.size, z: h.z, h: g.lift + (64 - q[1]) / 64 * g.size };
+  }
   streak(h, t, color, life, style = 'beam') {
-    this.fx(h.x + 0.2, h.z, 0.5, t.x, t.z, t.size * 0.5, color, life, style);
+    // 英雄發出的從武器出去；穿透箭等從敵人身上接著飛的照舊
+    const o = h.def ? this.muzzle(h) : { x: h.x + 0.2, z: h.z, h: 0.5 };
+    this.fx(o.x, o.z, o.h, t.x, t.z, t.size * 0.5, color, life, style);
   }
   // 一個從 A 飛到 B 的特效：arrow 箭、bullet 子彈、orb 法球、bolt 閃電、wave 劍氣、meteor 隕石、
   // grenade 榴彈（拋物線）、fire 火焰、holy 光柱、dash 衝刺、beam 光束
@@ -1199,6 +1218,7 @@ export class Battle {
       const fi = m.frames ? Math.floor(sc.t * (h.showcase ? 6 : 12)) % m.frames : 0;
       if (m.sprite) drawSprite(ctx, m.sprite[1] + fi, mp.x, mp.y + 1 + px * (m.foot || 0), px, !!m.flip, 0, m.sprite[0]);
       else drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
+      h._mg = { x: mx, lift: lift + bob - size * (m.foot || 0), size, fi }; // 記下坐騎畫在哪（嘴巴位置用）
       ctx.globalAlpha = 1;
       lift += m.seat ? size * m.seat * (h.showcase ? 1.1 : 1) + bob : size * (h.showcase ? 0.5 : 0.42) + bob;
     }
@@ -1227,7 +1247,10 @@ export class Battle {
     // 3.19 3D 英雄：站姿／攻擊／騎乘三種動作
     const s3 = h3Frame(h.def.id, !!h.mount, h.atkT ?? 9, this.scene.t, h.x);
     if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3); // 坐姿：腿彎起來，整個人往下放
-    const { p, top } = this.drawActor(ctx, s3 || h.def.sprite, x, h.z, HERO_HEIGHT * (h.scale || 1) * (s3 ? 1.2 : 1), h.hurt * 0.6, 0, lift);
+    const hs = HERO_HEIGHT * (h.scale || 1) * (s3 ? 1.2 : 1);
+    h._hg = { x, lift, size: hs }; // 記下英雄畫在哪（武器位置用）
+    if (!h.mount) h._mg = null;
+    const { p, top } = this.drawActor(ctx, s3 || h.def.sprite, x, h.z, hs, h.hurt * 0.6, 0, lift);
     if (h.showcase) return;
     this.bar(ctx, p.x - 32, top - 9, 64, h.hp / h.maxHp, '#4dff7a', true);
     // 護盾泡泡
