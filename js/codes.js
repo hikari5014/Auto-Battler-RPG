@@ -3,7 +3,7 @@
 import { HEROES } from './data.js';
 import { grant } from './economy.js';
 import { ensureHeroes } from './heroes.js';
-import { ensureGear, GEMS, GEM_MAX, gemKey } from './gear.js';
+import { ensureGear, GEMS, GEM_MAX, gemKey, BAG_MAX, MAX_ITEMS } from './gear.js';
 
 export const CODES = {
   HELLOMARBLE: { gem: 50 },
@@ -39,6 +39,7 @@ export function gmTopUp(save) {
   for (const k of ['gem', 'stardust', 'heroTicket', 'gearTicket', 'anyFrag']) save.wallet[k] = GM_MAX;
   const gear = ensureGear(save);
   gear.shards = GM_MAX;
+  gear.bagExtra = BAG_MAX - MAX_ITEMS; // 背包直接擴到最大
   for (const id of Object.keys(GEMS)) for (let lv = 1; lv <= GEM_MAX; lv++) gear.gems[gemKey(id, lv)] = Math.max(gear.gems[gemKey(id, lv)] || 0, 99);
 }
 

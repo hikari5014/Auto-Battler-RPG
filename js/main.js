@@ -29,7 +29,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset, fuse, whyNoFuse, fuseFodder, fuseGold, starMax, transferPlus, transferDonor, TRANSFER_SHARDS, HEIRLOOMS } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset, fuse, whyNoFuse, fuseFodder, fuseGold, starMax, transferPlus, transferDonor, TRANSFER_SHARDS, HEIRLOOMS, bagCap, expandCost, expandBag, BAG_MAX, BAG_STEP } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -2030,9 +2030,9 @@ function featBox(g) {
     <small>傳奇保底 ${g.hero.sinceLegend}/${gacha.LEGEND_HARD}（${gacha.LEGEND_SOFT} 抽起機率上升）・${g.hero.lost ? '<b class="big-pity">下一隻傳奇必定是主打！</b>' : '抽到傳奇有 70% 是主打'}</small></span></div>`;
 }
 const dustOk = it => { const h = HEROES.find(x => x.id === dustHero); return h && heroP.rarityOf(h) === it.need; };
-const bagRoomLeft = () => MAX_ITEMS - ensureGear(save).items.length;
+const bagRoomLeft = () => bagCap(save) - ensureGear(save).items.length;
 function showPull(out) {
-  if (out === 'bag') { toast('背包空位不夠，先分解或合成一些裝備'); return; }
+  if (out === 'bag') { toast('背包空位不夠：先分解、合成，或在背包裡擴充容量'); return; }
   if (!out) { toast('不夠，無法召喚'); return; }
   if (live.currentEvent().pullTokens) live.eventTokens(save, out.length * live.currentEvent().pullTokens);
   writeSave(save); // 先存檔再播動畫
@@ -2553,7 +2553,7 @@ function gearSummary() {
   }).join('');
   const m = mergeableCount(save);
   const fresh = freshCount(save);
-  return `<b>背包</b>${slots}<small>戰力 ${fmt(savePower(save))}・${gear.items.length}/${MAX_ITEMS}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
+  return `<b>背包</b>${slots}<small>戰力 ${fmt(savePower(save))}・${gear.items.length}/${bagCap(save)}${m ? `・可合成 ${m}` : ''}</small>${fresh ? `<b class="badge">${fresh}</b>` : ''}`;
 }
 
 let gearSel = null; // 目前點選的裝備 id
@@ -2592,7 +2592,7 @@ function craftView() {
   const tiers = CRAFT_TIERS.map((t, i) => {
     const total = t.weights.reduce((a, b) => a + b, 0);
     const odds = t.weights.map((w, r) => w ? `<i style="color:${RARITIES[r].color}">${RARITIES[r].name} ${Math.round(w / total * 100)}%</i>` : '').join(' ');
-    const why = gear.items.length >= MAX_ITEMS ? '背包滿了' : gear.shards < t.shards ? `魔晶不足（需要 ${t.shards}）` : save.gold < t.gold ? `金幣不足（需要 ${fmt(t.gold)}）` : '';
+    const why = gear.items.length >= bagCap(save) ? '背包滿了' : gear.shards < t.shards ? `魔晶不足（需要 ${t.shards}）` : save.gold < t.gold ? `金幣不足（需要 ${fmt(t.gold)}）` : '';
     return `<div class="ctier"><span><b>${t.name}</b><small>${odds}</small></span><button class="btn small gift" data-craft="${i}" ${offAttr(!!why, why)}>✦${t.shards}・${iconTag(ICON.gold, 11)}${fmt(t.gold)}</button></div>`;
   }).join('');
   return `<p class="hint">選一種裝備，用魔晶和金幣打造。打造出來的裝備等級 = 平衡難度（休閒以外）打到的最高章節（Lv.${Math.min(10, balChapter(save))}）。</p>
@@ -2644,6 +2644,15 @@ function itemLines(it, withTools) {
   return h;
 }
 
+// 3.15 背包擴充按鈕
+function bagExpandRow() {
+  const cap = bagCap(save);
+  if (cap >= BAG_MAX) return `<p class="bag-x max">背包已擴充到上限 ${BAG_MAX} 格</p>`;
+  const c = expandCost(save);
+  return `<div class="bag-x"><span>擴充背包 +${BAG_STEP} 格<small>（${cap} → ${cap + BAG_STEP}，上限 ${BAG_MAX}）</small></span>
+    <button class="btn small gift" id="btn-bag-gem" ${offAttr(save.wallet.gem < c.gem, `寶石不足（需要 ${c.gem}）`)}>${iconTag(ICON.diamond, 12)}${fmt(c.gem)}</button>
+    <button class="btn small" id="btn-bag-gold" ${offAttr(save.gold < c.gold, `金幣不足（需要 ${fmt(c.gold)}）`)}>${iconTag(ICON.gold, 12)}${fmt(c.gold)}</button></div>`;
+}
 function renderGear() {
   const gear = ensureGear(save);
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
@@ -2658,7 +2667,7 @@ function renderGear() {
   const cells = list.map(it => `
     <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
       ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${it.set ? `<i class="setdot" style="--sc:${SETS[it.set].color}"></i>` : ''}${it.uniq || it.heir ? '<i class="uq">★</i>' : ''}${it.star ? `<i class="istar-b">${it.star}★</i>` : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
-  const empties = gearTab === 'all' ? Math.max(0, MAX_ITEMS - gear.items.length) : (6 - list.length % 6) % 6;
+  const empties = gearTab === 'all' ? Math.max(0, bagCap(save) - gear.items.length) : (6 - list.length % 6) % 6;
   for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
   const sel = gear.items.find(x => x.id === gearSel);
   const m = mergeableCount(save);
@@ -2711,7 +2720,8 @@ function renderGear() {
     ${presetRow()}
     <div class="item-detail">${detail}</div>`}
     <div class="gtabs">${tabs}<button class="gsort" id="btn-gsort">${gearSort === 'new' ? '最新' : '稀有度'} ⇅</button></div>
-    <div class="cap"><i style="width:${gear.items.length / MAX_ITEMS * 100}%" class="${gear.items.length >= MAX_ITEMS - 4 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${MAX_ITEMS}${gear.items.length >= MAX_ITEMS - 4 ? '・快滿了，記得分解或合成' : ''}</span></div>
+    <div class="cap"><i style="width:${gear.items.length / bagCap(save) * 100}%" class="${gear.items.length >= bagCap(save) - 4 ? 'full' : ''}"></i><span>背包 ${gear.items.length} / ${bagCap(save)}${gear.items.length >= bagCap(save) - 4 ? '・快滿了，可以分解、合成或擴充' : ''}</span></div>
+    ${bagExpandRow()}
     <div class="items">${cells.join('')}</div>
     <div class="row">
       <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同種類、同稀有度的裝備（沒穿、沒上鎖）')}>合成升階${m ? `（${m}）` : ''}</button>
@@ -2784,6 +2794,9 @@ $('gear-body').addEventListener('click', ev => {
       toast(`${itemName(sel)} 升到 Lv.${sel.jlv}${[3, 6, 10].includes(sel.jlv) ? `：飾品技能「${JEWEL_SKILLS[sel.skill].name}」${tier === 1 ? '解鎖' : '強化'}！` : ''}`);
       if ([3, 6, 10].includes(sel.jlv)) banner(`飾品技能：${JEWEL_SKILLS[sel.skill].name}！`);
     } else if (ups === 0) sfx('buy');
+  } else if (t.id === 'btn-bag-gem' || t.id === 'btn-bag-gold') {
+    const cap = expandBag(save, t.id === 'btn-bag-gem' ? 'gem' : 'gold');
+    if (cap) { sfx('jingle'); celebrate(t, '#7fe8ff'); toast(`背包擴充到 ${cap} 格！`); }
   } else if (t.id === 'btn-lock') { sel.lock = !sel.lock; }
   else if (t.id === 'btn-fuse') { const f = fuse(save, gearSel); if (f) { eco.track(save, 'gear'); sfx('maxup'); celebrate(t, '#ffd84a'); banner(`${itemName(sel)} 升到 ${sel.star} 星！`); } }
   else if (t.id === 'btn-transfer') { const d = transferPlus(save, gearSel); if (d) { sfx('buy'); toast(`強化 +${sel.plus} 已轉移到 ${itemName(sel)}`); } }

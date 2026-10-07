@@ -1,0 +1,33 @@
+const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const fs = require('fs');
+const S = __dirname;
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  await p.goto('http://localhost:8765/?' + Date.now());
+  const sv = JSON.parse(fs.readFileSync(S + '/saves/mid.json', 'utf8'));
+  sv.tutorialDone = true; sv.gold = 100000; sv.wallet = Object.assign(sv.wallet || {}, { gem: 200 });
+  await p.evaluate(s => localStorage.setItem('marble-brave-save-v1', JSON.stringify(s)), sv);
+  await p.reload(); await p.waitForTimeout(1500);
+  const st = () => p.evaluate(() => { const s = window.__game.save; return { items: s.gear.items.length, extra: s.gear.bagExtra || 0, gem: s.wallet.gem, gold: s.gold }; });
+  console.log('start', JSON.stringify(await st()));
+  await p.click('#btn-gear', { force: true }); await p.waitForTimeout(400);
+  await p.click('#btn-bag-gem', { force: true }); await p.waitForTimeout(200);
+  console.log('gem', JSON.stringify(await st()));
+  await p.click('#btn-bag-gem', { force: true }); await p.waitForTimeout(200);
+  console.log('gem2', JSON.stringify(await st()));
+  await p.click('#btn-bag-gem', { force: true }); await p.waitForTimeout(200);
+  console.log('gem3 (should fail)', JSON.stringify(await st()), await p.$eval('#toast', e => e.textContent));
+  await p.click('#btn-bag-gold', { force: true }); await p.waitForTimeout(200);
+  console.log('gold', JSON.stringify(await st()));
+  await p.evaluate(() => document.querySelector('.bag-x').scrollIntoView({ block: 'center' }));
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: S + '/v315.png' });
+  console.log('cells', await p.evaluate(() => document.querySelectorAll('.items > *').length));
+  // 掉落：容量內不會自動分解
+  const r = await p.evaluate(() => window.__test.sim({ hero: 'blade', diff: 'easy', chapter: 2 }));
+  console.log('sim ok', r.win);
+  console.log('ERRORS', errs);
+  await b.close();
+})();

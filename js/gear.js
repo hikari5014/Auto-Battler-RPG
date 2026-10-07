@@ -62,7 +62,24 @@ export const RARITIES = [
   { id: 4, name: '神話', color: '#ff4d6d', mult: 4.5, old: 8, weight: 0.3, affix: 4, salvage: 1200, shard: 50 },
 ];
 export const MAX_RARITY = RARITIES.length - 1;
-export const MAX_ITEMS = 40;
+export const MAX_ITEMS = 40; // 基本容量（3.15 起可以擴充，實際容量看 bagCap）
+// 3.15 背包擴充：每次 +10 格，最多 200 格；用寶石或金幣買，越後面越貴
+export const BAG_STEP = 10, BAG_MAX = 200;
+export const bagCap = save => Math.min(BAG_MAX, MAX_ITEMS + (ensureGear(save).bagExtra || 0));
+export function expandCost(save) {
+  const k = (ensureGear(save).bagExtra || 0) / BAG_STEP;
+  return { gem: 60 + 40 * k, gold: 30000 * (k + 1) };
+}
+// pay = 'gem' | 'gold'；成功回傳新容量
+export function expandBag(save, pay) {
+  const gear = ensureGear(save);
+  if (bagCap(save) >= BAG_MAX) return 0;
+  const c = expandCost(save);
+  if (pay === 'gem') { if ((save.wallet && save.wallet.gem || 0) < c.gem) return 0; save.wallet.gem -= c.gem; }
+  else { if (save.gold < c.gold) return 0; save.gold -= c.gold; }
+  gear.bagExtra = (gear.bagExtra || 0) + BAG_STEP;
+  return bagCap(save);
+}
 export const MAX_PLUS = 15;
 
 // ---------- 飾品技能 ----------
@@ -302,7 +319,7 @@ export function rollDrops(save, cleared, win, diffIndex, chapter = 1) {
   gear.items.push(...drops);
   // 背包滿了：自動分解最差的、沒穿在身上的
   let salvaged = 0;
-  while (gear.items.length > MAX_ITEMS) {
+  while (gear.items.length > bagCap(save)) {
     const worn = new Set(Object.values(gear.equip));
     const cand = gear.items.filter(it => !worn.has(it.id) && !it.lock && !isSpecial(it) && !it.star).sort((a, b) => a.rarity - b.rarity || (a.plus || 0) - (b.plus || 0))[0];
     if (!cand) break;
@@ -629,7 +646,7 @@ export const CRAFT_TIERS = [
 export function craft(save, type, tier, ilv) {
   const gear = ensureGear(save);
   const t = CRAFT_TIERS[tier];
-  if (gear.shards < t.shards || save.gold < t.gold || gear.items.length >= MAX_ITEMS) return null;
+  if (gear.shards < t.shards || save.gold < t.gold || gear.items.length >= bagCap(save)) return null;
   gear.shards -= t.shards;
   save.gold -= t.gold;
   let x = Math.random() * t.weights.reduce((a, b) => a + b, 0);
@@ -711,4 +728,4 @@ export function forgeItem(save, rarity, ilv, kind) {
   gear.items.push(it);
   return it;
 }
-export const bagRoom = save => MAX_ITEMS - ensureGear(save).items.length;
+export const bagRoom = save => bagCap(save) - ensureGear(save).items.length;
