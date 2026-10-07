@@ -43,6 +43,7 @@ export function settingsHtml() {
       ${toggle('liveStats', '戰鬥即時數值', '戰鬥畫面左上角顯示攻擊、每秒傷害等')}
       ${toggle('lowFx', '低特效模式', '減少粒子和光暈，舊手機比較順')}
     </div>
+    <div class="code-row"><input id="code-input" type="text" placeholder="輸入活動碼" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn small gift" id="btn-code">兌換</button></div>
     <div class="row">
       <button class="btn small" id="btn-replay-tutorial">重看教學</button>
       <button class="btn small" id="btn-credits">製作群</button>

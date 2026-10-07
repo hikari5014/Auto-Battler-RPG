@@ -16,6 +16,7 @@ import * as expd from './expedition.js';
 import * as live from './live.js';
 import * as arcade from './arcade.js';
 import * as evm from './eventmodes.js';
+import * as codes from './codes.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -176,6 +177,7 @@ function startRun(opts = {}) {
   showScreen(null);
   $('hud').classList.remove('hidden');
   board.slowPour = !!(spec && spec.slowPour);
+  setTimeout(renderAutoBadge, 0);
   if (spec && spec.noFight) startPuzzle(game.run, spec);
   else if (spec && spec.preShop) { renderWaveBar(game.run); openShop(); } // 3.7 副本、魔王連戰：開打前先買技能
   else nextWave();
@@ -380,6 +382,7 @@ function openEvent() {
     <button class="btn ghost" id="btn-ev-skip">跳過，直接去商店</button>`;
   showScreen('screen-event');
   sfx('wave');
+  if (autoOn()) autoEvent();
 }
 
 $('event-body').addEventListener('click', ev => {
@@ -466,6 +469,7 @@ function update(dt) {
   updateLive(dt);
   battle.update(game.paused ? 0 : dt, live && run.phase === 'fight');
   if (!live) return;
+  if (autoOn()) autoTick(dt);
   if (run.switchCd > 0 && !game.paused) { run.switchCd = Math.max(0, run.switchCd - dt); updateSwitchCd(); }
   if (run.heroes.length > 1) $('btn-switch').style.setProperty('--hp', Math.max(0, run.heroes.find(h => h !== run.hero).hp) / run.heroes.find(h => h !== run.hero).maxHp);
   board.update(dt);
@@ -718,6 +722,7 @@ function openShop() {
   renderShop();
   showScreen('screen-shop');
   tutorial.onShop();
+  if (autoOn()) autoShop();
 }
 
 // 「不能按」的標記：用 aria-disabled（iPhone 上 disabled 按鈕收不到觸控，就沒辦法搖晃提示）
@@ -858,6 +863,7 @@ function onDeath() {
       <p class="hint">（正式版：看一段激勵廣告即可復活）</p>`;
     $('result-body').className = 'panel center lose';
     showScreen('screen-result');
+    if (autoOn()) setTimeout(() => { if (game.run === run && run.phase === 'dead' && $('btn-revive')) $('btn-revive').click(); }, 1200);
   } else endRun(false);
 }
 
@@ -1066,6 +1072,7 @@ function endRun(win) {
   $('result-body').className = 'panel center ' + (win ? 'win' : 'lose');
   showScreen('screen-result');
   countUp($('gold-count'), gold);
+  if (autoOn() && !run.endless && !run.daily) autoAfterResult(run, win);
 }
 
 $('result-body').addEventListener('click', ev => {
@@ -1084,7 +1091,12 @@ $('result-body').addEventListener('click', ev => {
   } else if (t.id === 'btn-share') {
     shareResult(game.lastResult).then(msg => msg && toast(msg));
   } else if (t.id === 'btn-home') {
+    stopAutoWait();
     goHome();
+  } else if (t.id === 'btn-auto-stop') {
+    setAuto('off');
+    stopAutoWait();
+    t.closest('.auto-wait').innerHTML = '<small>自動冒險已關閉</small>';
   }
 });
 
@@ -1113,6 +1125,7 @@ const chapterName = n => CHAPTERS[(n - 1) % CHAPTERS.length].name + (n > CHAPTER
 
 function goHome() {
   game.run = null;
+  renderAutoBadge();
   eco.rollDay(save);
   playMusic('home');
   checkUpdate(true);
@@ -1203,6 +1216,7 @@ function powerLine() {
 }
 
 function renderHome() {
+  codes.gmTopUp(save); // GM 碼：資源無上限
   unlockHidden();
   const hero = HEROES.find(h => h.id === save.selected) || HEROES[0];
   const full = createHero(hero, save); // 算上天賦、裝備、坐騎
@@ -1292,7 +1306,7 @@ function renderHome() {
       <button class="link back-top" data-act="back-top">▲ 回到上面</button>
     </div>
     </div>
-    <div class="start-dock"><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}　${powerLine()}</small></button></div>`;
+    <div class="start-dock"><button class="auto-toggle ${save.autoMode && save.autoMode !== 'off' ? 'on' : ''}" id="btn-auto" aria-label="自動掛機">${iconTag(ICON.refresh, 18)}<small>自動</small><b>${AUTO_NAMES[save.autoMode || 'off']}</b></button><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}　${powerLine()}</small></button></div>`;
 }
 
 // 選職業：主副職業都在這裡挑（也可以買新職業）
@@ -1481,6 +1495,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-modes') { openModes(); return; }
   else if (t.id === 'btn-map') { openMap(); return; }
   else if (t.id === 'btn-live') { openLive(); return; }
+  else if (t.id === 'btn-auto') { const order = ['off', 'loop', 'push']; setAuto(order[(order.indexOf(save.autoMode || 'off') + 1) % 3]); toast(`自動掛機：${AUTO_NAMES[save.autoMode]}｜${AUTO_TIPS[save.autoMode]}`); }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
   else if (t.id === 'btn-start') {
     // 戰力不足只提醒一次，不擋
@@ -2248,6 +2263,105 @@ $('modes-body').addEventListener('click', ev => {
   renderModes();
 });
 
+// ---------- 3.14 自動掛機耍寶模式 ----------
+// 關閉／循環（一直打同一章）／推進（贏了就往下一章）；AI 自動瞄準、買技能、選奇遇與路線，倒下自動復活一次
+// 結算畫面停 3 秒後自動出發下一局（每日挑戰、無盡塔、挑戰模式打完會停在結算）
+const AUTO_NAMES = { off: '關', loop: '循環', push: '推進' };
+const AUTO_TIPS = { off: '點一下開啟', loop: '一直打同一章', push: '贏了自動下一章' };
+const AUTO_QUIPS = ['老闆我沒有在偷懶喔～', '掛機中，請勿打擾 zzZ', '這波我閉著眼睛都能打', '球球好多好開心', '有人在看嗎？嗨～', '自動駕駛模式啟動！', '我先喝口水…', '這招叫做「放著不管」', '金幣金幣快進來', '我跟杯子是好朋友', '再一波就下班了', '偷偷告訴你，我其實很緊張', '魔王你等等，我在看手機', '咚咚咚～彈珠進洞！', '今天也是努力掛機的一天'];
+const autoOn = () => !!(save.autoMode && save.autoMode !== 'off' && game.run);
+let autoAimT = 0, autoQuipT = 0, autoWait = null;
+function setAuto(mode) {
+  save.autoMode = mode;
+  writeSave(save);
+  renderAutoBadge();
+}
+function renderAutoBadge() {
+  const b = $('auto-badge');
+  const on = autoOn();
+  b.classList.toggle('hidden', !on);
+  if (on) b.innerHTML = `自動掛機中・${AUTO_NAMES[save.autoMode]} <i>✕ 停止</i>`;
+}
+$('auto-badge').addEventListener('click', () => { setAuto('off'); toast('自動掛機已關閉，接下來換你操作'); });
+// 每一格：自動瞄準最好的門；偶爾耍寶說話
+function autoTick(dt) {
+  const run = game.run;
+  autoAimT += dt;
+  if (autoAimT >= 0.15 && !board.touch) {
+    autoAimT = 0;
+    const val = g => (g.type[0] === 'x' ? 100 : 0) + parseFloat(g.type.slice(1));
+    const good = board.gates.filter(g => !g.trap && g.vis !== 0 && !(g.stone > 0)).sort((a, b) => val(b) - val(a));
+    const g = good[0];
+    if (g) board.targetX = Math.max(14, Math.min(board.W - 14, g.x + g.w / 2));
+  }
+  autoQuipT += dt;
+  if (autoQuipT >= 8 && run.phase === 'fight') {
+    autoQuipT = 0;
+    battle.text(run.hero.x, run.hero.z, 2.1, AUTO_QUIPS[Math.floor(Math.random() * AUTO_QUIPS.length)], '#ffe9a0', 13);
+  }
+}
+// 商店：先買高星，再買便宜的；錢多就刷新一次
+function autoShop() {
+  const run = game.run;
+  setTimeout(() => {
+    if (!autoOn() || game.run !== run || run.phase !== 'shop') return;
+    let bought = 0;
+    for (let round = 0; round < 3; round++) {
+      const list = run.offer.filter(o => !o.bought && o.price <= run.coins).sort((a, b) => b.sk.star - a.sk.star || a.price - b.price);
+      for (const o of list) { if (o.price > run.coins) continue; run.coins -= o.price; o.bought = true; gainSkill(o.sk); eco.track(save, 'skill'); bought++; }
+      if (run.freeReroll > 0 && run.rerollsLeft > 0) { run.freeReroll--; run.rerollsLeft--; rollOffer(); }
+      else if (run.rerollsLeft > 0 && run.coins > run.rerollCost * 4) { run.coins -= run.rerollCost; run.rerollsLeft--; run.rerollCost += 10; rollOffer(); }
+      else break;
+    }
+    renderSkillBar();
+    if (bought) { sfx('buy'); toast(`AI 買了 ${bought} 個技能`); }
+    run.shopDiscount = 1;
+    showScreen(null);
+    nextWave();
+  }, 900);
+}
+function autoEvent() {
+  const run = game.run;
+  setTimeout(() => {
+    if (!autoOn() || game.run !== run || run.phase !== 'event') return;
+    const cards = document.querySelectorAll('#event-body .ev-card');
+    if (cards.length) cards[Math.floor(Math.random() * cards.length)].click();
+    setTimeout(() => { if (game.run === run && run.phase === 'event') openShop(); }, 1200);
+  }, 900);
+}
+function autoRoute() {
+  const run = game.run;
+  setTimeout(() => {
+    if (!autoOn() || game.run !== run || run.phase !== 'route') return;
+    const pick = document.querySelector('#route-body [data-relic]') || document.querySelector('#route-body [data-node="elite"]') || document.querySelector('#route-body [data-node="rest"]') || document.querySelector('#route-body .route-card');
+    if (pick) pick.click();
+    if (run.phase === 'route') autoRoute(); // 選了寶箱：再選一次遺物
+  }, 900);
+}
+function stopAutoWait() { if (autoWait) { clearInterval(autoWait); autoWait = null; } }
+// 結算畫面：停 3 秒再出發
+function autoAfterResult(run, win) {
+  stopAutoWait();
+  const box = document.createElement('div');
+  box.className = 'auto-wait';
+  $('result-body').appendChild(box);
+  let left = 3;
+  const nextCh = () => (save.autoMode === 'push' && win && maxCh(save) > run.chapter ? run.chapter + 1 : run.chapter);
+  const draw = () => { box.innerHTML = `<b>自動掛機（${AUTO_NAMES[save.autoMode]}）：${left} 秒後出發第 ${nextCh()} 章</b><button class="btn small ghost" id="btn-auto-stop">停止自動</button>`; };
+  draw();
+  autoWait = setInterval(() => {
+    if (!autoOn() || game.run !== run) { stopAutoWait(); return; }
+    left--;
+    if (left > 0) { draw(); return; }
+    stopAutoWait();
+    save.chapter = nextCh();
+    codes.gmTopUp(save);
+    eco.rollDay(save);
+    writeSave(save);
+    startRun({ chapter: save.chapter });
+  }, 1000);
+}
+
 // ---------- 3.11 冒險手冊、限時活動 ----------
 let liveTab = 'pass';
 function evModeBox() {
@@ -2307,6 +2421,7 @@ function openRoute() {
   if (run.eliteAll) { run.relicChoice = expd.pickRelics(run); run.eliteAll = false; }
   renderRoute();
   showScreen('screen-route');
+  if (autoOn()) autoRoute();
 }
 function renderRoute() {
   const run = game.run;
@@ -2714,6 +2829,12 @@ $('settings-body').addEventListener('click', ev => {
     t.setAttribute('aria-checked', settings[key]);
     if (key === 'vibrate' && settings.vibrate) vibrate(30);
     writeSave(save);
+  } else if (t.id === 'btn-code') {
+    const r = codes.redeem(save, $('code-input').value);
+    toast(r.ok && r.gift ? `${r.msg}獲得 ${eco.giftText(r.gift)}` : r.msg);
+    if (r.ok) { sfx(r.gm ? 'jackpot' : 'jingle'); celebrate(t, '#ffd84a'); $('code-input').value = ''; writeSave(save); if (r.gm) banner('GM 模式開啟！'); }
+    else sfx('deny');
+    return;
   } else if (t.id === 'btn-credits') {
     showCredits();
     return;

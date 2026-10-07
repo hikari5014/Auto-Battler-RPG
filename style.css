@@ -1498,3 +1498,30 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 /* 3.13 活動模式 */
 .evm { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0; padding: 8px; border-radius: 12px; background: rgba(0,0,0,.35); border: 2px dashed #ffd84a; text-align: center; }
 .evm b { color: #ffd84a; } .evm small { font-size: 12px; opacity: .9; }
+/* 3.14 自動掛機、活動碼 */
+.auto-toggle { display: flex; align-items: center; gap: 6px; justify-content: center; width: 100%; margin: 0 0 6px; padding: 5px 10px; border-radius: 10px; border: 2px solid #4a3a6a; background: rgba(0,0,0,.45); color: #cfc8e0; font: inherit; font-size: 13px; }
+.auto-toggle b { color: #fff; }
+.auto-toggle small { font-size: 11px; opacity: .7; }
+.auto-toggle.on { border-color: #6dff8a; color: #6dff8a; box-shadow: 0 0 8px rgba(109,255,138,.4); }
+#auto-badge { position: absolute; left: 50%; top: calc(var(--safe-top, 0px) + 62px); translate: -50% 0; z-index: 6; padding: 3px 10px; border-radius: 12px; border: 2px solid #6dff8a; background: rgba(10,30,15,.8); color: #6dff8a; font: inherit; font-size: 12px; white-space: nowrap; }
+#auto-badge i { font-style: normal; color: #ffb3b3; margin-left: 6px; }
+.auto-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; padding: 8px; border-radius: 10px; border: 2px dashed #6dff8a; }
+.auto-wait b { color: #6dff8a; font-size: 13px; }
+.code-row { display: flex; gap: 6px; margin: 10px 0 4px; }
+.code-row input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 2px solid #6a5a8a; background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 15px; text-transform: uppercase; }
+/* 3.14 版面：右上按鈕變多，數字很大時縮小；自動按鈕不要蓋住雙職業列 */
+.top-row { gap: 4px; }
+.top-row .pills { min-width: 0; flex-shrink: 1; }
+.top-row .pills .pill { padding-left: 6px; padding-right: 8px; }
+.top-btns { gap: 3px; flex-shrink: 0; }
+.top-btns .icon-btn { min-width: 34px; width: 34px; height: 34px; }
+.home-more { padding-bottom: 46px; }
+#auto-badge { z-index: auto; }
+.top-row .pills { flex: 1 1 auto; overflow: hidden; }
+.top-row .pills .pill { min-width: 0; flex: 0 1 auto; overflow: hidden; white-space: nowrap; }
+.start-dock { display: flex; gap: 6px; align-items: stretch; }
+.start-dock .start { flex: 1; min-width: 0; }
+.auto-toggle { flex: none; width: 58px; margin: 0; padding: 4px 2px; flex-direction: column; gap: 0; justify-content: center; line-height: 1.1; }
+.auto-toggle small { font-size: 10px; opacity: .8; }
+.auto-toggle b { font-size: 13px; }
+.home-more { padding-bottom: 12px; }
