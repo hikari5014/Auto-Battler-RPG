@@ -509,6 +509,22 @@ export function salvage(save, id) {
   gear.shards += r.shard;
   return { gold: g, shards: r.shard };
 }
+// 3.17 批量分解
+export const salvageGain = it => ({ gold: Math.round(RARITIES[it.rarity].salvage * (1 + (it.plus || 0) * 0.3)), shards: RARITIES[it.rarity].shard });
+export const canBatch = (save, it) => !isWorn(save, it.id) && !it.lock;
+// 「一鍵全選」只選安全的：沒強化、沒升星、不是傳家／刻印、也不比身上好
+export const safeBatch = (save, it) => canBatch(save, it) && !it.plus && !it.star && !isSpecial(it) && !isBetter(save, it);
+export const riskyItem = it => it.rarity >= 3 || it.plus || it.star || isSpecial(it);
+export function salvageMany(save, ids) {
+  let n = 0, gold = 0, shards = 0;
+  for (const id of ids) {
+    const it = ensureGear(save).items.find(x => x.id === id);
+    if (!it || !canBatch(save, it)) continue;
+    const r = salvage(save, id);
+    if (r) { n++; gold += r.gold; shards += r.shards; }
+  }
+  return { n, gold, shards };
+}
 // 一鍵分解：沒穿、沒上鎖、普通品質、也不比身上好的
 export function salvageJunk(save) {
   const gear = ensureGear(save);

@@ -29,7 +29,7 @@ import { settings, loadSettings, applySettings, settingsHtml } from './settings.
 import { Tutorial } from './tutorial.js';
 import { EVENT_WAVES, rollEvents, makeRandomSkill } from './events.js';
 import { ensureMeta, ACHIEVEMENTS, achDone, achClaimable, MODS, todayChallenge, dailyDone, dailyReward, todayKey } from './meta.js';
-import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset, fuse, whyNoFuse, fuseFodder, fuseGold, starMax, transferPlus, transferDonor, TRANSFER_SHARDS, HEIRLOOMS, bagCap, expandCost, expandBag, BAG_MAX, BAG_STEP } from './gear.js';
+import { grantItem, ensureGear, gearBonus, rollDrops, itemName, itemDesc, itemIcon, RARITIES, SLOTS, TYPES, STATS, MAX_ITEMS, MAX_PLUS, MAX_RARITY, JEWEL_SKILLS, JEWEL_MAX_LV, REFINE_SHARDS, equip, unequip, salvage, mergeAll, mergeableCount, equippedIn, isBetter, isWorn, salvageJunk, freshCount, statText, mainValue, enhance, enhanceCost, enhanceRate, enchant, enchantCost, refine, jewelPower, jewelTier, jewelExpNeed, jewelRideExp, targetSlot, SETS, UNIQUES, gearPower, GEMS, GEM_MAX, gemTag, gemName, gemValue, parseGem, gemDrops, socketGem, unsocketGem, mergeGems, reforge, reforgeCost, CRAFT_TIERS, craft, savePreset, loadPreset, fuse, whyNoFuse, fuseFodder, fuseGold, starMax, transferPlus, transferDonor, TRANSFER_SHARDS, HEIRLOOMS, bagCap, expandCost, expandBag, BAG_MAX, BAG_STEP, salvageGain, canBatch, safeBatch, riskyItem, salvageMany } from './gear.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game');
@@ -2645,6 +2645,22 @@ function itemLines(it, withTools) {
 }
 
 // 3.15 背包擴充按鈕
+// 3.17 批量分解：點裝備勾選，或一鍵選某個稀有度
+let batch = null, batchArmed = false;
+const gearList = () => ensureGear(save).items.filter(it => gearTab === 'all' || tabOf(it) === gearTab);
+function batchPanel(list) {
+  const gear = ensureGear(save);
+  const picked = gear.items.filter(it => batch.has(it.id));
+  const sum = picked.reduce((a, it) => { const g = salvageGain(it); a.gold += g.gold; a.shards += g.shards; return a; }, { gold: 0, shards: 0 });
+  const rars = RARITIES.map((r, i) => { const n = list.filter(it => it.rarity === i && safeBatch(save, it)).length; return n ? `<button class="brar" data-brar="${i}" style="--rc:${r.color}">${r.name}<small>${n}</small></button>` : ''; }).join('');
+  return `<div class="batch">
+    <b>批量分解</b><small>點下面的裝備勾選，或一鍵選某個稀有度（一鍵只會選「沒強化、沒升星、不比身上好」的）。穿著、上鎖的不能分解；符石會退回。</small>
+    <div class="brars">${rars || '<small>這一頁沒有可以一鍵選的裝備</small>'}</div>
+    <div class="bsum">已選 <b>${picked.length}</b> 件・可得 ${iconTag(ICON.gold, 12)}${fmt(sum.gold)}・✦${sum.shards} 魔晶</div>
+    <div class="row"><button class="btn small ghost" id="btn-bclear" ${offAttr(!picked.length, '還沒有選')}>清除</button>
+      <button class="btn small ${batchArmed ? '' : 'gift'}" id="btn-bgo" ${offAttr(!picked.length, '先選要分解的裝備')}>${batchArmed ? '確定分解？' : `分解 ${picked.length} 件`}</button></div>
+  </div>`;
+}
 function bagExpandRow() {
   const cap = bagCap(save);
   if (cap >= BAG_MAX) return `<p class="bag-x max">背包已擴充到上限 ${BAG_MAX} 格</p>`;
@@ -2665,7 +2681,7 @@ function renderGear() {
   let list = gear.items.filter(it => gearTab === 'all' || tabOf(it) === gearTab);
   list = list.slice().sort(gearSort === 'new' ? (a, c) => c.id - a.id : (a, c) => c.rarity - a.rarity || (c.plus || 0) - (a.plus || 0) || a.type.localeCompare(c.type));
   const cells = list.map(it => `
-    <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${gearSel === it.id ? 'sel' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
+    <button class="item r${it.rarity} ${isWorn(save, it.id) ? 'worn' : ''} ${!batch && gearSel === it.id ? 'sel' : ''} ${batch && batch.has(it.id) ? 'pick' : ''} ${batch && !canBatch(save, it) ? 'nopick' : ''}" data-item="${it.id}" style="--rc:${RARITIES[it.rarity].color}" aria-label="${itemName(it)}">
       ${iconTag(itemIcon(it), 24)}${isWorn(save, it.id) ? '<em>E</em>' : it.fresh ? '<em class="new">新</em>' : ''}${it.plus ? `<i class="plus">+${it.plus}</i>` : ''}${it.ench ? '<i class="en">✦</i>' : ''}${it.set ? `<i class="setdot" style="--sc:${SETS[it.set].color}"></i>` : ''}${it.uniq || it.heir ? '<i class="uq">★</i>' : ''}${it.star ? `<i class="istar-b">${it.star}★</i>` : ''}${isBetter(save, it) ? '<b class="better">▲</b>' : ''}</button>`);
   const empties = gearTab === 'all' ? Math.max(0, bagCap(save) - gear.items.length) : (6 - list.length % 6) % 6;
   for (let i = 0; i < empties; i++) cells.push('<span class="item empty-cell"></span>');
@@ -2676,7 +2692,8 @@ function renderGear() {
     return `<button class="gtab ${gearTab === k ? 'sel' : ''}" data-tab="${k}">${n}<small>${c}</small></button>`;
   }).join('');
   let detail = '<small class="hint">點一件裝備看詳細、強化、附魔</small>';
-  if (sel) {
+  if (batch) detail = batchPanel(list);
+  else if (sel) {
     const worn = isWorn(save, sel.id);
     const cur = worn ? null : equippedIn(save, targetSlot(save, sel));
     const r = RARITIES[sel.rarity];
@@ -2725,6 +2742,7 @@ function renderGear() {
     <div class="items">${cells.join('')}</div>
     <div class="row">
       <button class="btn small" id="btn-merge" ${offAttr(!m, '需要 3 件同種類、同稀有度的裝備（沒穿、沒上鎖）')}>合成升階${m ? `（${m}）` : ''}</button>
+      <button class="btn small ${batch ? 'gift' : ''}" id="btn-batch">${batch ? '結束批量' : '批量分解'}</button>
       <button class="btn small ghost" id="btn-junk" ${offAttr(!junk, '沒有可以分解的普通裝備')}>分解普通${junk ? `（${junk}）` : ''}</button>
       <button class="btn small ghost" id="btn-gear-close">關閉</button>
     </div>`;
@@ -2765,7 +2783,28 @@ $('gear-body').addEventListener('click', ev => {
     if (loadPreset(save, +t.dataset.preuse)) { sfx('buy'); toast(`已換上方案 ${+t.dataset.preuse + 1}`); }
   } else if (t.dataset.presave !== undefined) {
     savePreset(save, +t.dataset.presave); sfx('tap'); toast(`目前的裝備已存成方案 ${+t.dataset.presave + 1}`);
-  } else if (t.dataset.item) {
+  } else if (t.dataset.item && batch) {
+    const id = +t.dataset.item, it = gear.items.find(x => x.id === id);
+    batchArmed = false;
+    if (!it || !canBatch(save, it)) toast(isWorn(save, id) ? '穿在身上的不能分解' : '上鎖的裝備不能分解');
+    else if (batch.has(id)) batch.delete(id); else batch.add(id);
+  } else if (t.dataset.brar !== undefined) {
+    // 一鍵選某個稀有度（只選安全的；再按一次取消）
+    const r = +t.dataset.brar, pool = gearList().filter(it => it.rarity === r && safeBatch(save, it));
+    const all = pool.length && pool.every(it => batch.has(it.id));
+    for (const it of pool) all ? batch.delete(it.id) : batch.add(it.id);
+    batchArmed = false;
+  } else if (t.id === 'btn-bclear') { batch.clear(); batchArmed = false; }
+  else if (t.id === 'btn-bgo') {
+    const ids = [...batch], risky = ids.some(id => { const it = gear.items.find(x => x.id === id); return it && riskyItem(it); });
+    if (risky && !batchArmed) { batchArmed = true; toast('選到傳說／強化過／升星的裝備，再按一次確定分解'); }
+    else {
+      const r = salvageMany(save, ids);
+      batch.clear(); batchArmed = false;
+      if (r.n) { sfx('buy'); celebrate(t, '#7fe8ff'); toast(`分解 ${r.n} 件：${fmt(r.gold)} 金幣、${r.shards} 魔晶`); }
+    }
+  } else if (t.id === 'btn-batch') { batch = batch ? null : new Set(); batchArmed = false; gearSel = null; }
+  else if (t.dataset.item) {
     gearSel = +t.dataset.item;
     gemPick = null;
     const it = gear.items.find(x => x.id === gearSel);
@@ -2808,6 +2847,7 @@ $('gear-body').addEventListener('click', ev => {
     save.stats.legendMerged += made.filter(x => x.rarity >= 3).length;
     if (made.length) { eco.track(save, 'gear'); sfx('wave'); banner(`合成升階 ${made.length} 件！`); gearSel = made[made.length - 1].id; }
   } else if (t.id === 'btn-gear-close') {
+    batch = null;
     for (const it of gear.items) it.fresh = false;
     writeSave(save); renderHome(); showScreen('screen-home'); return;
   }

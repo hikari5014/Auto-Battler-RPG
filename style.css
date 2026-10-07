@@ -1531,3 +1531,13 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .bag-x small { display: block; font-size: 10px; opacity: .7; }
 .bag-x .btn { flex: none; margin: 0; }
 .bag-x.max { justify-content: center; opacity: .7; }
+/* 3.17 批量分解 */
+.item.pick { outline: 3px solid #ff6b6b; outline-offset: -1px; }
+.item.pick::after { content: '✓'; position: absolute; right: 2px; top: 0; font-size: 13px; color: #fff; background: #e03c3c; border-radius: 50%; width: 16px; height: 16px; line-height: 16px; text-align: center; }
+.item.nopick { opacity: .4; }
+.batch { display: flex; flex-direction: column; gap: 5px; text-align: center; }
+.batch > small { font-size: 11px; opacity: .8; line-height: 1.35; }
+.brars { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.brar { padding: 3px 9px; border-radius: 8px; border: 2px solid var(--rc); background: rgba(0,0,0,.35); color: var(--rc); font: inherit; font-size: 12px; }
+.brar small { margin-left: 4px; color: #fff; opacity: .8; }
+.bsum { font-size: 13px; }
