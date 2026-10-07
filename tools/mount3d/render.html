@@ -1,0 +1,48 @@
+<!doctype html><html><body style="margin:0">
+<script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+const cache = {};
+const r = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+document.body.appendChild(r.domElement);
+r.outputColorSpace = THREE.SRGBColorSpace;
+async function get(name) {
+  if (!cache[name]) { const obj = await new FBXLoader().loadAsync('models/' + name + '.fbx'); cache[name] = { obj, mixer: new THREE.AnimationMixer(obj) }; }
+  return cache[name];
+}
+window.mats = async name => { const { obj } = await get(name); const out = []; obj.traverse(o => { if (o.isMesh) [].concat(o.material).forEach((m, i) => out.push(o.name + '/' + i + '/' + m.name)); }); return out; };
+// opt: { clip, frames, size, yaw, pitch, colors: {matName: hex}, pad }
+window.strip = async (name, opt) => {
+  const { obj, mixer } = await get(name);
+  obj.traverse(o => { if (o.isMesh) {
+    const ms = [].concat(o.material).map(m => { const c = (opt.colors || {})[m.name] || (opt.colors || {})['*']; if (!c) return m; return new THREE.MeshLambertMaterial({ color: new THREE.Color(c), skinning: true, flatShading: true }); });
+    o.material = Array.isArray(o.material) ? ms : ms[0];
+  } });
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x554466, 1.6));
+  const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(-2, 4, 5); scene.add(d);
+  const pivot = new THREE.Group(); pivot.add(obj); pivot.rotation.y = opt.yaw || 0; scene.add(pivot);
+  mixer.stopAllAction();
+  const clip = obj.animations.find(c => c.name === opt.clip) || obj.animations[0];
+  const act = mixer.clipAction(clip); act.play();
+  const N = opt.frames || 8;
+  // 先算所有格的外框聯集，避免每格大小跳動
+  const box = new THREE.Box3();
+  for (let i = 0; i < N; i++) { mixer.setTime(clip.duration * i / N); pivot.updateMatrixWorld(true); obj.traverse(o => { if (o.isSkinnedMesh) o.skeleton.update(); }); box.expandByObject(pivot, true); }
+  const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const R = Math.max(sz.x, sz.y, sz.z) * (opt.pad || 0.58);
+  const S = opt.size || 64;
+  r.setSize(S, S);
+  const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.1, R * 100);
+  const pitch = opt.pitch ?? 0.35;
+  cam.position.set(c.x, c.y + Math.sin(pitch) * R * 10, c.z + Math.cos(pitch) * R * 10);
+  cam.lookAt(c);
+  cam.position.y += R * (opt.lift || 0); 
+  const frames = [];
+  for (let i = 0; i < N; i++) { mixer.setTime(clip.duration * i / N); r.render(scene, cam); frames.push(r.domElement.toDataURL()); }
+  scene.remove(pivot);
+  return frames;
+};
+window.ready = true;
+</script></body></html>

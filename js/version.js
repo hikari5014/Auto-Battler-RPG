@@ -1,10 +1,18 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.17.0';
+export const VERSION = '3.18.0';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.18.0', date: '2026-10-07',
+    notes: [
+      '坐騎升級成 3D：疾風馬、戰狼、金翼獅鷲、火龍改用 3D 模型製作，戰鬥中會跑步、拍翅膀',
+      '首頁與坐騎畫面也換成新的 3D 坐騎圖；巨熊暫時維持原樣',
+      '模型來自 Quaternius（CC0 免費授權），已加進製作群名單',
+    ],
+  },
   {
     version: '3.17.0', date: '2026-10-07',
     notes: [

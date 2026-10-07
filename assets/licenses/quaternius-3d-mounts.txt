@@ -1,0 +1,8 @@
+Name: Farm Animals / Animal Pack Vol.2 / Animated Monster Pack
+Source: https://opengameart.org/content/lowpoly-animated-farm-animal-pack
+        https://opengameart.org/content/animated-animales-low-poly
+        https://opengameart.org/content/lowpoly-animated-monsters
+Author: Quaternius (https://quaternius.com)
+License: CC0 1.0（公有領域，可商用、不用署名）
+Used for: assets/img/mounts3d.png — 3D 模型（Horse、Wolf、Eagle、Dragon）用 three.js 預先渲染成 64px 8 格動畫，重新上色並加像素外框
+Downloaded: 2026-10-07 for 彈珠勇者 (Marble Brave)

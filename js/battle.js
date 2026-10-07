@@ -1184,7 +1184,7 @@ export class Battle {
     if (h.mount) {
       const sc = this.scene;
       const m = h.mount;
-      const size = HERO_HEIGHT * (h.showcase ? 2.1 : 1.55) * (h.scale || 1);
+      const size = HERO_HEIGHT * (h.showcase ? 2.1 : 1.55) * (h.scale || 1) * (m.scale || 1);
       const bob = Math.abs(Math.sin(sc.t * 9)) * 0.06;
       const mx = x + 0.28 * (h.scale || 1);
       const mp = sc.project(mx, h.z, lift + bob);
@@ -1192,10 +1192,12 @@ export class Battle {
       const px = size * mp.s;
       this.drawMountAura(ctx, m, mp.x, mp.y, px, sc.t);
       ctx.globalAlpha = 1 - sc.fogAt(h.z) * 0.85;
-      if (m.sprite) drawSprite(ctx, m.sprite[1], mp.x, mp.y + 1, px, !!m.flip, 0, m.sprite[0]);
+      // 3D 坐騎：8 格跑步動畫（站著展示時放慢）
+      const fi = m.frames ? Math.floor(sc.t * (h.showcase ? 6 : 12)) % m.frames : 0;
+      if (m.sprite) drawSprite(ctx, m.sprite[1] + fi, mp.x, mp.y + 1 + px * (m.foot || 0), px, !!m.flip, 0, m.sprite[0]);
       else drawTinted(ctx, m.icon, m.color, mp.x, mp.y + 1, px);
       ctx.globalAlpha = 1;
-      lift += size * (h.showcase ? 0.5 : 0.42) + bob;
+      lift += m.seat ? size * m.seat * (h.showcase ? 1.1 : 1) + bob : size * (h.showcase ? 0.5 : 0.42) + bob;
     }
     // 砲台：英雄兩側的小黃銅砲
     for (let i = 0; i < Math.min(3, h.turrets || 0); i++) {

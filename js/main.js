@@ -1206,7 +1206,7 @@ const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:
 // 英雄圖：舊英雄用 Tiny Dungeon 的編號；3.4 新英雄用 ['hx', 編號]（0x72 動畫角色）
 const heroRef = d => Array.isArray(d.sprite) ? [d.sprite[0], d.sprite[1]] : ['dg', d.sprite];
 // 坐騎圖：3.1 起用 Tiny Creatures 的生物圖（舊的單色圖示當備用）
-const mountRef = m => m.sprite || ['ic', m.icon, m.color];
+const mountRef = m => (m.sprite ? [m.sprite[0], m.sprite[1] + (m.iconFrame || 0)] : ['ic', m.icon, m.color]); // 3D 坐騎可以指定拿哪一格當圖示
 
 // 首頁：目前戰力 vs 這個難度、這一章的推薦戰力
 function powerLine() {
@@ -2949,6 +2949,7 @@ const CREDITS = [
   ['角色、怪物、圖示、介面、音效', 'Kenney（kenney.nl）', 'CC0'],
   ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
+  ['3D 坐騎（馬、狼、獅鷲、火龍）', 'Quaternius「Farm Animals」「Animal Pack Vol.2」「Animated Monster Pack」', 'CC0'],
   ['扭蛋英雄', '0x72「DungeonTileset II」', 'CC0'],
   ['扭蛋膠囊、寶石與道具圖示', 'Airos「Toy Capsules」、SpriteAttack、7Soul1「496 RPG icons」', 'CC0'],
   ['平原、墓地、火山、毒沼、要塞背景', 'Ansimuz「Tall Forest」「Gothicvania Cemetery」「Mountain at Dusk」', 'CC0'],

@@ -2,16 +2,17 @@
 // 用金幣買坐騎；騎著去冒險會累積經驗，也可以用金幣餵飼料升級。
 // 等級上限 = 星數 x 10，滿了要「突破」升星（最多 3 星、30 級）。
 // 坐騎有兩種能力：被動加成（跟等級成長），以及戰鬥中每隔幾秒自動施放的坐騎技能（跟星數成長）。
+// 3.18：馬、狼、獅鷲、火龍改成 3D 模型渲染的 8 格動畫（scale 大小、foot 腳底留白、seat 英雄坐的高度）
 // 存在 save.mounts = { owned: { id: { lv, exp, star } }, ride: id }
 
 export const MOUNTS = [
   {
-    id: 'horse', name: '疾風馬', icon: 371, sprite: ['tc', 50], flip: true, color: '#e8b878', price: 600,
+    id: 'horse', name: '疾風馬', icon: 371, sprite: ['m3', 0], frames: 8, scale: 1.2, foot: 0.1, seat: 0.4, color: '#e8b878', price: 600,
     stat: 'spd', per: 0.012, statName: '攻擊速度',
     skill: '衝刺', cd: 5, skillDesc: s => `撞擊最前面的敵人，造成 ${250 + s * 100}% 傷害並擊退`,
   },
   {
-    id: 'wolf', name: '戰狼', icon: 374, sprite: ['tc', 24], color: '#b8c4dc', price: 1500,
+    id: 'wolf', name: '戰狼', icon: 374, sprite: ['m3', 8], frames: 8, scale: 1.2, foot: 0.17, seat: 0.3, color: '#b8c4dc', price: 1500,
     stat: 'crit', per: 0.004, statName: '暴擊率',
     skill: '狼嚎', cd: 7, skillDesc: s => `接下來 ${2 + s} 次攻擊必定暴擊`,
   },
@@ -21,12 +22,12 @@ export const MOUNTS = [
     skill: '熊吼', cd: 8, skillDesc: s => `擊暈所有敵人 ${(0.5 + s * 0.5).toFixed(1)} 秒，並獲得 ${5 + s * 5}% 血量的護盾`,
   },
   {
-    id: 'bird', name: '金翼獅鷲', icon: 369, sprite: ['tc', 114], flip: true, color: '#ffd84a', price: 3500,
+    id: 'bird', name: '金翼獅鷲', icon: 369, sprite: ['m3', 16], frames: 8, iconFrame: 2, scale: 2.1, foot: 0.3, seat: 0.2, color: '#ffd84a', price: 3500,
     stat: 'ball', per: 0.08, statName: '每殺一隻多掉球',
     skill: '金羽', cd: 7, skillDesc: s => `從天上灑下 ${4 + s * 4} 顆小球`,
   },
   {
-    id: 'drake', name: '火龍', icon: 421, sprite: ['tc', 33], flip: true, color: '#ff6a3d', price: 6000,
+    id: 'drake', name: '火龍', icon: 421, sprite: ['m3', 24], frames: 8, scale: 1.3, foot: 0.05, seat: 0.42, color: '#ff6a3d', price: 6000,
     stat: 'atk', per: 0.012, statName: '攻擊力',
     skill: '火息', cd: 7, skillDesc: s => `噴火燒所有敵人，造成 ${80 + s * 60}% 傷害並燃燒`,
   },
