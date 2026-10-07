@@ -1,10 +1,16 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.21.0';
+export const VERSION = '3.21.1';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.21.1', date: '2026-10-07',
+    notes: [
+      '修正任務、成就進度條上的數字被切掉一半',
+    ],
+  },
   {
     version: '3.21.0', date: '2026-10-07',
     notes: [

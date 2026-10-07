@@ -521,9 +521,10 @@ h1, h2, b, .btn, .pill { font-weight: normal; }
 .ach-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .ach-info b { font-size: 14px; }
 .ach-info small { font-size: 11px; color: var(--ink-soft); }
-.ach-bar { position: relative; height: 12px; border-radius: 3px; background: rgba(0, 0, 0, 0.25); overflow: hidden; }
+.ach-bar { position: relative; display: flex; align-items: center; height: 15px; border-radius: 3px; background: rgba(0, 0, 0, 0.25); overflow: hidden; }
 .ach-bar i { position: absolute; inset: 0 auto 0 0; background: #2e9e4f; }
-.ach-bar em { position: relative; font-style: normal; font-size: 9px; color: #fff; padding-left: 4px; text-shadow: 0 1px 0 #000; }
+/* 3.21.1 進度數字垂直置中（以前 line-height 太高，數字被切掉一半） */
+.ach-bar em { position: relative; display: block; font-style: normal; font-size: 10px; line-height: 15px; color: #fff; padding-left: 5px; text-shadow: 0 1px 0 #000; white-space: nowrap; }
 .ach-ok { font-size: 11px; color: #2e9e4f; }
 .daily-date { font-size: 12px; }
 .mods { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
