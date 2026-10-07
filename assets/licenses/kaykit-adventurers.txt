@@ -1,0 +1,6 @@
+Name: KayKit - Adventurers Character Pack 2.0 (FREE) + KayKit - Character Animations 1.1 (FREE)
+Source: https://kaylousberg.itch.io/kaykit-adventurers 、 https://kaylousberg.itch.io/kaykit-character-animations
+Author: Kay Lousberg (www.kaylousberg.com)
+License: CC0 1.0（公有領域，可商用、不用署名）
+Used for: assets/img/heroes3k.png、heroes3k-face.png — Knight、Barbarian、Mage、Ranger、Rogue、Rogue_Hooded 6 個角色＋武器（劍、盾、斧、弓、弩、法杖、魔杖、魔法書、匕首），換色後用 three.js 預先渲染：站姿、攻擊、騎乘（坐椅子動作的腿）
+Downloaded: 2026-10-07 for 彈珠勇者 (Marble Brave)

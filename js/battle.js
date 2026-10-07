@@ -10,7 +10,8 @@ import { diffScale, waveCurve, CHAPTER_GROWTH, BOSS_MUL, BOSS_ATK_MUL, ENDLESS_B
 import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus, applyHeirloom } from './gear.js';
-import { h3Frame, releaseTip, MOUNT_MOUTH } from './hero3d.js';
+import { h3Frame, releaseTip, MOUNT_MOUTH, kkArt } from './hero3d.js';
+const KK_SIZE = 1.4, KK_SIT = 0.6;
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -1246,8 +1247,9 @@ export class Battle {
     }
     // 3.19 3D 英雄：站姿／攻擊／騎乘三種動作
     const s3 = h3Frame(h.def.id, !!h.mount, h.atkT ?? 9, this.scene.t, h.x);
-    if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3); // 坐姿：腿彎起來，整個人往下放
-    const hs = HERO_HEIGHT * (h.scale || 1) * (s3 ? 1.2 : 1);
+    const kk = s3 && kkArt(); // 3.21 新版造型：圖格裡人比較小、坐姿已經往下放了
+    if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3) * (kk ? KK_SIT : 1); // 坐姿：腿彎起來，整個人往下放
+    const hs = HERO_HEIGHT * (h.scale || 1) * (kk ? KK_SIZE : s3 ? 1.2 : 1);
     h._hg = { x, lift, size: hs }; // 記下英雄畫在哪（武器位置用）
     if (!h.mount) h._mg = null;
     const { p, top } = this.drawActor(ctx, s3 || h.def.sprite, x, h.z, hs, h.hurt * 0.6, 0, lift);

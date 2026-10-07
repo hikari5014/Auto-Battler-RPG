@@ -1,0 +1,22 @@
+const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const S = __dirname;
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  await p.goto('http://localhost:8765/?' + Date.now());
+  await p.evaluate(() => localStorage.setItem('marble-brave-save-v1', JSON.stringify({ tutorialDone: true, gold: 100, owned: ['blade', 'mage'], selected: 'mage', difficulty: 'casual' })));
+  await p.reload(); await p.waitForTimeout(1200);
+  await p.screenshot({ path: S + '/v321b-home.png' });
+  await p.click('#btn-settings', { force: true }); await p.waitForTimeout(400);
+  await p.screenshot({ path: S + '/v321b-set.png' });
+  await p.click('[data-toggle="oldHeroArt"]'); await p.waitForTimeout(200);
+  const on = await p.evaluate(() => JSON.parse(localStorage.getItem('marble-brave-save-v1')).settings.oldHeroArt);
+  await p.click('#btn-settings-close'); await p.waitForTimeout(400);
+  await p.screenshot({ path: S + '/v321b-home-old.png' });
+  await p.click('#btn-start', { force: true }); await p.waitForTimeout(2500);
+  const sheet = await p.evaluate(() => { const bt = window.__game.battle; return document.querySelector('#game') && 'ok'; });
+  await p.screenshot({ path: S + '/v321b-old.png', clip: { x: 0, y: 120, width: 260, height: 200 } });
+  console.log('saved toggle', on, sheet, 'ERRORS', errs);
+  await b.close();
+})();

@@ -1,0 +1,93 @@
+<!doctype html><html><body style="margin:0">
+<script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+// 3.21 KayKit Adventurers：角色 + 武器（掛在 handslot 骨頭上）+ 共用動作包
+const r = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(r.domElement);
+const L = new GLTFLoader();
+const gl = {}; const load = p => gl[p] || (gl[p] = L.loadAsync(p));
+const CLIPS = {};
+async function clips() {
+  if (Object.keys(CLIPS).length) return CLIPS;
+  for (const f of ['General', 'CombatMelee', 'CombatRanged', 'Simulation', 'MovementBasic']) for (const c of (await load('kk/Rig_Medium_' + f + '.glb')).animations) CLIPS[c.name] = c;
+  return CLIPS;
+}
+const cache = {};
+async function get(model, wr, wl) {
+  const key = [model, wr, wl].join('|');
+  if (cache[key]) return cache[key];
+  const g = await load('kk/' + model + '.glb');
+  const obj = SkeletonUtils.clone(g.scene);
+  const bones = {}; obj.traverse(x => { if (x.name && !x.isMesh) bones[x.name] = x; });
+  const meshes = [];
+  obj.traverse(x => { if (x.isMesh) { x.material = new THREE.MeshLambertMaterial({ map: x.material.map }); x.userData.body = true; meshes.push(x); } });
+  const weap = [];
+  for (const [w, slot] of [[wr, 'handslotr'], [wl, 'handslotl']]) {
+    if (!w) continue;
+    const wg = (await load('kk/w/' + w + '.gltf')).scene.clone(true);
+    wg.traverse(x => { if (x.isMesh) { x.material = new THREE.MeshLambertMaterial({ map: x.material.map, color: x.material.color }); weap.push({ m: x, slot, name: w }); } });
+    bones[slot].add(wg);
+  }
+  await clips();
+  return (cache[key] = { obj, mixer: new THREE.AnimationMixer(obj), bones, meshes, weap });
+}
+// opt: { model, wr, wl, clip, frames, t0, t1, size, yaw, pitch, tintAll, sit, sitClip, box, tipFrom }
+window.strip = async opt => {
+  const { obj, mixer, bones, meshes, weap } = await get(opt.model, opt.wr, opt.wl);
+  for (const o of meshes) o.material.color.set(opt.tintAll || '#ffffff');
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9988bb, 2.6));
+  const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(-2, 4, 5); scene.add(d); const f = new THREE.DirectionalLight(0xffffff, 0.7); f.position.set(3, 1, 4); scene.add(f);
+  const pivot = new THREE.Group(); pivot.add(obj); pivot.rotation.y = opt.yaw || 0; scene.add(pivot);
+  mixer.stopAllAction();
+  const clip = CLIPS[opt.clip];
+  if (!clip) throw new Error('no clip ' + opt.clip);
+  mixer.clipAction(clip).play();
+  const N = opt.frames || 4, t0 = opt.t0 ?? 0, t1 = opt.t1 ?? 1;
+  let legs = null;
+  if (opt.sit) {
+    // 坐姿：用「坐地板」動作的腿，固定住（攻擊時腿不會亂動）
+    mixer.stopAllAction(); const a = mixer.clipAction(CLIPS[opt.sit]); a.play(); mixer.setTime(CLIPS[opt.sit].duration * 0.5);
+    legs = ['upperlegl', 'upperlegr', 'lowerlegl', 'lowerlegr', 'footl', 'footr', 'hips'].filter(k => bones[k]).map(k => [k, bones[k].quaternion.clone(), bones[k].position.clone()]);
+    mixer.stopAllAction(); mixer.clipAction(clip).play();
+  }
+  const pose = i => { mixer.setTime(clip.duration * (t0 + (t1 - t0) * i / N)); if (legs) for (const [k, q, ps] of legs) { if (k === 'hips') { bones[k].position.y = ps.y; continue; } bones[k].quaternion.copy(q); bones[k].position.copy(ps); } pivot.updateMatrixWorld(true); };
+  const [cx, cy, cz, R] = opt.box;
+  const S = opt.size || 64;
+  r.setSize(S, S);
+  const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.1, R * 100);
+  const pitch = opt.pitch ?? 0.3;
+  cam.position.set(cx, cy + Math.sin(pitch) * R * 10, cz + Math.cos(pitch) * R * 10);
+  cam.lookAt(cx, cy, cz); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+  const frames = [], pts = [];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < N; i++) {
+    pose(i);
+    if (!opt.ptsOnly) { r.render(scene, cam); frames.push(r.domElement.toDataURL()); }
+    // 武器尖端：主手武器頂點投影，弓取中心，其他取最前端；空手取右手
+    let list = [];
+    const w = weap.find(x => x.slot === (opt.tipSlot || 'handslotr')) || weap[0];
+    if (w) { const g = w.m.geometry.attributes.position; for (let k = 0; k < g.count; k++) { v.fromBufferAttribute(g, k).applyMatrix4(w.m.matrixWorld).project(cam); list.push([(v.x + 1) / 2 * S, (1 - v.y) / 2 * S]); } }
+    else { bones['handr'].getWorldPosition(v).project(cam); list.push([(v.x + 1) / 2 * S, (1 - v.y) / 2 * S]); }
+    let tip;
+    if (w && /bow/.test(w.name) && !/crossbow/.test(w.name)) tip = [list.reduce((a, q) => a + q[0], 0) / list.length, list.reduce((a, q) => a + q[1], 0) / list.length];
+    else tip = list.reduce((a, q) => (q[0] < a[0] ? q : a), [1e9, 0]); // 輸出時會左右鏡像，所以取最左＝鏡像後最前
+    pts.push({ tip: tip.map(x => +x.toFixed(1)) });
+  }
+  scene.remove(pivot);
+  return { frames, pts };
+};
+window.measure = async (model, yaw) => {
+  const { obj, mixer } = await get(model);
+  const pivot = new THREE.Group(); pivot.add(obj); pivot.rotation.y = yaw;
+  mixer.stopAllAction(); mixer.clipAction(CLIPS['Idle_A']).play(); mixer.setTime(0); pivot.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(pivot, true); const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  pivot.remove(obj);
+  return { c: [c.x, c.y, c.z], s: [s.x, s.y, s.z], min: box.min.y };
+};
+window.ready = true;
+</script></body></html>

@@ -17,7 +17,7 @@ import * as live from './live.js';
 import * as arcade from './arcade.js';
 import * as evm from './eventmodes.js';
 import * as codes from './codes.js';
-import { h3Row, H3_COLS } from './hero3d.js';
+import { h3Row, H3_COLS, h3Face } from './hero3d.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
 import { Battle, createHero, BENCH_POS, heroAtk as heroAtkOf } from './battle.js';
@@ -1205,7 +1205,7 @@ const unlockAch = h => ACHIEVEMENTS.find(x => x.id === h.unlock);
 const clsTags = def => heroCls(def).map(c => `<span class="cat-tag" style="--cc:${CATS[c].color}">${CATS[c].name}</span>`).join(' ');
 
 // 英雄圖：舊英雄用 Tiny Dungeon 的編號；3.4 新英雄用 ['hx', 編號]（0x72 動畫角色）
-const heroRef = d => (h3Row(d.id) >= 0 ? ['h3f', h3Row(d.id)] : Array.isArray(d.sprite) ? [d.sprite[0], d.sprite[1]] : ['dg', d.sprite]); // 3.19 有 3D 版就用 3D 半身頭像
+const heroRef = d => (h3Row(d.id) >= 0 ? h3Face(d.id) : Array.isArray(d.sprite) ? [d.sprite[0], d.sprite[1]] : ['dg', d.sprite]); // 3.19 有 3D 版就用 3D 半身頭像
 // 坐騎圖：3.1 起用 Tiny Creatures 的生物圖（舊的單色圖示當備用）
 const mountRef = m => (m.sprite ? [m.sprite[0], m.sprite[1] + (m.iconFrame || 0)] : ['ic', m.icon, m.color]); // 3D 坐騎可以指定拿哪一格當圖示
 
@@ -2907,6 +2907,7 @@ $('settings-body').addEventListener('click', ev => {
     location.reload();
   } else if (t.id === 'btn-settings-close') {
     writeSave(save);
+    renderHome(); // 3.21 換了英雄造型要重畫頭像
     showScreen('screen-home');
   }
 });
@@ -2950,7 +2951,8 @@ const CREDITS = [
   ['角色、怪物、圖示、介面、音效', 'Kenney（kenney.nl）', 'CC0'],
   ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
-  ['3D 英雄（6 種角色模型換色）', 'Quaternius「RPG Characters」', 'CC0'],
+  ['3D 英雄（新版，KayKit 角色＋武器）', 'Kay Lousberg「KayKit Adventurers」「KayKit Character Animations」', 'CC0'],
+  ['3D 英雄（舊版，6 種角色模型換色）', 'Quaternius「RPG Characters」', 'CC0'],
   ['3D 坐騎（馬、狼、獅鷲、火龍）', 'Quaternius「Farm Animals」「Animal Pack Vol.2」「Animated Monster Pack」', 'CC0'],
   ['扭蛋英雄', '0x72「DungeonTileset II」', 'CC0'],
   ['扭蛋膠囊、寶石與道具圖示', 'Airos「Toy Capsules」、SpriteAttack、7Soul1「496 RPG icons」', 'CC0'],

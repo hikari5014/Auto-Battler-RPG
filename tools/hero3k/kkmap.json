@@ -1,0 +1,19 @@
+{
+ "kits": {
+  "knight":  {"model":"Knight","wr":"sword_1handed","wl":"shield_badge_color","idle":"Idle_A","atk":[["Melee_1H_Attack_Slice_Diagonal",6]]},
+  "knight2": {"model":"Knight","wr":"sword_2handed_color","idle":"Melee_2H_Idle","atk":[["Melee_2H_Attack_Slice",6]]},
+  "barb2":   {"model":"Barbarian","wr":"axe_2handed","idle":"Melee_2H_Idle","atk":[["Melee_2H_Attack_Chop",6]]},
+  "barb1":   {"model":"Barbarian","wr":"axe_1handed","wl":"shield_round_barbarian","idle":"Idle_A","atk":[["Melee_1H_Attack_Chop",6]]},
+  "fist":    {"model":"Barbarian","idle":"Melee_Unarmed_Idle","atk":[["Melee_Unarmed_Attack_Punch_A",6]]},
+  "bow":     {"model":"Ranger","wl":"bow_withString","tipSlot":"handslotl","idle":"Ranged_Bow_Idle","atk":[["Ranged_Bow_Draw",3],["Ranged_Bow_Release",3]]},
+  "xbow":    {"model":"Ranger","wr":"crossbow_2handed","idle":"Idle_A","atk":[["Ranged_2H_Shoot",6]]},
+  "staff":   {"model":"Mage","wr":"staff","idle":"Idle_A","atk":[["Ranged_Magic_Shoot",6]]},
+  "wand":    {"model":"Mage","wr":"wand","wl":"spellbook_open","idle":"Idle_A","atk":[["Ranged_Magic_Spellcasting",6]]},
+  "rogue":   {"model":"Rogue","wr":"dagger","wl":"dagger","idle":"Idle_A","atk":[["Melee_Dualwield_Attack_Stab",6]]},
+  "hood":    {"model":"Rogue_Hooded","wr":"dagger","wl":"dagger","idle":"Idle_A","atk":[["Melee_Dualwield_Attack_Slice",6]]}
+ },
+ "heroes": [["blade","knight",null],["archer","bow",null],["mage","staff",null],["saw","barb2",null],["paladin","knight2","#fff2b0"],["rogue","rogue",null],["gunner","xbow","#e0a070"],["elem","staff","#90f0e0"],["dragoon","knight2","#ff9090"],["sage","wand","#c8b0ff"],["thief","hood","#ffe070"],
+ ["hilda","bow","#b0e0ff"],["gren","barb1",null],["fio","staff","#ff9060"],["vicky","bow","#b0ff80"],["lok","fist",null],["mary","wand",null],["thorfin","barb2","#ffe890"],["pip","xbow","#ffc090"],
+ ["esti","wand","#c0f0ff"],["kalan","knight2","#ff7080"],["sian","staff","#90b0ff"],["ruri","hood","#d8a0ff"],["g7","knight","#e0c090"],["balu","fist","#d0a070"],["cyrus","bow","#fff0c0"],["moore","wand","#b0e090"],["morgan","xbow","#90a8e0"],
+ ["ignis","staff","#ff7040"],["evira","bow","#80ffa0"],["leos","knight2","#ffd860"],["lilith","wand","#ff6090"],["omega","xbow","#d0e8ff"],["seraph","wand","#ffe8a0"]]
+}

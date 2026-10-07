@@ -1,10 +1,17 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.20.0';
+export const VERSION = '3.21.0';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.21.0', date: '2026-10-07',
+    notes: [
+      '英雄換上新造型：KayKit Q 版角色，手上拿著劍、盾、斧、弓、弩、法杖、匕首',
+      '設定裡可以切回舊版英雄造型（「舊版英雄造型」開關）',
+    ],
+  },
   {
     version: '3.20.0', date: '2026-10-07',
     notes: [
