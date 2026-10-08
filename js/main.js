@@ -17,6 +17,7 @@ import * as live from './live.js';
 import * as arcade from './arcade.js';
 import * as evm from './eventmodes.js';
 import * as codes from './codes.js';
+import * as sw from './sweep.js';
 import { h3Row, H3_COLS, h3Face } from './hero3d.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -483,7 +484,9 @@ function update(dt) {
   if (autoOn()) autoTick(dt);
   if (run.switchCd > 0 && !game.paused) { run.switchCd = Math.max(0, run.switchCd - dt); updateSwitchCd(); }
   if (run.heroes.length > 1) $('btn-switch').style.setProperty('--hp', Math.max(0, run.heroes.find(h => h !== run.hero).hp) / run.heroes.find(h => h !== run.hero).maxHp);
-  board.update(dt);
+  // 3.23 自動掛機：彈珠加速（分兩小步算，球才不會穿過釘子）
+  if (autoOn()) { board.update(dt * AUTO_BALL_SPEED / 2); board.update(dt * AUTO_BALL_SPEED / 2); }
+  else board.update(dt);
   const shown = fmt(run.coins);
   if (shown !== lastCoinText) {
     $('hud-coins').textContent = shown;
@@ -1060,6 +1063,7 @@ function endRun(win) {
     if (m) { gemsWon += m; gemNotes.push(`層數里程碑 +${m}`); }
   }
   if (gemsWon) eco.grant(save, { gem: gemsWon });
+  if (win && !run.endless && !run.daily) sw.recordSweep(save, run.diff.id, run.chapter, gold); // 3.23 掃蕩用的紀錄
   const tok = live.onRunEnd(save, run, cleared, win);
   const tokHtml = tok ? `<p class="frag-got">${live.currentEvent().token} +${tok}（活動代幣）</p>` : '';
   // 3.3 英雄碎片：帶誰出戰就掉誰的碎片
@@ -1104,6 +1108,8 @@ $('result-body').addEventListener('click', ev => {
   } else if (t.id === 'btn-home') {
     stopAutoWait();
     goHome();
+  } else if (t.id === 'btn-sweep-again') {
+    doSweep();
   } else if (t.id === 'btn-auto-stop') {
     setAuto('off');
     stopAutoWait();
@@ -1317,7 +1323,7 @@ function renderHome() {
       <button class="link back-top" data-act="back-top">▲ 回到上面</button>
     </div>
     </div>
-    <div class="start-dock"><button class="auto-toggle ${save.autoMode && save.autoMode !== 'off' ? 'on' : ''}" id="btn-auto" aria-label="自動掛機">${iconTag(ICON.refresh, 18)}<small>自動</small><b>${AUTO_NAMES[save.autoMode || 'off']}</b></button><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}　${powerLine()}</small></button></div>`;
+    <div class="start-dock"><button class="auto-toggle ${save.autoMode && save.autoMode !== 'off' ? 'on' : ''}" id="btn-auto" aria-label="自動掛機">${iconTag(ICON.refresh, 18)}<small>自動</small><b>${AUTO_NAMES[save.autoMode || 'off']}</b></button><button class="btn big start" id="btn-start">開始冒險 <small>${ch.name}・${difficultyOf(save.difficulty).name}${save.second ? '・雙職業' : ''}　${powerLine()}</small></button>${sweepBtn()}</div>`;
 }
 
 // 選職業：主副職業都在這裡挑（也可以買新職業）
@@ -1508,6 +1514,7 @@ $('home-body').addEventListener('click', ev => {
   else if (t.id === 'btn-live') { openLive(); return; }
   else if (t.id === 'btn-auto') { const order = ['off', 'loop', 'push']; setAuto(order[(order.indexOf(save.autoMode || 'off') + 1) % 3]); toast(`自動掛機：${AUTO_NAMES[save.autoMode]}｜${AUTO_TIPS[save.autoMode]}`); }
   else if (t.id === 'btn-update') { checkUpdate(false); return; }
+  else if (t.id === 'btn-sweep') { doSweep(); return; }
   else if (t.id === 'btn-start') {
     // 戰力不足只提醒一次，不擋
     const p = savePower(save), rec = recommended(save.difficulty, save.chapter);
@@ -2274,6 +2281,49 @@ $('modes-body').addEventListener('click', ev => {
   renderModes();
 });
 
+// ---------- 3.23 快速掃蕩 ----------
+// 通關過的章節：開始按鈕旁邊多一個「掃蕩」，直接拿最後一次通關獎勵的八成
+function sweepBtn() {
+  if (!sw.canSweep(save, save.difficulty, save.chapter)) return '';
+  const cost = sw.sweepCost(save);
+  return `<button class="auto-toggle sweep-btn" id="btn-sweep" aria-label="快速掃蕩">${iconTag(ICON.gold, 18)}<small>掃蕩</small><b>${cost ? `${iconTag(ICON.diamond, 12)}${cost}` : `免費 ${sw.freeLeft(save)}`}</b></button>`;
+}
+function doSweep() {
+  const diff = difficultyOf(save.difficulty), ch = save.chapter;
+  if (!sw.canSweep(save, diff.id, ch)) { toast('通關過的章節才能掃蕩'); return; }
+  const cost = sw.sweepCost(save);
+  if (cost && (save.wallet.gem || 0) < cost) { sfx('deny'); toast(`寶石不夠：第 ${sw.SWEEP_FREE + 1} 次起每次掃蕩要 ${cost} 寶石`); return; }
+  if (cost) save.wallet.gem -= cost;
+  sw.ensureSweep(save).n++;
+  const base = sw.sweepBase(save, diff, ch), g = sw.sweepGain(base);
+  save.gold += g.gold;
+  if (g.gem) eco.grant(save, { gem: g.gem });
+  // 碎片、裝備、符石也打八折：碎片照 12 波（15 波的八成）算，裝備和符石有八成機會掉
+  const frags = heroP.runFrags(save, [save.selected, save.second].filter(Boolean), Math.floor(MAX_WAVE * sw.SWEEP_RATE));
+  const diffIndex = DIFFICULTIES.findIndex(d => d.id === diff.id);
+  const { drops, salvaged } = Math.random() < sw.SWEEP_RATE ? rollDrops(save, MAX_WAVE, true, diffIndex, ch) : { drops: [], salvaged: 0 };
+  const gemsGot = Math.random() < sw.SWEEP_RATE ? gemDrops(save, MAX_WAVE, true, diffIndex) : [];
+  eco.track(save, 'run');
+  writeSave(save);
+  sfx('jingle');
+  const next = sw.sweepCost(save);
+  $('result-body').innerHTML = `
+    <h2>${iconTag(ICON.trophy, 28)} 掃蕩完成</h2>
+    <p>${diff.name}・第 ${ch} 章「${chapterName(ch)}」${cost ? `・花了 ${cost} 寶石` : `・今天還有 ${sw.freeLeft(save)} 次免費`}</p>
+    <div class="reward">${iconTag(ICON.gold, 32)} <b id="gold-count">+0</b></div>
+    ${g.gem ? `<p class="gem-got">${iconTag(ICON.diamond, 22)} <b>+${g.gem}</b> 寶石</p>` : ''}
+    ${frags.length ? `<p class="frag-got">${frags.map(f => `${iconTag(heroRef(f.def), 18)} ${f.def.name.split(' ')[1]}碎片 +${f.n}`).join('　')}</p>` : ''}
+    ${drops.length ? `<p>獲得裝備</p><div class="drops">${drops.map((it, i) => `<span class="drop r${it.rarity}" style="--rc:${RARITIES[it.rarity].color};animation-delay:${0.5 + i * 0.2}s">${iconTag(itemIcon(it), 30)}<small>${RARITIES[it.rarity].name}</small></span>`).join('')}</div>` : ''}
+    ${gemsGot.length ? `<p>獲得符石</p><div class="drops">${gemsGot.map(k => `<span class="drop gemdrop">${gemTag(k, 18)}<small>${gemName(k)}</small></span>`).join('')}</div>` : ''}
+    ${salvaged ? `<p class="hint">背包滿了，自動分解換得 ${salvaged} 金幣</p>` : ''}
+    <p class="hint">獎勵是${base.est ? '估算值' : '最後一次通關紀錄'}的八成${base.est ? '（再通關一次就會記下真正的紀錄）' : ''}</p>
+    <button class="btn big" id="btn-sweep-again">再掃一次 <small>${next ? `${next} 寶石` : `免費（剩 ${sw.freeLeft(save)} 次）`}</small></button>
+    <button class="btn small" id="btn-home">回到主畫面</button>`;
+  $('result-body').className = 'panel center win';
+  showScreen('screen-result');
+  countUp($('gold-count'), g.gold);
+}
+
 // ---------- 3.14 自動掛機耍寶模式 ----------
 // 關閉／循環（一直打同一章）／推進（贏了就往下一章）；AI 自動瞄準、買技能、選奇遇與路線，倒下自動復活一次
 // 結算畫面停 3 秒後自動出發下一局（每日挑戰、無盡塔、挑戰模式打完會停在結算）
@@ -2281,19 +2331,27 @@ const AUTO_NAMES = { off: '關', loop: '循環', push: '推進' };
 const AUTO_TIPS = { off: '點一下開啟', loop: '一直打同一章', push: '贏了自動下一章' };
 const AUTO_QUIPS = ['老闆我沒有在偷懶喔～', '掛機中，請勿打擾 zzZ', '這波我閉著眼睛都能打', '球球好多好開心', '有人在看嗎？嗨～', '自動駕駛模式啟動！', '我先喝口水…', '這招叫做「放著不管」', '金幣金幣快進來', '我跟杯子是好朋友', '再一波就下班了', '偷偷告訴你，我其實很緊張', '魔王你等等，我在看手機', '咚咚咚～彈珠進洞！', '今天也是努力掛機的一天'];
 const autoOn = () => !!(save.autoMode && save.autoMode !== 'off' && game.run);
+const AUTO_BALL_SPEED = 1.6; // 3.23 自動掛機時彈珠跑快一點
 let autoAimT = 0, autoQuipT = 0, autoWait = null;
 function setAuto(mode) {
   save.autoMode = mode;
+  if (mode !== 'off') save.autoLast = mode; // 冒險中關掉再打開，回到上次的模式
   writeSave(save);
   renderAutoBadge();
 }
+// 3.23 冒險中也能開關：開著顯示「自動掛機中 ✕ 停止」，關著顯示「▶ 自動」
 function renderAutoBadge() {
   const b = $('auto-badge');
   const on = autoOn();
-  b.classList.toggle('hidden', !on);
-  if (on) b.innerHTML = `自動掛機中・${AUTO_NAMES[save.autoMode]} <i>✕ 停止</i>`;
+  b.classList.toggle('hidden', !game.run);
+  b.classList.toggle('off', !on);
+  b.innerHTML = on ? `自動掛機中・${AUTO_NAMES[save.autoMode]} <i>✕ 停止</i>` : '▶ 自動';
+  b.setAttribute('aria-label', on ? '停止自動冒險' : '開啟自動冒險');
 }
-$('auto-badge').addEventListener('click', () => { setAuto('off'); toast('自動掛機已關閉，接下來換你操作'); });
+$('auto-badge').addEventListener('click', () => {
+  if (autoOn()) { setAuto('off'); toast('自動掛機已關閉，接下來換你操作'); }
+  else { setAuto(save.autoLast || 'loop'); toast(`自動掛機：${AUTO_NAMES[save.autoMode]}｜彈珠加速 ${AUTO_BALL_SPEED} 倍`); }
+});
 // 每一格：自動瞄準最好的門；偶爾耍寶說話
 function autoTick(dt) {
   const run = game.run;

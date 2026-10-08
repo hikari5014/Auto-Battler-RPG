@@ -1508,6 +1508,7 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 /* 3.22.1 移到右上角數值框下面：不擋英雄，也不擋彈珠台的發球器 */
 #auto-badge { position: absolute; right: 6px; top: calc(var(--safe-top, 0px) + 108px); z-index: 6; padding: 3px 10px; border-radius: 12px; border: 2px solid #6dff8a; background: rgba(10,30,15,.8); color: #6dff8a; font: inherit; font-size: 12px; white-space: nowrap; }
 #auto-badge i { font-style: normal; color: #ffb3b3; margin-left: 6px; }
+#auto-badge.off { border-color: #6a5a8a; color: #cfc8e0; background: rgba(10,6,24,.7); }
 .auto-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; padding: 8px; border-radius: 10px; border: 2px dashed #6dff8a; }
 .auto-wait b { color: #6dff8a; font-size: 13px; }
 .code-row { display: flex; gap: 6px; margin: 10px 0 4px; }
@@ -1544,3 +1545,6 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .brar { padding: 3px 9px; border-radius: 8px; border: 2px solid var(--rc); background: rgba(0,0,0,.35); color: var(--rc); font: inherit; font-size: 12px; }
 .brar small { margin-left: 4px; color: #fff; opacity: .8; }
 .bsum { font-size: 13px; }
+/* 3.23 快速掃蕩按鈕（開始冒險右邊） */
+.sweep-btn { border-color: #b8902a; color: #ffd84a; }
+.sweep-btn b { display: inline-flex; align-items: center; gap: 1px; font-size: 12px; white-space: nowrap; }
