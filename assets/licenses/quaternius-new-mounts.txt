@@ -1,0 +1,6 @@
+Name: Farm Animals（Zebra、Llama、Cow）、Animals Pack（Red Fox）
+Source: https://quaternius.com （OpenGameArt 上的 Quaternius 動物包）
+Author: Quaternius (https://quaternius.com)
+License: CC0 1.0（公有領域，可商用、不用署名）
+Used for: assets/img/mounts3d-2.png — 斑馬（Walk）、靈狐、羊駝（Idle）、蠻牛（Cow 換成棕色，Walk），各 8 格
+Downloaded: 2026-10-07 for 彈珠勇者 (Marble Brave)

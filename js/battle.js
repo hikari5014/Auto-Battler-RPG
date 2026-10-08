@@ -11,7 +11,7 @@ import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus, applyHeirloom } from './gear.js';
 import { h3Frame, releaseTip, MOUNT_MOUTH, kkArt } from './hero3d.js';
-const KK_SIZE = 1.4, KK_SIT = 0.6;
+const KK_SIZE = 1.4, KK_SIT = 0.6, E3_SIZE = 1.45;
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -658,6 +658,36 @@ export class Battle {
       sfx('buy');
     } else if (m.id === 'drake') {
       this.blast(0.8 + s * 0.6, '火息!', m.color, { dot: 0.3, style: 'fire', fromMouth: true });
+    } else if (m.id === 'zebra') { // 3.22 新坐騎
+      this.text(h.x + 0.5, h.z, 1.5, '踐踏!', m.color, 16);
+      for (const e of this.enemies.filter(o => !o.dead).slice(0, 3)) {
+        this.shocks.push({ x: e.x, z: e.z, t: 0, big: false });
+        e.slow = Math.max(e.slow || 0, 0.4);
+        this.damage(e, heroAtk(h) * (1 + s * 0.5), false, true, m.color);
+      }
+      this.shake = Math.max(this.shake, 5);
+      sfx('hurt');
+    } else if (m.id === 'fox') {
+      const o0 = this.mouth(h);
+      this.text(h.x + 0.5, h.z, 1.5, '狐火!', m.color, 16);
+      for (const e of this.enemies.filter(o => !o.dead).slice(0, 2 + s)) {
+        this.fx(o0.x, o0.z, o0.h, e.x, e.z, e.size * 0.4, m.color, 0.35, 'fire');
+        e.dotDps = heroAtk(h) * 0.3; e.dotT = h.dotTime; e.dotColor = m.color;
+        this.damage(e, heroAtk(h) * (1.2 + s * 0.4), false, true, m.color);
+      }
+      sfx('crit');
+    } else if (m.id === 'llama') {
+      const o0 = this.mouth(h);
+      this.fx(o0.x, o0.z, o0.h, front.x, front.z, front.size * 0.5, '#dff6ff', 0.3, 'beam');
+      this.burst(front.x, front.z, front.size * 0.5, '#dff6ff', 8, 2);
+      front.stun = Math.max(front.stun || 0, 0.4 + s * 0.3);
+      this.text(h.x + 0.5, h.z, 1.5, '吐口水!', m.color, 16);
+      this.damage(front, heroAtk(h) * (1.5 + s * 0.7), false, true, '#dff6ff');
+      sfx('wave');
+    } else if (m.id === 'bull') {
+      h.lunge = 2;
+      for (const e of this.enemies) if (!e.dead) e.kb = 1.2;
+      this.blast(1.2 + s * 0.6, '猛撞!', m.color, { fromMouth: true, style: 'dash' });
     }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
@@ -1138,7 +1168,13 @@ export class Battle {
     // 等級外觀：菁英紫色光環、寶箱怪橘光、魔王腳下有發紅的裂地光
     if (e.kind === 'elite' || e.kind === 'chest' || e.kind === 'boss') this.drawTierGlow(ctx, e, x, z);
     const rage = e.enraged ? 0.25 + Math.sin(sc.t * 10) * 0.15 : 0;
-    const { p, top } = this.drawActor(ctx, e.sprite, x, z, e.size, e.flash, e.phase, lift, rage);
+    // 3.22 3D 怪物：走路 4 格，攻擊（往前撲）時換成攻擊 4 格
+    let spr = e.sprite, esz = e.size;
+    if (spr[0] === 'e3') {
+      const f = e.lunge > 0.05 ? 4 + Math.min(3, Math.floor((1 - Math.min(1, e.lunge)) * 4)) : e.stun > 0 ? 0 : Math.floor(sc.t * 6 + e.phase * 3) % 4;
+      spr = ['e3', spr[1] + f]; esz *= E3_SIZE;
+    }
+    const { p, top } = this.drawActor(ctx, spr, x, z, esz, e.flash, e.phase, lift, rage);
     if (e === this.mark) { ctx.fillStyle = '#ffd84a'; ctx.font = `${Math.round(12 + p.s * 0.1)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('✚', p.x, top - 4); }
     // 護盾怪：藍色光罩
     if (e.shield > 0) {

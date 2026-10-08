@@ -31,6 +31,27 @@ export const MOUNTS = [
     stat: 'atk', per: 0.012, statName: '攻擊力',
     skill: '火息', cd: 7, skillDesc: s => `噴火燒所有敵人，造成 ${80 + s * 60}% 傷害並燃燒`,
   },
+  // 3.22 新坐騎：Quaternius 3D 動物（CC0）
+  {
+    id: 'zebra', name: '疾馳斑馬', icon: 371, sprite: ['m4', 0], frames: 8, scale: 1.2, foot: 0.1, seat: 0.4, color: '#e8e8f0', price: 1200,
+    stat: 'spd', per: 0.01, statName: '攻擊速度',
+    skill: '踐踏', cd: 6, skillDesc: s => `踩踏前面 3 個敵人，各造成 ${100 + s * 50}% 傷害並減速`,
+  },
+  {
+    id: 'fox', name: '靈狐', icon: 374, sprite: ['m4', 8], frames: 8, scale: 1.25, foot: 0.12, seat: 0.3, color: '#ff8a3d', price: 3000,
+    stat: 'crit', per: 0.003, statName: '暴擊率',
+    skill: '狐火', cd: 6, skillDesc: s => `從嘴裡吐出 ${2 + s} 團狐火，各打一個敵人 ${120 + s * 40}% 傷害並燃燒`,
+  },
+  {
+    id: 'llama', name: '羊駝', icon: 371, sprite: ['m4', 16], frames: 8, scale: 1.25, foot: 0.06, seat: 0.36, color: '#e8c89a', price: 2000,
+    stat: 'hp', per: 0.01, statName: '血量',
+    skill: '吐口水', cd: 5, skillDesc: s => `朝最前面的敵人吐口水，造成 ${150 + s * 70}% 傷害並擊暈 ${(0.4 + s * 0.3).toFixed(1)} 秒`,
+  },
+  {
+    id: 'bull', name: '蠻牛', icon: 422, sprite: ['m4', 24], frames: 8, scale: 1.3, foot: 0.1, seat: 0.5, color: '#a0603a', price: 4500,
+    stat: 'atk', per: 0.01, statName: '攻擊力',
+    skill: '猛撞', cd: 7, skillDesc: s => `衝撞所有敵人，造成 ${120 + s * 60}% 傷害並擊退`,
+  },
 ];
 export const mountById = id => MOUNTS.find(m => m.id === id);
 export const MAX_STAR = 3;

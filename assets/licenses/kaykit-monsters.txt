@@ -1,0 +1,6 @@
+Name: KayKit - Character Pack : Skeletons 1.1 (FREE) + (Legacy) KayKit - Spooktober Seasonal Pack 1.1
+Source: https://kaylousberg.itch.io/kaykit-skeletons 、 https://kaylousberg.itch.io/kaykit-spooktober
+Author: Kay Lousberg (www.kaylousberg.com)
+License: CC0 1.0（公有領域，可商用、不用署名）
+Used for: assets/img/monsters3d.png — 骷髏戰士、骷髏法師、骷髏盜賊、小骷髏（配 KayKit Character Animations 的走路、攻擊動作），南瓜頭 Jack、女巫（轉動手臂零件做動作）
+Downloaded: 2026-10-08 for 彈珠勇者 (Marble Brave)

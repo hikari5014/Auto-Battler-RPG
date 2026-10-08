@@ -1,0 +1,42 @@
+<!doctype html><html><body style="margin:0">
+<script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// 3.22 沒有骨架的 KayKit 舊角色（南瓜頭、女巫）：手臂、頭是分開的零件，用轉動零件做走路／攻擊
+const r = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true }); r.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(r.domElement);
+window.strip5 = async (path, opt) => {
+  const g = await new GLTFLoader().loadAsync(path);
+  const root = g.scene;
+  root.traverse(x => { if (x.isMesh) x.material = new THREE.MeshLambertMaterial({ map: x.material.map, color: x.material.color }); });
+  const part = re => { let f = null; root.traverse(x => { if (!f && re.test(x.name) && x.children.length === 0) f = x; }); return f; };
+  const armL = part(/ArmLeft/), armR = part(/ArmRight/), head = part(/Head$/), hat = part(/Hat/);
+  const base = [armL, armR, head, hat].map(o => o && o.rotation.clone());
+  const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x9988bb, 2.6)); const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(-2, 4, 5); scene.add(d);
+  const pv = new THREE.Group(); pv.add(root); pv.rotation.y = opt.yaw; scene.add(pv); pv.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(pv); const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  const R = s.y * opt.k, S = 64; r.setSize(S, S);
+  const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.01, R * 100); const cy = box.min.y + R * 0.92;
+  cam.position.set(c.x, cy + Math.sin(0.3) * R * 10, c.z + Math.cos(0.3) * R * 10); cam.lookAt(c.x, cy, c.z); cam.updateMatrixWorld();
+  const out = [];
+  for (let i = 0; i < 8; i++) {
+    [armL, armR, head, hat].forEach((o, k) => o && o.rotation.copy(base[k])); root.rotation.set(0, 0, 0);
+    if (i < 4) { // 走路：上下彈、手前後擺、頭左右晃
+      const a = Math.sin(i / 4 * Math.PI * 2);
+      root.position.y = Math.abs(Math.cos(i / 4 * Math.PI)) * s.y * 0.04;
+      if (armL) { armL.rotation.x += a * 0.6; armL.rotation.z += 0.25; } if (armR) { armR.rotation.x -= a * 0.6; armR.rotation.z -= 0.25; }
+      root.rotation.z = a * 0.06;
+      if (head) head.rotation.z += a * 0.08; if (hat) hat.rotation.z += a * 0.08;
+    } else { // 攻擊：右手往上舉再往前揮
+      const t = (i - 4) / 3, sw = [-1.6, -2.4, -0.4, 0.2][i - 4];
+      root.position.y = [0, s.y * 0.05, 0, 0][i - 4]; root.rotation.z = 0;
+      root.rotation.x = [-0.15, -0.25, 0.3, 0.12][i - 4]; // 往前撲
+      if (armR) { armR.rotation.x += sw; armR.rotation.z -= 0.5; } if (armL) { armL.rotation.x += sw * 0.6; armL.rotation.z += 0.5; }
+      if (head) head.rotation.x += [-0.1, -0.2, 0.15, 0.05][i - 4]; if (hat) hat.rotation.x += [-0.1, -0.2, 0.15, 0.05][i - 4];
+    }
+    pv.updateMatrixWorld(true); r.render(scene, cam); out.push(r.domElement.toDataURL());
+  }
+  return out;
+};
+window.ready = true;
+</script></body></html>

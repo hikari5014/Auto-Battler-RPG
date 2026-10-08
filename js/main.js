@@ -2952,6 +2952,8 @@ const CREDITS = [
   ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
   ['3D 英雄（新版，KayKit 角色＋武器）', 'Kay Lousberg「KayKit Adventurers」「KayKit Character Animations」', 'CC0'],
+  ['3D 怪物（骷髏、南瓜傑克、女巫）', 'Kay Lousberg「KayKit Skeletons」「KayKit Spooktober」', 'CC0'],
+  ['3D 坐騎（斑馬、靈狐、羊駝、蠻牛）', 'Quaternius「Farm Animals」「Animals Pack」', 'CC0'],
   ['3D 英雄（舊版，6 種角色模型換色）', 'Quaternius「RPG Characters」', 'CC0'],
   ['3D 坐騎（馬、狼、獅鷲、火龍）', 'Quaternius「Farm Animals」「Animal Pack Vol.2」「Animated Monster Pack」', 'CC0'],
   ['扭蛋英雄', '0x72「DungeonTileset II」', 'CC0'],

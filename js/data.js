@@ -232,7 +232,7 @@ export const HEROES = [
 export const CHAPTERS = [
   { name: '翠綠平原', sky: 'plains', fog: 'rgba(214,246,222,0.95)', bg: [6, 15, 22], overlay: null, ground: [24, 38, 'pp'], enemies: ['slime', 'bat', 'rat', 'bandit', 'goblin', 'boar', 'shroom'], boss: 'cyclops', music: 'plains' },
   { name: '炙熱沙漠', sky: 'desert', fog: 'rgba(255,214,160,0.95)', bg: [4, 13, 20], overlay: null, ground: [25, 4, 'pp'], enemies: ['scorpion', 'snake', 'whirl', 'spider', 'bandit', 'shaman'], boss: 'crabking', music: 'desert' },
-  { name: '幽暗墓地', sky: 'grave', fog: 'rgba(64,50,104,0.95)', bg: [0, 11, 16], overlay: 'rgba(40,20,80,0.6)', ground: [40, 40, 'dg'], enemies: ['ghost', 'skull', 'zombie', 'wraith', 'vampire', 'bat', 'shaman'], boss: 'deathknight', music: 'grave' },
+  { name: '幽暗墓地', sky: 'grave', fog: 'rgba(64,50,104,0.95)', bg: [0, 11, 16], overlay: 'rgba(40,20,80,0.6)', ground: [40, 40, 'dg'], enemies: ['ghost', 'skull', 'zombie', 'wraith', 'vampire', 'bat', 'shaman', 'pumpkin', 'witch'], boss: 'deathknight', music: 'grave' },
   { name: '熔岩火山', sky: 'volcano', fog: 'rgba(120,38,22,0.95)', bg: [5, 12, 21], overlay: 'rgba(150,20,0,0.45)', ground: [12, 12, 'dg'], enemies: ['lavacrab', 'fireling', 'imp', 'golem', 'skull', 'spider'], boss: 'firegiant', music: 'volcano' },
   { name: '天空神殿', sky: 'sky', fog: 'rgba(236,240,255,0.95)', bg: [1, 9, 17], overlay: null, ground: [58, 57, 'dg'], enemies: ['eagle', 'griffin', 'frost', 'skyknight', 'ghost', 'shaman'], boss: 'guardian', music: 'sky' },
   // 3.9 新地區
@@ -254,7 +254,7 @@ export const MONSTERS = {
   spider: { name: '毒蛛', sprite: 122, hp: 0.9, atk: 1.25, speed: 1.4, iv: 1.1, trait: '速度快' },
   shaman: { name: '邪教巫師', sprite: ['tc', 65], ai: 'heal', hp: 0.85, atk: 1.6, speed: 0.9, iv: 1.6, trait: '攻擊高；會治療隊友' },
   ghost: { name: '幽魂', sprite: 121, hp: 0.8, atk: 1.1, speed: 1.1, iv: 1.3, dodge: 0.25, trait: '25% 閃避' },
-  skull: { name: '骷髏兵', sprite: ['tc', 1], hp: 1.2, atk: 1, speed: 0.9, iv: 1.3, armor: 0.3, trait: '減傷 30%' },
+  skull: { name: '骷髏兵', sprite: ['e3', 0], hp: 1.2, atk: 1, speed: 0.9, iv: 1.3, armor: 0.3, trait: '減傷 30%' },
   lavacrab: { name: '熔岩蟹', sprite: 110, hp: 1.5, atk: 1.3, speed: 0.8, iv: 1.5, armor: 0.15, trait: '減傷 15%' },
   skyknight: { name: '天使衛兵', sprite: ['tc', 35], ai: 'shield', hp: 1.4, atk: 1.2, speed: 1, iv: 1.3, armor: 0.2, trait: '減傷 20%；開場有護盾（多段攻擊打盾比較快）' },
   mimic: { name: '寶箱怪', sprite: 92, hp: 1, atk: 1, speed: 1, iv: 1.4 },
@@ -265,8 +265,8 @@ export const MONSTERS = {
   scorpion: { name: '沙蠍', sprite: ['tc', 145], ai: 'charge', hp: 1.1, atk: 1.3, speed: 1.1, iv: 1.2, armor: 0.1, trait: '減傷 10%；第一下衝撞特別痛' },
   snake: { name: '響尾蛇', sprite: ['tc', 41], hp: 0.8, atk: 1.3, speed: 1.4, iv: 1.0, trait: '速度快' },
   whirl: { name: '沙塵捲', sprite: ['tc', 48], ai: 'throw', hp: 0.9, atk: 1.0, speed: 1.6, iv: 1.1, dodge: 0.15, trait: '15% 閃避；丟石頭卡住倍率門' },
-  zombie: { name: '殭屍', sprite: ['tc', 0], hp: 1.5, atk: 1.0, speed: 0.6, iv: 1.5, trait: '皮厚' },
-  wraith: { name: '怨靈', sprite: ['tc', 4], ai: 'summon', hp: 0.8, atk: 1.3, speed: 1.1, iv: 1.3, dodge: 0.2, trait: '20% 閃避；會召喚骷髏' },
+  zombie: { name: '殭屍', sprite: ['e3', 24], hp: 1.5, atk: 1.0, speed: 0.6, iv: 1.5, trait: '皮厚' },
+  wraith: { name: '怨靈', sprite: ['e3', 16], ai: 'summon', hp: 0.8, atk: 1.3, speed: 1.1, iv: 1.3, dodge: 0.2, trait: '20% 閃避；會召喚骷髏' },
   vampire: { name: '吸血鬼', sprite: ['tc', 2], ai: 'heal', hp: 1.1, atk: 1.4, speed: 1.1, iv: 1.2, trait: '會治療隊友' },
   fireling: { name: '火精靈', sprite: ['tc', 45], ai: 'ranged', hp: 0.9, atk: 1.5, speed: 1.2, iv: 1.3, trait: '攻擊高；遠程：站後排也會攻擊' },
   imp: { name: '小惡魔', sprite: ['tc', 38], ai: 'bomb', hp: 0.8, atk: 1.2, speed: 1.6, iv: 1.0, trait: '速度快；死掉會爆炸（被暴擊殺死就炸到敵人）' },
@@ -289,14 +289,17 @@ export const MONSTERS = {
   demon: { name: '惡魔', sprite: ['tc', 102], hp: 1.3, atk: 1.5, speed: 1.1, iv: 1.2, trait: '攻擊高' },
   eye: { name: '邪眼', sprite: ['tc', 5], ai: 'ranged', hp: 0.9, atk: 1.4, speed: 1.0, iv: 1.3, dodge: 0.1, trait: '10% 閃避；遠程：站後排也會攻擊' },
   shade: { name: '暗影', sprite: ['tc', 19], ai: 'summon', hp: 0.9, atk: 1.3, speed: 1.1, iv: 1.3, dodge: 0.2, trait: '20% 閃避；會召喚骷髏' },
-  darkmage: { name: '黑暗法師', sprite: ['tc', 66], ai: 'heal', hp: 0.9, atk: 1.6, speed: 0.9, iv: 1.6, trait: '攻擊高；會治療隊友' },
+  darkmage: { name: '黑暗法師', sprite: ['e3', 8], ai: 'heal', hp: 0.9, atk: 1.6, speed: 0.9, iv: 1.6, trait: '攻擊高；會治療隊友' },
   seraphim: { name: '星之使徒', sprite: ['tc', 36], ai: 'heal', hp: 1.1, atk: 1.3, speed: 1.1, iv: 1.3, trait: '會治療隊友' },
   starling: { name: '星光球', sprite: ['tc', 89], ai: 'bomb', hp: 0.8, atk: 1.2, speed: 1.6, iv: 1.0, trait: '速度快；死掉會爆炸' },
   void: { name: '虛空之眼', sprite: ['tc', 75], ai: 'throw', hp: 1.0, atk: 1.2, speed: 1.2, iv: 1.2, dodge: 0.15, trait: '15% 閃避；扭曲空間卡住倍率門' },
+  // 3.22 萬聖節怪物（KayKit Spooktober，3D）
+  pumpkin: { name: '南瓜傑克', sprite: ['e3', 40], ai: 'bomb', hp: 1.0, atk: 1.2, speed: 1.2, iv: 1.2, trait: '死掉會爆炸（被暴擊殺死就炸到敵人）' },
+  witch: { name: '南瓜女巫', sprite: ['e3', 48], ai: 'ranged', hp: 0.85, atk: 1.5, speed: 1.0, iv: 1.4, trait: '攻擊高；遠程：站後排也會攻擊' },
   // 魔王（每章一隻）
   cyclops: { name: '牛頭魔王', sprite: ['tc', 20], hp: 1, atk: 1, speed: 0.7, iv: 1.6, boss: true },
   crabking: { name: '沙暴蠍王', sprite: ['tc', 145], hp: 1.1, atk: 0.95, speed: 0.7, iv: 1.5, armor: 0.15, boss: true },
-  deathknight: { name: '亡靈騎士', sprite: ['tc', 107], hp: 1, atk: 1.15, speed: 0.8, iv: 1.4, dodge: 0.1, boss: true },
+  deathknight: { name: '亡靈騎士', sprite: ['e3', 32], hp: 1, atk: 1.15, speed: 0.8, iv: 1.4, dodge: 0.1, boss: true },
   firegiant: { name: '炎之巨人', sprite: ['tc', 123], hp: 1.2, atk: 1.1, speed: 0.7, iv: 1.6, boss: true },
   guardian: { name: '天空守護者', sprite: ['tc', 37], hp: 1.1, atk: 1.1, speed: 0.8, iv: 1.3, armor: 0.2, boss: true },
   // 3.9 新地區的魔王
