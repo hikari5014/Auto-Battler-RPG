@@ -1240,10 +1240,19 @@ export class Battle {
     if (h.maxed > 0) this.drawAura(ctx, h, x);
     // 騎著坐騎：坐騎比英雄大一倍、往前站一點（頭和尾巴都露出來），英雄坐在牠背上；跑動時上下顛
     let lift = h.lift || 0;
+    // 3.22.1 太高（騎飛龍、新版造型）會被上方工具列蓋住：整組（坐騎＋英雄）等比例縮小到放得下
+    let fit = 1;
+    if (!h.showcase && this.uiTop) {
+      const g = this.scene.project(x, h.z, 0);
+      const heroH = HERO_HEIGHT * (h.scale || 1) * (h3Frame(h.def.id, false, 9, 0) ? (kkArt() ? KK_SIZE : 1.2) : 1);
+      const mH = h.mount ? HERO_HEIGHT * 1.55 * (h.scale || 1) * (h.mount.scale || 1) * (h.mount.seat || 0.42) : 0;
+      const need = (lift + mH + heroH) * g.s + 14; // 14：頭上的血條
+      fit = Math.max(0.6, Math.min(1, (g.y - this.uiTop) / need));
+    }
     if (h.mount) {
       const sc = this.scene;
       const m = h.mount;
-      const size = HERO_HEIGHT * (h.showcase ? 2.1 : 1.55) * (h.scale || 1) * (m.scale || 1);
+      const size = HERO_HEIGHT * (h.showcase ? 2.1 : 1.55) * (h.scale || 1) * (m.scale || 1) * fit;
       const bob = Math.abs(Math.sin(sc.t * 9)) * 0.06;
       const mx = x + 0.28 * (h.scale || 1);
       const mp = sc.project(mx, h.z, lift + bob);
@@ -1284,8 +1293,8 @@ export class Battle {
     // 3.19 3D 英雄：站姿／攻擊／騎乘三種動作
     const s3 = h3Frame(h.def.id, !!h.mount, h.atkT ?? 9, this.scene.t, h.x);
     const kk = s3 && kkArt(); // 3.21 新版造型：圖格裡人比較小、坐姿已經往下放了
-    if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3) * (kk ? KK_SIT : 1); // 坐姿：腿彎起來，整個人往下放
-    const hs = HERO_HEIGHT * (h.scale || 1) * (kk ? KK_SIZE : s3 ? 1.2 : 1);
+    if (s3 && h.mount) lift -= HERO_HEIGHT * (h.scale || 1) * (h.mount.sit3d ?? 0.3) * (kk ? KK_SIT : 1) * fit; // 坐姿：腿彎起來，整個人往下放
+    const hs = HERO_HEIGHT * (h.scale || 1) * (kk ? KK_SIZE : s3 ? 1.2 : 1) * fit;
     h._hg = { x, lift, size: hs }; // 記下英雄畫在哪（武器位置用）
     if (!h.mount) h._mg = null;
     const { p, top } = this.drawActor(ctx, s3 || h.def.sprite, x, h.z, hs, h.hurt * 0.6, 0, lift);

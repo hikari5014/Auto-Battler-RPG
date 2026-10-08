@@ -1026,7 +1026,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .shop-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 8px; margin: 6px 0 0; padding: 4px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); font-size: 11px; color: #fdf3d8; }
 .shop-stats span { display: inline-flex; align-items: center; gap: 2px; }
 #live-stats {
-  position: absolute; left: 6px; top: calc(var(--safe-top) + 58px);
+  /* 3.22.1 移到右邊：左邊是英雄站的位置，不要擋住 */
+  position: absolute; right: 6px; top: calc(var(--safe-top) + 58px);
   display: grid; grid-template-columns: auto auto; gap: 1px 8px;
   padding: 3px 7px; border-radius: 8px;
   background: rgba(10, 6, 24, 0.55); border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1504,7 +1505,8 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 .auto-toggle b { color: #fff; }
 .auto-toggle small { font-size: 11px; opacity: .7; }
 .auto-toggle.on { border-color: #6dff8a; color: #6dff8a; box-shadow: 0 0 8px rgba(109,255,138,.4); }
-#auto-badge { position: absolute; left: 50%; top: calc(var(--safe-top, 0px) + 62px); translate: -50% 0; z-index: 6; padding: 3px 10px; border-radius: 12px; border: 2px solid #6dff8a; background: rgba(10,30,15,.8); color: #6dff8a; font: inherit; font-size: 12px; white-space: nowrap; }
+/* 3.22.1 移到右上角數值框下面：不擋英雄，也不擋彈珠台的發球器 */
+#auto-badge { position: absolute; right: 6px; top: calc(var(--safe-top, 0px) + 108px); z-index: 6; padding: 3px 10px; border-radius: 12px; border: 2px solid #6dff8a; background: rgba(10,30,15,.8); color: #6dff8a; font: inherit; font-size: 12px; white-space: nowrap; }
 #auto-badge i { font-style: normal; color: #ffb3b3; margin-left: 6px; }
 .auto-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; padding: 8px; border-radius: 10px; border: 2px dashed #6dff8a; }
 .auto-wait b { color: #6dff8a; font-size: 13px; }

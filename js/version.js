@@ -1,10 +1,18 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.22.0';
+export const VERSION = '3.22.1';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.22.1', date: '2026-10-08',
+    notes: [
+      '修正 iPhone 等有瀏海的手機：戰鬥畫面被上方工具列蓋住、英雄看不到',
+      '騎飛龍等比較高的時候，英雄和坐騎會自動縮小到放得下',
+      '「即時數值」和「自動掛機中」移到右上角，不再擋住英雄',
+    ],
+  },
   {
     version: '3.22.0', date: '2026-10-08',
     notes: [

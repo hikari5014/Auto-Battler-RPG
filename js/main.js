@@ -75,19 +75,29 @@ const tutorial = new Tutorial({ save, writeSave, game, board, toCss });
 
 // ---------- 畫面尺寸 ----------
 let scale = 1;
+// 手機瀏海高度（px）：用一個看不見的小方塊量 env(safe-area-inset-top)
+let safeProbe = null;
+function safeTopPx() {
+  if (!safeProbe) { safeProbe = document.createElement('div'); safeProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:var(--safe-top,0px);visibility:hidden;pointer-events:none'; document.body.appendChild(safeProbe); }
+  return safeProbe.getBoundingClientRect().height || 0;
+}
 function resize() {
   const r = $('app').getBoundingClientRect();
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   scale = r.width / game.W;
   game.H = r.height / scale;
-  game.battleH = Math.round(Math.max(220, Math.min(290, game.H * 0.36)));
+  // 3.22.1 扣掉手機瀏海（safe area）：戰鬥區往下長一點，場景從瀏海下面開始畫
+  const safe = safeTopPx() / scale;
+  game.battleTop = safe;
+  game.battleH = Math.round(Math.max(220, Math.min(290, (game.H - safe) * 0.36)) + safe);
+  battle.uiTop = safe + 54 / scale; // 上方工具列的下緣：英雄頭頂不要被蓋住
   canvas.width = Math.round(r.width * dpr);
   canvas.height = Math.round(r.height * dpr);
   canvas.style.width = r.width + 'px';
   canvas.style.height = r.height + 'px';
   ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
   board.layout(game.battleH, game.H - 6, game.W);
-  battle.layout(game.W, 0, game.battleH);
+  battle.layout(game.W, game.battleTop, game.battleH);
   document.documentElement.style.setProperty('--stage-h', game.battleH * scale + 'px');
   // 首頁：展示台佔畫面 3/4，下面留給難度、職業、開始按鈕（太矮的手機至少留 196px）
   const stagePx = Math.max(r.height * 0.58, Math.min(r.height * 0.75, r.height - 196));
@@ -160,7 +170,7 @@ function startRun(opts = {}) {
       h.hp = h.maxHp;
     }
   }
-  battle.layout(game.W, 0, game.battleH); // 首頁的展示台比較高，換回戰鬥用的高度
+  battle.layout(game.W, game.battleTop, game.battleH); // 首頁的展示台比較高，換回戰鬥用的高度
   board.reset(game.run);
   // 天賦：接球杯、倍率、開局分裂門
   board.cupW = Math.min(220, board.cupW * (1 + tb.cupW));
@@ -3180,7 +3190,7 @@ function drawHome() {
   const ch = CHAPTERS[(save.chapter - 1) % CHAPTERS.length];
   const e = launching ? ease(Math.min(1, launching.t / (LAUNCH_T * 0.9))) : 0;
   const lerp = (a, b) => a + (b - a) * e;
-  battle.layout(game.W, 0, lerp(game.homeStageNow || game.homeStage, game.battleH));
+  battle.layout(game.W, lerp(0, game.battleTop || 0), lerp(game.homeStageNow || game.homeStage, game.battleH));
   // 換英雄時跳一下
   const k = Math.min(1, (performance.now() - heroHop) / 450);
   const hop = k < 1 ? Math.sin(k * Math.PI) * 0.45 : 0;
