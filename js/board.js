@@ -25,6 +25,12 @@ function gateStyle(type) {
 }
 const pick = list => list[Math.floor(Math.random() * list.length)];
 
+const BOARD_ART = {};
+function boardArt(i) {
+  if (!BOARD_ART[i]) { BOARD_ART[i] = new Image(); BOARD_ART[i].src = `assets/art/boards/${i < 5 ? 'a' + i : 'b' + (i - 5)}.jpg`; }
+  return BOARD_ART[i].complete && BOARD_ART[i].naturalWidth ? BOARD_ART[i] : null;
+}
+
 export class Board {
   constructor() {
     this.balls = [];
@@ -90,6 +96,7 @@ export class Board {
 
   reset(run) {
     this.run = run;
+    this.chapter = run && run.chapter || 1; // 3.26 彈珠台底圖跟著章節換
     this.balls.length = 0;
     this.pops.length = 0;
     this.queue = 0;
@@ -483,7 +490,9 @@ export class Board {
 
   // 背景只在尺寸改變時重畫一次（漸層＋格線＋兩側石牆），每格直接貼上
   bgCanvas(ctx) {
-    const key = `${this.W}x${this.h}`;
+    // 3.26 每章的彈珠台底圖（Gemini 生成，assets/art/boards/），載入好之後重畫一次
+    const ci = ((this.chapter || 1) - 1) % 10, art = boardArt(ci);
+    const key = `${this.W}x${this.h}:${ci}:${!!art}`;
     if (this._bg && this._bgKey === key) return this._bg;
     const sc = ctx.getTransform().a; // 畫布實際放大倍率，讓預先畫好的圖夠清楚
     const c = document.createElement('canvas');
@@ -497,6 +506,15 @@ export class Board {
     grad.addColorStop(1, '#0f0a1f');
     g.fillStyle = grad;
     g.fillRect(0, 0, this.W, this.h + 40);
+    if (art) {
+      // 蓋滿、壓暗，讓釘子和球還是看得清楚
+      const s = Math.max(this.W / art.naturalWidth, (this.h + 40) / art.naturalHeight);
+      g.globalAlpha = 0.42;
+      g.drawImage(art, (this.W - art.naturalWidth * s) / 2, 0, art.naturalWidth * s, art.naturalHeight * s);
+      g.globalAlpha = 1;
+      g.fillStyle = 'rgba(14,8,32,0.35)';
+      g.fillRect(0, 0, this.W, this.h + 40);
+    }
     // 細格線，增加「機台」的質感
     g.strokeStyle = 'rgba(255,255,255,0.035)';
     g.lineWidth = 1;

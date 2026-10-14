@@ -388,7 +388,7 @@ function openEvent() {
     <p class="ev-sub">旅途中遇到了一些事…選一個吧</p>
     <div class="ev-list">${run.events.map((e, i) => `
       <button class="ev-card" data-ev="${i}" data-fx="tilt">
-        <span class="ev-ic">${iconTag(e.icon, 36)}</span>
+        ${EVENT_ART.includes(e.id) ? `<img class="ev-art" src="${ART}events/${EVENT_ART.indexOf(e.id)}.jpg" alt="">` : `<span class="ev-ic">${iconTag(e.icon, 36)}</span>`}
         <span class="ev-info"><b>${e.title} <i class="ev-tag ${e.tag === '風險' ? 'risk' : e.tag === '增益' ? 'buff' : ''}">${e.tag}</i></b><small>${e.desc}</small></span>
       </button>`).join('')}
     </div>
@@ -1428,6 +1428,7 @@ function renderHeroes() {
       <button class="gtab ${duoPick === 'second' ? 'sel' : ''}" data-slot="second">副職業${save.second ? '' : '（不帶）'}</button></div>` : ''}
     <div class="hero-grid">${cards}</div>
     <div class="hero-info">
+      ${heroArt(hero) ? `<img class="hero-art ${hero.hidden && !save.owned.includes(hero.id) ? 'secret' : ''}" src="${heroArt(hero)}" alt="">` : ''}
       <div class="hero-head"><b>${hero.name}</b><span class="tag">${hero.role}</span></div>
       <div class="stats">
         <span>${iconTag(ICON.heart, 14)} ${Math.round(full.maxHp)}</span>
@@ -1976,7 +1977,7 @@ function renderGacha() {
     const nb = gachaTab === 'newbie';
     const rates = gacha.heroRates().filter(r => r.p > 0);
     const c1 = gacha.PULL_COST * (nb ? 0.5 : 1), c10 = gacha.TEN_COST * (nb ? 0.5 : 1);
-    body = `<div class="g-banner ${nb ? 'newbie' : ''}">
+    body = `<div class="g-banner art ${nb ? 'newbie' : ''}" style="--gimg:url(${ART}gacha/0.jpg)">
         <div class="g-capsules">${['elite', 'rare', 'legend', 'normal', 'elite'].map(r => capsule(r)).join('')}</div>
         <b>${nb ? '新手召喚・半價' : '英雄召喚'}</b>
         <small>${nb ? `剩 ${g.newbie} 抽・第一次十連必出稀有英雄` : '抽到整隻英雄或英雄碎片；重複的英雄會變成碎片'}</small>
@@ -1995,7 +1996,7 @@ function renderGacha() {
         <p class="hint">每抽送 ${gacha.DUST_PER_PULL} 星塵。第一次抽到傳奇英雄附贈專武。滿星英雄的碎片會換成星塵。</p>` : ''}`;
   } else if (gachaTab === 'forge') {
     const f = g.forge, room = bagRoomLeft();
-    body = `<div class="g-banner forge">
+    body = `<div class="g-banner forge art" style="--gimg:url(${ART}gacha/1.jpg)">
         <div class="g-capsules">${['elite', 'legend', 'rare', 'legend', 'elite'].map(r => capsule(r)).join('')}</div>
         <b>鍛造召喚</b>
         <small>稀有～傳說裝備，裝備等級 Lv.${gacha.forgeIlv(ch)}（平衡難度最高章節 - 1）；傳說有機會是「刻印套裝」或「傳家武器」（可升到 5 星）</small>
@@ -2036,7 +2037,7 @@ function renderGacha() {
   }
   $('gacha-body').innerHTML = `
     <h2>扭蛋</h2>
-    <div class="wallet-row">${['gem', gachaTab === 'forge' ? 'gearTicket' : 'heroTicket', 'stardust'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(w[k])}</b></span>`).join('')}<span class="pill">萬能碎片 <b>${fmt(w.anyFrag || 0)}</b></span></div>
+    <div class="wallet-row">${['gem', gachaTab === 'forge' ? 'gearTicket' : 'heroTicket', 'stardust'].map(k => `<span class="pill">${iconTag(eco.CUR[k].icon, 18)} <b>${fmt(w[k])}</b></span>`).join('')}<span class="pill">${ICON.anyFrag ? iconTag(ICON.anyFrag, 18) : '萬能碎片'} <b>${fmt(w.anyFrag || 0)}</b></span></div>
     ${gachaResult ? '' : `<div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${gachaTab === k ? 'sel' : ''}" data-gtab="${k}">${n}${k === 'res' && gacha.resFreeLeft(save) ? ' •' : ''}</button>`).join('')}</div>`}
     ${body}
     ${gachaResult ? '' : '<button class="btn" id="btn-gacha-close">關閉</button>'}`;
@@ -2215,7 +2216,7 @@ function renderModes() {
   } else if (modesTab === 'puzzle') {
     const ps = save.puzzles || {};
     body = `<p class="hint">沒有敵人，只有固定的彈珠台和幾顆球。拖曳瞄準，接到的球幣就是分數。每顆新星星 +10 寶石；拿到 1 星開下一關。</p>
-      <div class="pz-grid">${expd.PUZZLES.map((p, i) => `<button class="pz ${ps[i] ? 'done' : ''}" data-pz="${i}" ${offAttr(!expd.puzzleOpen(save, i), '上一關先拿 1 星')}><b>${i + 1}</b><small>${p.name}</small>${starTag(ps[i] || 0)}</button>`).join('')}</div>`;
+      <div class="pz-grid">${expd.PUZZLES.map((p, i) => `<button class="pz ${ps[i] ? 'done' : ''}" data-pz="${i}" style="--pzimg:url(${ART}puzzles/${i < 6 ? 'a' + i : 'b' + (i - 6)}.jpg)" ${offAttr(!expd.puzzleOpen(save, i), '上一關先拿 1 星')}><b>${i + 1}</b><small>${p.name}</small>${starTag(ps[i] || 0)}</button>`).join('')}</div>`;
   } else if (modesTab === 'trial') {
     const f = save.trial.floor || 0, start = modes.trialStart(save);
     body = `<p class="hint">100 層的試煉。每次從最近的 10 層檢查點開始往上爬，打到倒下為止；每 10 層一隻魔王。新層數給金幣，每 5 層 20 寶石，每 10 層一張召喚券。</p>
@@ -2226,7 +2227,7 @@ function renderModes() {
   $('modes-body').innerHTML = `
     <h2>挑戰</h2>
     <div class="vtabs">${tabs.map(([k, n]) => `<button class="vtab ${modesTab === k ? 'sel' : ''}" data-mtab="${k}">${n}${k === 'dungeon' && save.dungeon.left > 0 ? ' •' : ''}</button>`).join('')}</div>
-    ${body}
+    ${modeBanner(modesTab)}${body}
     <button class="btn ghost" id="btn-modes-close">關閉</button>`;
 }
 $('modes-body').addEventListener('click', ev => {
@@ -2281,6 +2282,13 @@ $('modes-body').addEventListener('click', ev => {
   } else if (t.id === 'btn-modes-close') { writeSave(save); renderHome(); showScreen('screen-home'); return; }
   renderModes();
 });
+
+// ---------- 3.26 插圖（Gemini 生成，assets/art/） ----------
+const ART = 'assets/art/';
+const MODE_ART = { endless: 'm0', daily: 'm1', rush: 'm2', trial: 'm3', exp: 'm4', puzzle: 'm5', side: 'm6', wb: 'm7', arena: 'n0', pass: 'n1', event: 'n2', army: 'n3', shooter: 'n4', pit: 'n5', survivor: 'n6', td: 'n7' };
+const modeBanner = k => (MODE_ART[k] ? `<img class="mode-banner" src="${ART}modes/${MODE_ART[k]}.jpg" alt="" loading="lazy">` : '');
+const EVENT_ART = ['gamble', 'altar', 'spring', 'chest', 'merchant', 'blessing', 'forge', 'pact', 'training'];
+const heroArt = h => { const i = HEROES.indexOf(h); return i < 0 ? '' : `${ART}heroes/h${52 + Math.floor(i / 9)}-${i % 9}.jpg`; };
 
 // ---------- 3.23 快速掃蕩 ----------
 // 通關過的章節：開始按鈕旁邊多一個「掃蕩」，直接拿最後一次通關獎勵的八成
@@ -2438,7 +2446,7 @@ function evModeBox() {
   const id = evm.currentMode();
   if (!id) return '';
   const M = evm.EVENT_MODES[id], e = evm.ensureEvMode(save);
-  return `<div class="evm"><b>活動模式：${M.name}</b><small>${M.desc}</small><small>最佳 ${e.best[id] || 0}・${e.done ? '今天的寶石已領' : '今天第一次過關 +40 寶石'}</small>
+  return `<div class="evm">${modeBanner(id)}<b>活動模式：${M.name}</b><small>${M.desc}</small><small>最佳 ${e.best[id] || 0}・${e.done ? '今天的寶石已領' : '今天第一次過關 +40 寶石'}</small>
     <button class="btn gift" id="btn-evm-go" data-evm="${id}">開始${M.name}</button></div>`;
 }
 function openLive() { renderLive(); showScreen('screen-live', 'screen-home'); }
@@ -2451,12 +2459,12 @@ function renderLive() {
       const got = p.got.includes(i), ok = i <= lv;
       rows.push(`<button class="pass-lv ${got ? 'got' : ok ? 'ready' : ''} ${i === live.PASS_LV ? 'big' : ''}" data-pass="${i}" ${offAttr(!ok || got, got ? '已領取' : `手冊 Lv.${i} 才能領`)}><b>${i}</b><small>${eco.giftText(live.passGift(i)).replace(/、/g, ' ')}</small></button>`);
     }
-    body = `<p class="hint">玩任何模式都會累積手冊經驗（每局 15 起、每過一波 +3、獲勝 +25）。每季 ${live.PASS_DAYS} 天，免費領 30 級獎勵。本季還剩 ${live.passDaysLeft()} 天。</p>
+    body = `${modeBanner('pass')}<p class="hint">玩任何模式都會累積手冊經驗（每局 15 起、每過一波 +3、獲勝 +25）。每季 ${live.PASS_DAYS} 天，免費領 30 級獎勵。本季還剩 ${live.passDaysLeft()} 天。</p>
       <div class="pass-bar"><i style="width:${(p.xp % live.PASS_XP) / live.PASS_XP * 100}%"></i><span>Lv.${lv} ${lv < live.PASS_LV ? `（${p.xp % live.PASS_XP}/${live.PASS_XP}）` : 'MAX'}</span></div>
       <div class="pass-grid">${rows.join('')}</div>
       <button class="btn gift" id="btn-pass-all" ${offAttr(!live.passReady(save), '沒有可以領的')}>全部領取</button>`;
   } else {
-    body = `<div class="ev-head" style="--ec:${ev.color}"><b>${ev.name}</b><small>${ev.desc}</small><small>還剩 ${live.eventDaysLeft()} 天・每週換一種活動</small></div>
+    body = `${modeBanner('event')}<div class="ev-head" style="--ec:${ev.color}"><b>${ev.name}</b><small>${ev.desc}</small><small>還剩 ${live.eventDaysLeft()} 天・每週換一種活動</small></div>
       ${evModeBox()}
       <p class="dg-info">${ix('token:' + ev.id, null) ? iconTag(ix('token:' + ev.id), 20) : ''}${ev.token}：<b>${e.pts}</b>（冒險、挑戰每過一波 +1）</p>
       <div class="q-list">${live.EVENT_SHOP.map(it => { const left = it.limit - (e.bought[it.id] || 0); return `<div class="q-row"><span><b>${it.name}</b><small>剩 ${left} 次</small></span><button class="btn small" data-evbuy="${it.id}" ${offAttr(left <= 0 || e.pts < it.cost, left <= 0 ? '買完了' : `${ev.token}不足`)}>${ev.token} ${it.cost}</button></div>`; }).join('')}</div>`;
@@ -2596,6 +2604,7 @@ function openDaily() {
   const done = dailyDone(save);
   $('daily-body').innerHTML = `
     <h2>每日挑戰</h2>
+    ${modeBanner('daily')}
     <p class="daily-date">${ch.date}・第 ${ch.chapter} 章 ${chapterName(ch.chapter)}・簡單難度</p>
     <div class="mods">${ch.mods.map(m => `<div class="mod"><b>${ix('mod:' + m, null) ? iconTag(ix('mod:' + m), 22) + ' ' : ''}${MODS[m].name}</b><small>${MODS[m].desc}</small></div>`).join('')}</div>
     <p class="hint">使用目前選擇的英雄。每天第一次通關獎勵：${iconTag(ICON.gold, 14)}${dailyReward(ch)} 金幣＋一件史詩裝備</p>
