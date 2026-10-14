@@ -388,7 +388,7 @@ export class Battle {
         e.z = s0.z + rand(-0.3, 0.6);
         e.x = (this.scene.W / 2 + 30) / this.scene.cam.f * e.z + e.size;
         this.enemies.push(e);
-        this.spawnTimer = 0.75;
+        this.spawnTimer = (this.g.run && this.g.run.spawnGap) || 0.75; // 3.27 寶石彈雨：殭屍群一隻接一隻湧出來
         if (e.kind === 'boss') this.startBossIntro(e);
         else if (e.kind === 'elite') this.text(e.x - 0.8, e.z, e.size + 0.6, '菁英出現!', '#d06bff', 13);
       }

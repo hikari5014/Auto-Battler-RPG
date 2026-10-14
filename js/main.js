@@ -18,6 +18,7 @@ import * as arcade from './arcade.js';
 import * as evm from './eventmodes.js';
 import * as codes from './codes.js';
 import * as sw from './sweep.js';
+import * as gr from './gemrain.js';
 import { ix } from './icons-hd.js';
 import { h3Row, H3_COLS, h3Face } from './hero3d.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
@@ -179,6 +180,7 @@ function startRun(opts = {}) {
   board.cupMult += tb.cupMult;
   for (let i = 0; i < tb.gatePlus; i++) board.addGate('+3');
   if (spec && spec.init) spec.init(game.run, board); // 模式的特殊規則（要在彈珠台重設之後）
+  if (spec && spec.mode === 'gemrain') setupGemrain(); // 3.27 寶石彈雨：專用彈珠台
   // 天賦「開局禮包」：免費一個隨機技能
   if (tb.startSkill) {
     const sk = makeRandomSkill(game.run, isMaxed)(k => k.id !== 'heal');
@@ -204,6 +206,23 @@ function startRun(opts = {}) {
   }
   renderSwitch();
   save.stats.runs++;
+}
+
+// 3.27 寶石彈雨：換成專用的彈珠台（很多道固定的門、⇧ 門、會跑的 x10、上鎖的 x8）
+function setupGemrain() {
+  board.cfg = gr.GR_BOARD;
+  board.build();
+  board.gates = [];
+  board.maxGates = 16;
+  for (const [type, fx, fy, sp, w, lock] of gr.GR_GATES) {
+    board.addGate(type, 0);
+    const g = board.gates[board.gates.length - 1];
+    g.w = w; g.x = 4 + fx * (board.W - w - 8); g.y = board.top + fy * board.h;
+    g.vx = sp ? sp * (Math.random() < 0.5 ? -1 : 1) : 0;
+    g.lock = lock || 0;
+  }
+  board.ammo = game.run.ammo;
+  board.cap = gr.GR_CAP_BALLS;
 }
 
 // 3.10 彈珠謎題：沒有敵人，固定的門，幾顆球
@@ -290,6 +309,11 @@ function onKill(e) {
   if (run.hero.bounty && e.kind !== 'normal') board.pour(run.hero.bounty); // 傳說特效「賞金」
   const n = (run.hero.ballsPerKill + (run.ballBuff ? run.ballBuff.n : 0)) * e.ballMul * (run.mods.tanky ? 1.5 : 1);
   if (run.mode === 'shooter') { run.coins += Math.round(n * 6); return; } // 彈珠射手：擊敗直接給球幣
+  if (run.mode === 'gemrain') { // 3.27 寶石彈雨：+2 子彈、+1 寶石碎片；上鎖的門倒數
+    run.ammo += 3; run.shards++;
+    for (const g of board.gates) if (g.lock > 0 && --g.lock === 0) { g.flash = 1; toast('🔓 x8 大門打開了！'); sfx('jingle'); }
+    return;
+  }
   board.pour(Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
 }
 
@@ -426,6 +450,12 @@ $('event-body').addEventListener('click', ev => {
 board.onCatch = (b, mult) => {
   const run = game.run;
   // 3.12 彈珠射手：球就是砲彈
+  if (run.mode === 'gemrain') { // 3.27 寶石彈雨：落地的子彈射向最前面的殭屍（進杯子的加倍）
+    // 一顆球價值很高時拆成好幾發，打前面好幾隻（不然一隻被打爆就浪費了）
+    if (run.phase === 'fight') { const n = Math.min(gr.GR_VCAP, b.v * mult), shots = Math.min(6, Math.ceil(n)); for (let k = 0; k < shots; k++) battle.strikeFront(n / shots * gr.GR_TUNE.dmg, k || mult === 1 ? '' : '爆擊!', mult > 1 ? '#ffd84a' : '#fff2c0', 'bullet'); }
+    run.caught++;
+    return;
+  }
   if (run.mode === 'shooter') {
     if (run.phase === 'fight') battle.strikeFront(b.v * mult * (1 + 0.25 * (b.hits || 0)) * 1.3, mult > 1 ? '砲彈!' : '', mult > 1 ? '#ffd84a' : '#cfd8ff', 'bullet');
     run.caught++;
@@ -511,6 +541,21 @@ function update(dt) {
       }
       run.svSkillT = (run.svSkillT || 0) + dt;
       if (run.svSkillT >= 25) { run.svSkillT = 0; const sk = makeRandomSkill(run, isMaxed)(() => true); if (sk) { gainSkill(sk); renderSkillBar(); toast(`升級：${sk.name}`); } }
+    } else if (run.mode === 'gemrain') {
+      // 3.27 寶石彈雨：杯子一直倒子彈（每秒 8 顆）；殭屍越來越快湧上來
+      run.pourT = (run.pourT || 0) + dt;
+      while (run.pourT >= 0.125) { run.pourT -= 0.125; if (run.ammo > 0) { run.ammo--; board.pour(1); } }
+      // 子彈用完：每 0.5 秒還是會掉 1 顆（保底，不會整個卡死）
+      run.dryT = run.ammo > 0 ? 0 : (run.dryT || 0) + dt;
+      if (run.dryT >= 0.5) { run.dryT = 0; board.pour(1); }
+      board.ammo = run.ammo;
+      run.hordeT = (run.hordeT || 0) + dt;
+      const tt = run.tT || 0, gap = Math.max(0.3, 0.9 - tt * 0.012);
+      run.modeHp = gr.GR_TUNE.hp * Math.pow(gr.GR_TUNE.grow, tt); // 殭屍越後面越硬：倍率門用得好才打得完
+      if (run.hordeT >= gap && battle.queue.length + battle.enemies.length < 30) {
+        run.hordeT = 0;
+        for (let k = 0; k < 1 + (tt > 20 ? 1 : 0) + (tt > 40 ? 1 : 0); k++) battle.queue.push(battle.mk(run.enemyPool[Math.floor(Math.random() * run.enemyPool.length)], 'normal'));
+      }
     } else if (run.mode === 'shooter') {
       run.shotT = (run.shotT || 0) + dt;
       if (run.shotT >= 0.7 && board.balls.length < 8 && board.queue === 0) { run.shotT = 0; board.pour(1); }
@@ -520,7 +565,7 @@ function update(dt) {
   if (run.timer && run.phase === 'fight') {
     run.tT = (run.tT || 0) + dt;
     const left = Math.max(0, Math.ceil(run.timer - run.tT));
-    if (left !== run.tShown) { run.tShown = left; $('hud-wave').innerHTML = `${run.label(1)}　${left} 秒｜${run.mode === 'survivor' ? `擊敗 ${run.kills}` : `傷害 ${fmt(run.bossDmg || 0)}`}`; }
+    if (left !== run.tShown || run.mode === 'gemrain') { run.tShown = left; $('hud-wave').innerHTML = `${run.label(1)}　${left} 秒｜${run.mode === 'gemrain' ? `擊敗 ${run.kills}・寶石 ${gr.gemrainGems(run.shards, false)}` : run.mode === 'survivor' ? `擊敗 ${run.kills}` : `傷害 ${fmt(run.bossDmg || 0)}`}`; }
     if (run.tT >= run.timer) { endRun(true); return; }
   }
   if (run.phase === 'fight') {
@@ -545,7 +590,7 @@ function update(dt) {
     } else if (run.hero.hp <= 0) {
       run.hero.hp = 0;
       onDeath();
-    } else if (battle.cleared()) {
+    } else if (battle.cleared() && run.mode !== 'gemrain') { // 寶石彈雨要撐到時間到
       run.phase = 'settle';
     }
   } else if (run.phase === 'settle' && board.isEmpty()) {
@@ -889,7 +934,12 @@ function endModeRun(win) {
   const gold = Math.round(cleared * 25 * run.chapter * run.diff.gold);
   save.gold += gold;
   let title = '', sub = '', lines = [];
-  if (run.mode === 'dungeon') {
+  if (run.mode === 'gemrain') {
+    title = win ? '寶石彈雨 撐過去了！' : '寶石彈雨 結束';
+    sub = `寶石碎片 ${run.shards}`;
+    const gem = gr.gemrainReward(save, run.shards, win);
+    lines = [`+${gem} 寶石${win ? `（含過關 +${gr.GR_WIN}）` : ''}`, `今天還剩 ${gr.ensureGemrain(save).left} 次`];
+  } else if (run.mode === 'dungeon') {
     const { id, t } = run.dungeon, dg = modes.DUNGEONS[id];
     title = win ? `${dg.name} 通關！` : `${dg.name} 失敗`;
     sub = `${modes.tierName(t)}・完成 ${cleared}/5 波`;
@@ -2175,7 +2225,13 @@ function renderModes() {
     const tiers = [1, 2, 3, 4, 5].map(t => `<button class="dg-tier ${dgTier === t ? 'sel' : ''}" data-dgt="${t}" ${offAttr(!modes.tierOpen(save, t), `先開放「${difficultyOf(modes.D_TIERS[t - 1]).name}」難度`)}>${modes.tierName(t).replace('第 ', '').replace(' 階', '')}${(save.dungeon.best[dgPick] || 0) >= t ? '✓' : ''}</button>`).join('');
     const ch = modeCh(modes.D_TIERS[dgTier - 1]);
     const left = save.dungeon.left;
-    body = `<p class="hint">每天 ${modes.DUNGEON_TRIES} 次（掃蕩也算）。星期一～五各開一種，週末全開。5 波，最後一波是魔王。</p>
+    const grs = gr.ensureGemrain(save);
+    body = `<div class="gr-box">
+        <div class="gr-head">${iconTag(ICON.diamond, 30)}<span><b>寶石彈雨</b><small>每天都開・每天 ${gr.GR_TRIES} 次・最高 ${grs.best} 寶石</small></span></div>
+        <small>杯子會一直倒子彈，穿過倍率門越變越多，落地就射向殭屍群！每擊敗 1 隻 +3 子彈。撐過 ${gr.GR_TIME} 秒過關。每 2 隻 = 1 寶石（最多 ${gr.GR_CAP}），過關再 +${gr.GR_WIN}。</small>
+        <button class="btn gift" id="btn-gr-go" ${offAttr(grs.left <= 0, '今天的次數用完了')}>開始<small>剩 ${grs.left} 次</small></button>
+      </div>
+      <p class="hint">每天 ${modes.DUNGEON_TRIES} 次（掃蕩也算）。星期一～五各開一種，週末全開。5 波，最後一波是魔王。</p>
       <div class="dg-cards">${cards}</div>
       ${dgPick ? `<div class="dg-tiers"><span>階級</span>${tiers}</div>
       <p class="dg-info"><b>${modes.DUNGEONS[dgPick].name}・${modes.tierName(dgTier)}</b>（${difficultyOf(modes.D_TIERS[dgTier - 1]).name}難度・第 ${ch} 章強度）<br>獎勵：${modes.rewardText(modes.dungeonReward(dgPick, dgTier, ch))}</p>
@@ -2237,6 +2293,14 @@ $('modes-body').addEventListener('click', ev => {
   if (t.dataset.mtab) { if (t.dataset.mtab === 'endless') { openEndless(); return; } modesTab = t.dataset.mtab; }
   else if (t.dataset.dg) dgPick = t.dataset.dg;
   else if (t.dataset.dgt) dgTier = +t.dataset.dgt;
+  else if (t.id === 'btn-gr-go') {
+    const g = gr.ensureGemrain(save);
+    if (g.left <= 0) return;
+    g.left--;
+    writeSave(save);
+    startRun({ chapter: fitCh(), spec: gr.gemrainRun() });
+    return;
+  }
   else if (t.id === 'btn-dg-go') {
     save.dungeon.left--;
     writeSave(save);
@@ -2367,8 +2431,10 @@ function autoTick(dt) {
   autoAimT += dt;
   if (autoAimT >= 0.15 && !board.touch) {
     autoAimT = 0;
-    const val = g => (g.type[0] === 'x' ? 100 : 0) + parseFloat(g.type.slice(1));
-    const good = board.gates.filter(g => !g.trap && g.vis !== 0 && !(g.stone > 0)).sort((a, b) => val(b) - val(a));
+    // 寶石彈雨：瞄準最上面、不會動的高倍率門（越早乘越多次）；鎖著的門、⇧ 門不算
+    const gem = run.mode === 'gemrain';
+    const val = g => (g.type[0] === 'x' ? 100 : 0) + parseFloat(g.type.slice(1)) - (gem ? (g.y || 0) * 0.2 + (g.vx ? 50 : 0) : 0);
+    const good = board.gates.filter(g => !g.trap && g.vis !== 0 && !(g.stone > 0) && !(g.lock > 0) && g.type !== 'up').sort((a, b) => val(b) - val(a));
     const g = good[0];
     if (g) board.targetX = Math.max(14, Math.min(board.W - 14, g.x + g.w / 2));
   }

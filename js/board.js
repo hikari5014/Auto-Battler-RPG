@@ -14,6 +14,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 // 倍率門的樣子由「類型字串」決定：'x2' 乘法門、'+3' 加法門、'x0.5' 紅色陷阱門
 // copies = 穿過時多生出幾顆球
 function gateStyle(type) {
+  if (type === 'up') return { w: 60, copies: 0, up: true, color: '#4d8dff', label: '⇧' }; // 3.27 送回頂端的門
   const v = parseFloat(type.slice(1));
   if (type[0] === 'x') {
     if (v < 1) return { w: 72, copies: 0, trap: true, color: '#ff4d4d' };
@@ -100,6 +101,7 @@ export class Board {
     this.balls.length = 0;
     this.pops.length = 0;
     this.queue = 0;
+    this.ammo = undefined; this.maxGates = 0; this.cap = 0; // 3.27 只有寶石彈雨會用到
     this.cupW = 130;
     this.cupMult = 2;   // 接住的球乘幾倍（大肚杯滿級變 3）
     this.setChapter(run.chapter);
@@ -127,7 +129,7 @@ export class Board {
   }
 
   addGate(type, row, base = false, trap = false) {
-    if (this.gates.length >= MAX_GATES) return;
+    if (this.gates.length >= (this.maxGates || MAX_GATES)) return;
     if (row === undefined) {
       const r0 = this.gates.filter(g => g.row === 0).length;
       const r1 = this.gates.length - r0;
@@ -339,8 +341,8 @@ export class Board {
 
       for (let k = 0; k < gates.length; k++) {
         const g = gates[k];
-        const gy = g.row === 0 ? gy0 : gy1;
-        if (g.vis < 0.5) continue; // 隱形的門無效
+        const gy = g.y !== undefined ? g.y : g.row === 0 ? gy0 : gy1; // 3.27 門可以指定高度
+        if (g.vis < 0.5 || g.lock > 0) continue; // 隱形的門、還鎖著的門無效
         if (py < gy && b.y >= gy && b.x >= g.x && b.x <= g.x + g.w && !(b.mask & (1 << g.id))) {
           b.mask |= 1 << g.id;
           this.trigger(b, g);
@@ -390,9 +392,18 @@ export class Board {
       else if (Math.random() < 0.5) b.dead = true;
       return;
     }
+    if (st.up) {
+      // 3.27 送回頂端：從上面再掉一次，可以再穿一次所有的門（每顆球只送一次）
+      if (b.up) return;
+      b.up = true;
+      b.x = rand(20, this.W - 20); b.y = this.top + 30;
+      b.vx = rand(-40, 40); b.vy = 30; b.mask = 0;
+      sfx('gate');
+      return;
+    }
     const copies = st.copies;
     sfx('gate');
-    if (this.balls.length + copies > CAP) {
+    if (this.balls.length + copies > (this.cap || CAP)) {
       b.v *= copies + 1;
       return;
     }
@@ -635,7 +646,7 @@ export class Board {
     ctx.textBaseline = 'middle';
     for (const g of this.gates) {
       const st = gateStyle(g.type);
-      const y = this.gateY(g.row);
+      const y = g.y !== undefined ? g.y : this.gateY(g.row);
       if (g.stone > 0) {
         // 卡在門上的石頭
         ctx.globalAlpha = 1;
@@ -693,12 +704,22 @@ export class Board {
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.fillRect(g.x + 6, y - 10, g.w - 12, 1.5);
       // 文字
+      if (g.lock > 0) {
+        // 3.27 上鎖的門：半透明，中間顯示還要擊敗幾隻才打開
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = 'rgba(20,12,40,0.75)';
+        roundRect(ctx, g.x, y - 11, g.w, 22, 6); ctx.fill();
+        ctx.font = `13px ${FONT}`; ctx.fillStyle = '#ffd84a';
+        ctx.fillText(`🔒${g.lock}`, g.x + g.w / 2, y + 1);
+        ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.font = `${17 + g.flash * 5}px ${FONT}`;
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.strokeText(g.type, g.x + g.w / 2, y + 1);
+      ctx.strokeText(st.label || g.type, g.x + g.w / 2, y + 1);
       ctx.fillStyle = st.trap ? '#ffd0d0' : '#fff';
-      ctx.fillText(g.type, g.x + g.w / 2, y + 1);
+      ctx.fillText(st.label || g.type, g.x + g.w / 2, y + 1);
       ctx.globalAlpha = 1;
     }
     ctx.textBaseline = 'alphabetic';
@@ -903,7 +924,14 @@ export class Board {
     ctx.restore();
 
     ctx.textAlign = 'center';
-    if (this.queue > 0) {
+    if (this.ammo !== undefined) {
+      // 3.27 寶石彈雨：杯子上顯示還剩幾顆子彈
+      ctx.font = `16px ${FONT}`;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeText(this.ammo, x, y + 2);
+      ctx.fillStyle = this.ammo > 0 ? '#fff' : '#ff8080';
+      ctx.fillText(this.ammo, x, y + 2);
+    } else if (this.queue > 0) {
       ctx.font = `12px ${FONT}`;
       ctx.fillStyle = '#ffd84a';
       ctx.fillText('x' + this.queue, x + 32, y + 4);

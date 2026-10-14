@@ -1565,3 +1565,12 @@ img.px.hd { image-rendering: auto; }
 .g-banner.art { background-image: linear-gradient(rgba(16, 8, 40, 0.35), rgba(16, 8, 40, 0.85)), var(--gimg); background-size: cover; background-position: center; }
 .hero-art { float: right; width: 84px; height: 112px; object-fit: cover; margin: 0 0 4px 8px; border-radius: 8px; border: 2px solid rgba(255, 255, 255, 0.25); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4); }
 .hero-art.secret { filter: brightness(0) drop-shadow(0 0 2px #a080ff); }
+
+/* 3.27 寶石彈雨 */
+.gr-box { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px; padding: 8px 10px; border-radius: 10px; text-align: left;
+  background: linear-gradient(135deg, rgba(54, 214, 255, 0.22), rgba(208, 107, 255, 0.22)); border: 2px solid #7fe8ff; box-shadow: 0 0 12px rgba(127, 232, 255, 0.35); }
+.gr-head { display: flex; align-items: center; gap: 8px; }
+.gr-head span { display: flex; flex-direction: column; }
+.gr-head b { font-size: 17px; color: #fff; }
+.gr-box small { font-size: 11px; color: #e0dcf0; }
+.gr-box .btn { align-self: stretch; margin-top: 2px; }
