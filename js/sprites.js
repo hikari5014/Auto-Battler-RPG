@@ -13,6 +13,7 @@ export const SHEETS = {
   it: { src: 'assets/img/items.png', tile: 32, cols: 12 },
   m3: { src: 'assets/img/mounts3d.png', tile: 64, cols: 8 },
   h3: { src: 'assets/img/heroes3d.png', tile: 64, cols: 20 },
+  ix: { src: 'assets/img/icons-hd.png', tile: 64, cols: 16, hd: true }, // 3.25 Gemini 生成的圖示（技能、裝備、貨幣、天賦、成就、遺物…）
   mx: { src: 'assets/img/monsters-hd.png', tile: 96, cols: 8 }, // 3.24 Gemini 生成的怪物與魔王（48 隻），每隻一格
   e3: { src: 'assets/img/monsters3d.png', tile: 64, cols: 8 }, // 3.22 3D 怪物：KayKit Skeletons／Spooktober（CC0），每隻 0-3 走路、4-7 攻擊
   m4: { src: 'assets/img/mounts3d-2.png', tile: 64, cols: 8 }, // 3.22 新坐騎：Quaternius 動物（CC0）
@@ -21,6 +22,7 @@ export const SHEETS = {
   h3f: { src: 'assets/img/heroes3d-face.png', tile: 34, cols: 34 }, // 3D 英雄的半身頭像（圖示用） // 3.19 3D 英雄：Quaternius RPG Characters（CC0）預先渲染，每位 20 格 // 3.18 3D 坐騎：Quaternius 3D 模型（CC0）預先渲染成 8 格動畫
   hx: { src: 'assets/img/heroes-x.png', tile: 28, cols: 4 }, // 3.4 新英雄：0x72「DungeonTileset II」角色換色（CC0），每位 4 格待機動畫 // 道具：寶石、召喚券、星塵、寶箱…（SpriteAttack 寶石、7Soul1 496 RPG icons，CC0） // Clint Bellanger「Tiny Creatures」（CC0，Tiny Dungeon 擴充）
 };
+import { ix } from './icons-hd.js';
 
 // 像素中文字型「俐方體11號」（Cubic 11，免費授權）
 export const FONT = '"Cubic11", system-ui, sans-serif';
@@ -35,6 +37,12 @@ export const ICON = {
   diamond: ['it', 0], heroTicket: ['it', 1], gearTicket: ['it', 2], stardust: ['it', 3],
   chest: ['it', 4], chestOpen: ['it', 5], quest: ['it', 6], vault: ['it', 7], mail: ['it', 10],
 };
+// 3.25 換成 Gemini 新圖示（沒有新圖的維持原樣）
+Object.assign(ICON, {
+  gold: ix('cur:gold', ICON.gold), diamond: ix('cur:gem', ICON.diamond), heroTicket: ix('cur:heroTicket', ICON.heroTicket), gearTicket: ix('cur:gearTicket', ICON.gearTicket),
+  stardust: ix('cur:stardust', ICON.stardust), chest: ix('misc:chest', ICON.chest), chestOpen: ix('misc:chestOpen', ICON.chestOpen), quest: ix('misc:quest', ICON.quest),
+  vault: ix('misc:vault', ICON.vault), mail: ix('misc:mail', ICON.mail), trophy: ix('ach:boss1', ICON.trophy), shards: ix('cur:shards', null), anyFrag: ix('cur:anyFrag', null), sweep: ix('misc:sweep', ICON.gold),
+});
 
 let white = {};
 let red = {};    // 魔王狂暴時的紅色剪影
@@ -180,5 +188,6 @@ export function iconUrl(key, idx, tint) {
 // 產生 <img> 標籤；ref = [圖集, 編號, 染色?]
 export function iconTag(ref, px = 20, cls = '') {
   const [key, idx, tint] = ref;
+  if (SHEETS[key] && SHEETS[key].hd) cls += ' hd'; // 高解析度圖示縮小時要平滑，不用像素化
   return `<img class="px ${cls}" src="${iconUrl(key, idx, tint)}" width="${px}" height="${px}" alt="" draggable="false">`;
 }

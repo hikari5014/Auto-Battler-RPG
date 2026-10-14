@@ -2,6 +2,7 @@
 // 3.10 彈珠謎題：沒有敵人，只有固定的彈珠台與幾顆球，瞄準拿到目標分數（1～3 星）
 // save.expedition = { day, done, best }   每天第一次遠征給寶石
 // save.puzzles = { 1: 3, 2: 1, ... }       每關最多幾星
+import { ix } from './icons-hd.js';
 import { todayKey } from './meta.js';
 import { grant } from './economy.js';
 
@@ -27,6 +28,9 @@ export const RELICS = [
   { id: 'vial', name: '毒瓶', icon: ['ic', 616, '#7dff5a'], desc: '攻擊讓敵人中毒（每秒 20%）', apply: h => { h.dot += 0.2; } },
   { id: 'plume', name: '鳳凰羽', icon: ['it', 10], desc: '倒下時復活一次（50% 血）', apply: h => { h.phoenix = true; } },
 ];
+// 3.25 遺物換成 Gemini 新圖示
+for (const r of RELICS) r.icon = ix('relic:' + r.id, r.icon);
+
 export const relicById = id => RELICS.find(r => r.id === id);
 export function pickRelics(run, n = 3) {
   const have = new Set(run.relics || []);

@@ -1,4 +1,5 @@
 // 遊戲靜態資料：英雄、敵人、章節、技能卡、局外升級
+import { ix } from './icons-hd.js';
 
 // 英雄：四種打法差很多
 // role = 首頁顯示的定位；crit/block/splash/life/thorns = 天生自帶的能力
@@ -577,6 +578,9 @@ export const SKILLS = [
   { id: 'se_wing', hero: 'seraph', icon: ['ic', 712, '#fff2a8'], star: 2, max: 1, name: '六翼', desc: '濺射 +8%', apply: h => { h.splash += 0.08; },
     maxDesc: '聖光擊暈 0.6 秒', maxApply: h => { h.holyStun = true; } },
 ];
+// 3.25 技能換成 Gemini 新圖示
+for (const s of SKILLS) s.icon = ix('skill:' + s.id, s.icon);
+
 
 // 技能分類：通用（大家都有）、近戰、遠程、法術（看英雄的職業類型）
 export const CATS = {

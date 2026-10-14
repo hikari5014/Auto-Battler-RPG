@@ -9,6 +9,7 @@
 //   save.clears   = { 'normal-3': true }            每個難度每章的首通
 //   save.mail     = [{ id, title, text, gift, got }]
 //   save.winGems  = { day, n }                      今天已經拿過幾場勝利寶石
+import { ix } from './icons-hd.js';
 import { DIFFICULTIES } from './levels.js';
 import { todayKey } from './meta.js';
 import { ensureGear } from './gear.js';
@@ -23,6 +24,9 @@ export const CUR = {
   shards: { name: '魔晶', icon: null },
   anyFrag: { name: '萬能碎片', icon: null },
 };
+// 3.25 貨幣換成 Gemini 新圖示
+for (const [k, c] of Object.entries(CUR)) c.icon = ix('cur:' + k, c.icon);
+
 
 export function ensureEconomy(save) {
   save.wallet = Object.assign({ gem: 0, stardust: 0, heroTicket: 0, gearTicket: 0 }, save.wallet || {});

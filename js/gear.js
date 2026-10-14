@@ -4,6 +4,7 @@
 // 飾品（項鍊、戒指）另外有「等級」與「飾品技能」：等級 3、6、10 解鎖並強化技能，在冒險中自動發動
 // 3 件同種類、同稀有度可以合成升階；不要的分解成金幣與魔晶（魔晶用來附魔、精煉飾品）
 // 存在 save.gear = { v: 2, items: [...], equip: { weapon, helm, armor, gloves, boots, necklace, ring1, ring2 }, nextId, shards }
+import { ix } from './icons-hd.js';
 
 // ---------- 屬性 ----------
 // unit：'%' 表示存的數字是百分比；base = 普通品質副屬性的基準值
@@ -203,7 +204,14 @@ export const gemValue = key => { const g = parseGem(key); return r1(STATS[GEMS[g
 export const gemName = key => { const g = parseGem(key); return `${GEMS[g.id].name} Lv.${g.lv}`; };
 export const gemColor = key => GEMS[parseGem(key).id].color;
 // 寶石：用 CSS 畫的菱形（等級越高越大越亮）
-export const gemTag = (key, size = 14) => `<i class="gem lv${parseGem(key).lv}" style="--gc:${gemColor(key)};--gs:${size}px"></i>`;
+const oldGemTag = (key, size) => `<i class="gem lv${parseGem(key).lv}" style="--gc:${gemColor(key)};--gs:${size}px"></i>`;
+// 3.25 符石新圖示：Lv1-2 小、Lv3-4 中、Lv5 以上大
+export const gemTag = (key, size = 14) => {
+  const g = parseGem(key), r = ix(`rune:${g.id}:${g.lv >= 5 ? 5 : g.lv >= 3 ? 3 : 1}`, null);
+  return r ? runeImg(r[1], size + 4) : oldGemTag(key, size);
+};
+// 直接用 CSS 從大圖裡切出一格（gear.js 不依賴 sprites.js）
+const runeImg = (i, px) => `<i class="ixi" style="--px:${px}px;--x:${i % 16};--y:${Math.floor(i / 16)}"></i>`;
 
 // ---------- 存檔 ----------
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -282,7 +290,9 @@ function makeItem(gear, type, rarity, ilv = 1, opt = {}) {
 }
 
 export const itemName = it => (it.heir ? HEIRLOOMS[it.heir].name : (it.set ? SETS[it.set].name + '・' : '') + TYPES[it.type].names[it.rarity]) + (it.plus ? ` +${it.plus}` : '');
-export const itemIcon = it => ['ic', TYPES[it.type].icons[it.rarity], it.heir ? '#ffe9a0' : RARITIES[it.rarity].color];
+const oldIcon = it => ['ic', TYPES[it.type].icons[it.rarity], it.heir ? '#ffe9a0' : RARITIES[it.rarity].color];
+// 3.25 新圖示：普通＝鐵、稀有／史詩＝藍、傳說／神話＝金；專武有自己的圖
+export const itemIcon = it => (it.heir ? ix('heir:' + it.heir, oldIcon(it)) : ix(`gear:${it.rarity >= 3 ? 2 : it.rarity >= 1 ? 1 : 0}:${it.type}`, oldIcon(it)));
 // 主屬性實際數值（強化每級 +6%）
 export const PLUS_STEP = 0.06;
 export const mainValue = it => r1(it.value * (1 + PLUS_STEP * (it.plus || 0)) * starMul(it));

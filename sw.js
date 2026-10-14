@@ -1,7 +1,7 @@
 // 離線快取（Service Worker）
 // 每個版本有自己的一份快取；新版本下載完會「等待」，玩家按下更新才切換，
 // 這樣不會玩到一半，一部分是舊檔案、一部分是新檔案。
-const VERSION = '3.24.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
+const VERSION = '3.25.0'; // 必須和 js/version.js 一致（部署時會自動檢查）
 const CACHE = 'marble-brave-' + VERSION;
 const ASSETS = [
   './',
@@ -25,6 +25,7 @@ const ASSETS = [
   'js/gear.js',
   'js/hero3d.js',
   'js/heroes.js',
+  'js/icons-hd.js',
   'js/levels.js',
   'js/live.js',
   'js/main.js',
@@ -50,6 +51,7 @@ const ASSETS = [
   'assets/img/heroes3k-face.png',
   'assets/img/heroes3k.png',
   'assets/img/icons-1bit.png',
+  'assets/img/icons-hd.png',
   'assets/img/items.png',
   'assets/img/logo.png',
   'assets/img/monsters-hd.png',

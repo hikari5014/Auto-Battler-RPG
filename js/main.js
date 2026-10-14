@@ -18,6 +18,7 @@ import * as arcade from './arcade.js';
 import * as evm from './eventmodes.js';
 import * as codes from './codes.js';
 import * as sw from './sweep.js';
+import { ix } from './icons-hd.js';
 import { h3Row, H3_COLS, h3Face } from './hero3d.js';
 import { initAudio, setMuted, sfx, playMusic } from './audio.js';
 import { Board, fmt } from './board.js';
@@ -1288,7 +1289,7 @@ function renderHome() {
         const open = diffUnlocked(save, d);
         return `
         <button class="diff ${d.id === save.difficulty ? 'sel' : ''} ${open ? '' : 'locked'}" data-diff="${d.id}" style="--dc:${d.color}" role="radio" aria-checked="${d.id === save.difficulty}" ${offAttr(!open, unlockText(d) + '才能選這個難度')}>
-          <b>${open ? '' : '🔒'}${d.name}</b><small>${open ? `金幣 x${d.gold}` : `${difficultyOf(d.unlock[0]).name}第${d.unlock[1]}章`}</small></button>`;
+          <b>${open ? (ix('diff:' + d.id, null) ? iconTag(ix('diff:' + d.id), 16) : '') : '🔒'}${d.name}</b><small>${open ? `金幣 x${d.gold}` : `${difficultyOf(d.unlock[0]).name}第${d.unlock[1]}章`}</small></button>`;
       }).join('')}
       </div>
       ${duoBar() || `<div class="duo"><button class="duo-slot on" id="duo-main"><i>主</i>${iconTag(heroRef(hero), 26)}<span>${hero.name.split(' ')[1]}</span></button><span class="duo-mid">⇄<small>解鎖第 2 位職業後可雙職業</small></span></div>`}
@@ -1747,7 +1748,7 @@ function renderMount() {
       </div>
       <div class="m-train">
         ${cap ? (st.star < MAX_STAR ? `<button class="btn gift" id="btn-mbreak" ${offAttr(save.gold < breakCost(st.star), `金幣不足，還差 ${breakCost(st.star) - save.gold}`)}>突破升星 ${iconTag(ICON.gold, 16)}${breakCost(st.star)}</button>` : '')
-          : FEEDS.map(f => `<button class="btn small" data-feed="${f.id}" data-repeat ${offAttr(save.gold < f.gold, `金幣不足，還差 ${f.gold - save.gold}`)}>${f.name}<small>+${f.exp} 經驗・${iconTag(ICON.gold, 12)}${f.gold}</small></button>`).join('')}
+          : FEEDS.map(f => `<button class="btn small" data-feed="${f.id}" data-repeat ${offAttr(save.gold < f.gold, `金幣不足，還差 ${f.gold - save.gold}`)}>${ix('feed:' + f.id, null) ? iconTag(ix('feed:' + f.id), 20) : ''}${f.name}<small>+${f.exp} 經驗・${iconTag(ICON.gold, 12)}${f.gold}</small></button>`).join('')}
       </div>
       <button class="btn ${riding_ ? 'ghost' : 'big'}" id="btn-mride">${riding_ ? '下來（不騎乘）' : '騎上牠出發'}</button>`;
   }
@@ -1827,7 +1828,7 @@ function renderAch() {
     const cur = Math.min(a.goal, Math.floor(a.get(save)));
     const done = achDone(save, a);
     const claimed = save.claimed.includes(a.id);
-    return `<div class="ach ${claimed ? 'claimed' : done ? 'ready' : ''}">
+    return `<div class="ach ${claimed ? 'claimed' : done ? 'ready' : ''}">${ix('ach:' + a.id, null) ? `<span class="ach-ic">${iconTag(ix('ach:' + a.id), 34)}</span>` : ''}
       <span class="ach-info"><b>${a.name}${HEROES.some(h => h.unlock === a.id) ? ' <i class="ach-hero">＋隱藏職業</i>' : ''}</b><small>${a.desc}</small>
         <span class="ach-bar"><i style="width:${cur / a.goal * 100}%"></i><em>${fmt(cur)} / ${fmt(a.goal)}</em></span></span>
       ${claimed ? '<span class="ach-ok">已領取</span>' : `<button class="btn small ${done ? 'gift' : ''}" data-claim="${a.id}" ${offAttr(!done, '還沒達成')}>${iconTag(ICON.gold, 14)}${a.gold} ${iconTag(ICON.diamond, 14)}${achGems(a)}</button>`}
@@ -1870,7 +1871,7 @@ function openQuest() {
   renderQuest();
   showScreen('screen-quest', 'screen-home');
 }
-const giftTag = (gift, px = 14) => Object.entries(gift).filter(([, v]) => v).map(([k, v]) => `<span class="gift-i">${k === 'shards' ? '✦' : eco.CUR[k] && eco.CUR[k].icon ? iconTag(eco.CUR[k].icon, px) : (eco.CUR[k] ? eco.CUR[k].name : k) + ' '}${fmt(v)}</span>`).join('');
+const giftTag = (gift, px = 14) => Object.entries(gift).filter(([, v]) => v).map(([k, v]) => `<span class="gift-i">${eco.CUR[k] && eco.CUR[k].icon ? iconTag(eco.CUR[k].icon, px) : (eco.CUR[k] ? eco.CUR[k].name : k) + ' '}${fmt(v)}</span>`).join('');
 function renderQuest() {
   const m = save.missions, w = save.weekly;
   const tabs = [['daily', '每日任務'], ['weekly', '每週'], ['sign', '簽到'], ['vault', '冒險寶庫']];
@@ -2286,7 +2287,7 @@ $('modes-body').addEventListener('click', ev => {
 function sweepBtn() {
   if (!sw.canSweep(save, save.difficulty, save.chapter)) return '';
   const cost = sw.sweepCost(save);
-  return `<button class="auto-toggle sweep-btn" id="btn-sweep" aria-label="快速掃蕩">${iconTag(ICON.gold, 18)}<small>掃蕩</small><b>${cost ? `${iconTag(ICON.diamond, 12)}${cost}` : `免費 ${sw.freeLeft(save)}`}</b></button>`;
+  return `<button class="auto-toggle sweep-btn" id="btn-sweep" aria-label="快速掃蕩">${iconTag(ICON.sweep, 18)}<small>掃蕩</small><b>${cost ? `${iconTag(ICON.diamond, 12)}${cost}` : `免費 ${sw.freeLeft(save)}`}</b></button>`;
 }
 function doSweep() {
   const diff = difficultyOf(save.difficulty), ch = save.chapter;
@@ -2457,7 +2458,7 @@ function renderLive() {
   } else {
     body = `<div class="ev-head" style="--ec:${ev.color}"><b>${ev.name}</b><small>${ev.desc}</small><small>還剩 ${live.eventDaysLeft()} 天・每週換一種活動</small></div>
       ${evModeBox()}
-      <p class="dg-info">${ev.token}：<b>${e.pts}</b>（冒險、挑戰每過一波 +1）</p>
+      <p class="dg-info">${ix('token:' + ev.id, null) ? iconTag(ix('token:' + ev.id), 20) : ''}${ev.token}：<b>${e.pts}</b>（冒險、挑戰每過一波 +1）</p>
       <div class="q-list">${live.EVENT_SHOP.map(it => { const left = it.limit - (e.bought[it.id] || 0); return `<div class="q-row"><span><b>${it.name}</b><small>剩 ${left} 次</small></span><button class="btn small" data-evbuy="${it.id}" ${offAttr(left <= 0 || e.pts < it.cost, left <= 0 ? '買完了' : `${ev.token}不足`)}>${ev.token} ${it.cost}</button></div>`; }).join('')}</div>`;
   }
   $('live-body').innerHTML = `<h2>活動</h2>
@@ -2596,7 +2597,7 @@ function openDaily() {
   $('daily-body').innerHTML = `
     <h2>每日挑戰</h2>
     <p class="daily-date">${ch.date}・第 ${ch.chapter} 章 ${chapterName(ch.chapter)}・簡單難度</p>
-    <div class="mods">${ch.mods.map(m => `<div class="mod"><b>${MODS[m].name}</b><small>${MODS[m].desc}</small></div>`).join('')}</div>
+    <div class="mods">${ch.mods.map(m => `<div class="mod"><b>${ix('mod:' + m, null) ? iconTag(ix('mod:' + m), 22) + ' ' : ''}${MODS[m].name}</b><small>${MODS[m].desc}</small></div>`).join('')}</div>
     <p class="hint">使用目前選擇的英雄。每天第一次通關獎勵：${iconTag(ICON.gold, 14)}${dailyReward(ch)} 金幣＋一件史詩裝備</p>
     <button class="btn big ${done ? '' : 'gift'}" id="btn-daily-go">${done ? '再玩一次（今日獎勵已領取）' : '開始挑戰'}</button>
     <button class="btn ghost" id="btn-daily-close">關閉</button>`;
@@ -2679,26 +2680,26 @@ const bonusChips = b => {
     const v = STATS[k].unit === '%' ? Math.round(b[k] * 1000) / 10 + '%' : Math.round(b[k] * 10) / 10;
     return `<span class="chip">${STATS[k].name} <b>+${v}</b></span>`;
   });
-  for (const [id, p] of Object.entries(b.skills || {})) chips.push(`<span class="chip jewel">${JEWEL_SKILLS[id].name}</span>`);
+  for (const [id, p] of Object.entries(b.skills || {})) chips.push(`<span class="chip jewel">${ix('jewel:' + id, null) ? iconTag(ix('jewel:' + id), 14) : ''}${JEWEL_SKILLS[id].name}</span>`);
   return chips.join('') || '<span class="chip">還沒有穿裝備</span>';
 };
 // 身上的套裝進度：例如「狂戰 3/4」，達成的效果亮起來
 function setStrip() {
   const sets = Object.entries(gearBonus(save).sets);
   if (!sets.length) return '';
-  return `<div class="set-strip">${sets.map(([id, n]) => `<span class="setp ${n >= 4 ? 'full' : n >= 2 ? 'half' : ''}" style="--sc:${SETS[id].color}">${SETS[id].name} ${n}/4</span>`).join('')}</div>`;
+  return `<div class="set-strip">${sets.map(([id, n]) => `<span class="setp ${n >= 4 ? 'full' : n >= 2 ? 'half' : ''}" style="--sc:${SETS[id].color}">${ix('set:' + id, null) ? iconTag(ix('set:' + id), 14) : ''}${SETS[id].name} ${n}/4</span>`).join('')}</div>`;
 }
 // 一件裝備的完整說明（主屬性、副屬性、附魔、飾品技能）
 function itemLines(it, withTools) {
   const sm = starMax(it);
-  let h = `${sm ? `<p class="il istar">${'★'.repeat(it.star || 0)}${'☆'.repeat(sm - (it.star || 0))} <small>每星主、副屬性 +10%</small></p>` : ''}<p class="il ilv">裝備等級 Lv.${it.ilv || 1}${it.set ? `・<b style="color:${SETS[it.set].color}">${SETS[it.set].name}套裝</b>` : ''}</p><p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
+  let h = `${sm ? `<p class="il istar">${'★'.repeat(it.star || 0)}${'☆'.repeat(sm - (it.star || 0))} <small>每星主、副屬性 +10%</small></p>` : ''}<p class="il ilv">裝備等級 Lv.${it.ilv || 1}${it.set ? `・<b style="color:${SETS[it.set].color}">${ix('set:' + it.set, null) ? iconTag(ix('set:' + it.set), 16) : ''}${SETS[it.set].name}套裝</b>` : ''}</p><p class="il main">${statText(it.main, mainValue(it))}${it.plus ? ` <small>（強化 +${it.plus}）</small>` : ''}</p>`;
   it.affixes.forEach((a, i) => { h += `<p class="il">${statText(a.stat, Math.round(a.value * (1 + 0.1 * (it.star || 0)) * 10) / 10)}${withTools ? ` <button class="rf" data-reforge="${i}" aria-label="重鑄">↻</button>` : ''}</p>`; });
   if (it.ench) h += `<p class="il ench">✦ 附魔：${statText(it.ench.stat, it.ench.value)}</p>`;
   if (it.heir) {
     const hd = HEROES.find(x => x.id === it.heir), on = save.selected === it.heir;
     h += `<p class="il uniq ${on ? '' : 'locked'}">★ ${HEIRLOOMS[it.heir].sig ? '專武' : '傳家'}：${hd.name.split(' ')[1]}當主職業時，攻擊力 +${10 + (it.star || 0) * 3}%、${HEIRLOOMS[it.heir].desc(it.star || 0)}</p>`;
   }
-  if (it.uniq) h += `<p class="il uniq">★ 傳說特效「${UNIQUES[it.uniq].name}」：${UNIQUES[it.uniq].desc}</p>`;
+  if (it.uniq) h += `<p class="il uniq">${ix('uniq:' + it.uniq, null) ? iconTag(ix('uniq:' + it.uniq), 18) : '★'} 傳說特效「${UNIQUES[it.uniq].name}」：${UNIQUES[it.uniq].desc}</p>`;
   if (it.set) {
     const n = gearBonus(save).sets[it.set] || 0;
     const st = SETS[it.set];

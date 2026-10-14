@@ -5,3 +5,5 @@
 - `slice.py`：洋紅色背景去背、自動找出每個物件（或照格子切）
 - `monsters.py` + `monsters.json`：怪物與魔王 → `assets/img/monsters-hd.png`
 - 章節背景 P01～P10 → `assets/bg/hd/ch1～10.jpg`；Logo P19 → `assets/img/logo.png`；App 圖示 P20 → `icons/`
+- 圖示 P21～P45 → `assets/img/icons-hd.png`＋`js/icons-hd.js`（`tools/art/icons.py`，名稱與順序在 `tools/art/icons.json`）
+  - P34 只畫了 8 個（少一個傳說特效徽章「學者」），那一個繼續用舊圖

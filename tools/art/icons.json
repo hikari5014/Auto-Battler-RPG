@@ -1,0 +1,443 @@
+{
+ "sheets": [
+  {
+   "file": "P21.png",
+   "keys": [
+    "skill:hits1",
+    "skill:hits3",
+    "skill:atk",
+    "skill:atk2",
+    "skill:spd",
+    "skill:crit",
+    "skill:critd",
+    "skill:block",
+    "skill:dbl",
+    "skill:life",
+    "skill:hp",
+    "skill:heal",
+    "skill:splash",
+    "skill:thorn",
+    "skill:ball",
+    "skill:gate"
+   ]
+  },
+  {
+   "file": "P22.png",
+   "keys": [
+    "skill:gate3",
+    "skill:gatex3",
+    "skill:cup",
+    "skill:c_cleave",
+    "skill:c_bash",
+    "skill:c_iron",
+    "skill:c_charge",
+    "skill:r_snipe",
+    "skill:r_poison",
+    "skill:r_quick",
+    "skill:r_kite",
+    "skill:r_roll",
+    "skill:s_chain",
+    "skill:s_burn",
+    "skill:s_shield",
+    "skill:s_ward"
+   ]
+  },
+  {
+   "file": "P23.png",
+   "keys": [
+    "skill:s_nova",
+    "skill:g_interest",
+    "skill:g_swap",
+    "skill:b_whirl",
+    "skill:b_edge",
+    "skill:b_guard",
+    "skill:a_multi",
+    "skill:a_pierce",
+    "skill:a_rain",
+    "skill:m_meteor",
+    "skill:m_grav",
+    "skill:m_frost",
+    "skill:s_saw",
+    "skill:s_rage",
+    "skill:s_feast",
+    "skill:p_holy"
+   ]
+  },
+  {
+   "file": "P24.png",
+   "keys": [
+    "skill:p_aura",
+    "skill:p_judge",
+    "skill:k_shadow",
+    "skill:k_exec",
+    "skill:k_blade",
+    "skill:q_grenade",
+    "skill:q_ap",
+    "skill:q_spread",
+    "skill:e_fire",
+    "skill:e_ice",
+    "skill:e_storm",
+    "skill:d_breath",
+    "skill:d_scale",
+    "skill:d_wing",
+    "skill:t_star",
+    "skill:t_nova"
+   ]
+  },
+  {
+   "file": "P25.png",
+   "keys": [
+    "skill:t_grav",
+    "skill:z_steal",
+    "skill:z_lucky",
+    "skill:z_gold",
+    "skill:hi_ice",
+    "skill:hi_shatter",
+    "skill:gr_gear",
+    "skill:gr_hold",
+    "skill:fi_ember",
+    "skill:fi_rain",
+    "skill:vi_venom",
+    "skill:vi_snake",
+    "skill:lo_rend",
+    "skill:lo_howl",
+    "skill:ma_pure",
+    "skill:ma_bless"
+   ]
+  },
+  {
+   "file": "P26.png",
+   "keys": [
+    "skill:th_static",
+    "skill:th_bolt",
+    "skill:pi_coin",
+    "skill:pi_turret",
+    "skill:es_storm",
+    "skill:es_heart",
+    "skill:ka_feast",
+    "skill:ka_blood",
+    "skill:si_eye",
+    "skill:si_wind",
+    "skill:ru_clone",
+    "skill:ru_blade",
+    "skill:g7_armor",
+    "skill:g7_boiler",
+    "skill:ba_frog",
+    "skill:ba_pack"
+   ]
+  },
+  {
+   "file": "P27.png",
+   "keys": [
+    "skill:cy_bolt",
+    "skill:cy_sin",
+    "skill:mo_rot",
+    "skill:mo_spread",
+    "skill:mg_map",
+    "skill:mg_powder",
+    "skill:ig_core",
+    "skill:ig_wing",
+    "skill:ev_vine",
+    "skill:ev_toxin",
+    "skill:le_mane",
+    "skill:le_oath",
+    "skill:li_kiss",
+    "skill:li_moon",
+    "skill:om_core",
+    "skill:om_turret"
+   ]
+  },
+  {
+   "file": "P28.png",
+   "keys": [
+    "skill:se_halo",
+    "skill:se_wing"
+   ]
+  },
+  {
+   "file": "P29.png",
+   "keys": [
+    "gear:0:weapon",
+    "gear:0:helm",
+    "gear:0:armor",
+    "gear:0:gloves",
+    "gear:0:boots",
+    "gear:0:necklace",
+    "gear:0:ring",
+    "gear:1:weapon",
+    "gear:1:helm",
+    "gear:1:armor",
+    "gear:1:gloves",
+    "gear:1:boots"
+   ]
+  },
+  {
+   "file": "P30.png",
+   "keys": [
+    "gear:1:necklace",
+    "gear:1:ring",
+    "gear:2:weapon",
+    "gear:2:helm",
+    "gear:2:armor",
+    "gear:2:gloves",
+    "gear:2:boots",
+    "gear:2:necklace",
+    "gear:2:ring"
+   ]
+  },
+  {
+   "file": "P31.png",
+   "keys": [
+    "heir:blade",
+    "heir:archer",
+    "heir:mage",
+    "heir:saw",
+    "heir:paladin",
+    "heir:rogue",
+    "heir:gunner",
+    "heir:elem",
+    "heir:dragoon"
+   ]
+  },
+  {
+   "file": "P32.png",
+   "keys": [
+    "heir:sage",
+    "heir:thief",
+    "heir:ignis",
+    "heir:evira",
+    "heir:leos",
+    "heir:lilith",
+    "heir:omega",
+    "heir:seraph"
+   ]
+  },
+  {
+   "file": "P33.png",
+   "keys": [
+    "set:berserk",
+    "set:guard",
+    "set:gale",
+    "set:fortune",
+    "set:hunter",
+    "set:arcane",
+    "set:phoenix",
+    "set:tempest",
+    "set:reaper",
+    "set:starfall",
+    "set:warlord",
+    "set:sentinel",
+    "set:stormcall",
+    "uniq:vamp",
+    "uniq:execute",
+    "uniq:storm"
+   ]
+  },
+  {
+   "file": "P34.png",
+   "keys": [
+    "uniq:thornmail",
+    "uniq:undying",
+    "uniq:bulwark",
+    "uniq:haste",
+    "uniq:flurry",
+    "uniq:phantom",
+    "uniq:greed",
+    "uniq:bounty",
+    "uniq:scholar"
+   ]
+  },
+  {
+   "file": "P35.png",
+   "keys": [
+    "cur:gem",
+    "cur:stardust",
+    "cur:heroTicket",
+    "cur:gearTicket",
+    "cur:gold",
+    "cur:shards",
+    "cur:anyFrag",
+    "misc:chest",
+    "misc:chestOpen"
+   ]
+  },
+  {
+   "file": "P36.png",
+   "keys": [
+    "misc:quest",
+    "misc:vault",
+    "misc:mail",
+    "feed:feed1",
+    "feed:feed2",
+    "token:harvest",
+    "token:hunt",
+    "token:starfest",
+    "misc:sweep"
+   ]
+  },
+  {
+   "file": "P37.png",
+   "keys": [
+    "rune:ruby:1",
+    "rune:ruby:3",
+    "rune:ruby:5",
+    "rune:sapphire:1",
+    "rune:sapphire:3",
+    "rune:sapphire:5",
+    "rune:emerald:1",
+    "rune:emerald:3",
+    "rune:emerald:5",
+    "rune:topaz:1",
+    "rune:topaz:3",
+    "rune:topaz:5",
+    "rune:amethyst:1",
+    "rune:amethyst:3",
+    "rune:amethyst:5"
+   ],
+   "grid": [
+    5,
+    3
+   ]
+  },
+  {
+   "file": "P38.png",
+   "keys": [
+    "jewel:thunder",
+    "jewel:star",
+    "jewel:regen",
+    "jewel:guard",
+    "jewel:fury",
+    "jewel:frost",
+    "jewel:midas",
+    "jewel:lucky",
+    "mod:speedy",
+    "mod:glass",
+    "mod:rich",
+    "mod:mulOnly",
+    "mod:tanky",
+    "mod:noHeal",
+    "mod:elites",
+    "mod:giant"
+   ],
+   "grid": [
+    4,
+    4
+   ]
+  },
+  {
+   "file": "P39.png",
+   "keys": [
+    "diff:casual",
+    "diff:easy",
+    "diff:normal",
+    "diff:hard",
+    "diff:hell",
+    "diff:nightmare"
+   ],
+   "grid": [
+    3,
+    2
+   ]
+  },
+  {
+   "file": "P40.png",
+   "keys": [
+    "tal:A:0",
+    "tal:A:1",
+    "tal:A:2",
+    "tal:A:3",
+    "tal:A:inf",
+    "tal:F:0",
+    "tal:F:1",
+    "tal:F:2",
+    "tal:F:3",
+    "tal:F:inf",
+    "tal:D:0",
+    "tal:D:1",
+    "tal:D:2",
+    "tal:D:3",
+    "tal:D:inf"
+   ]
+  },
+  {
+   "file": "P41.png",
+   "keys": [
+    "tal:C:0",
+    "tal:C:1",
+    "tal:C:2",
+    "tal:C:3",
+    "tal:C:inf",
+    "tal:E:0",
+    "tal:E:1",
+    "tal:E:2",
+    "tal:E:3",
+    "tal:E:inf",
+    "tal:B:0",
+    "tal:B:1",
+    "tal:B:2",
+    "tal:B:3",
+    "tal:B:inf"
+   ]
+  },
+  {
+   "file": "P42.png",
+   "keys": [
+    "ach:kill1",
+    "ach:kill500",
+    "ach:kill3000",
+    "ach:elite50",
+    "ach:boss1",
+    "ach:boss10",
+    "ach:win1",
+    "ach:ch3",
+    "ach:ch5",
+    "ach:hard",
+    "ach:hell",
+    "ach:max1"
+   ]
+  },
+  {
+   "file": "P43.png",
+   "keys": [
+    "ach:max20",
+    "ach:rich",
+    "ach:event20",
+    "ach:legend",
+    "ach:heroes",
+    "ach:heroes8",
+    "ach:mount3",
+    "ach:mountstar",
+    "ach:tower20",
+    "ach:daily3"
+   ]
+  },
+  {
+   "file": "P44.png",
+   "keys": [
+    "relic:fang",
+    "relic:whet",
+    "relic:wall",
+    "relic:egg",
+    "relic:flag",
+    "relic:feather",
+    "relic:grail",
+    "relic:astro",
+    "relic:tome"
+   ]
+  },
+  {
+   "file": "P45.png",
+   "keys": [
+    "relic:core",
+    "relic:magnet",
+    "relic:dice",
+    "relic:ration",
+    "relic:mirror",
+    "relic:sand",
+    "relic:crown",
+    "relic:vial",
+    "relic:plume"
+   ]
+  }
+ ]
+}

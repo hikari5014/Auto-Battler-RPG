@@ -1551,3 +1551,9 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 
 /* 3.24 Gemini 生成的 Logo 圖 */
 .logo img { display: block; margin: 0 auto; width: min(270px, 72vw); height: auto; image-rendering: auto; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)); }
+img.px.hd { image-rendering: auto; }
+/* 3.25 直接從 icons-hd.png 切一格（符石等） */
+.ixi { display: inline-block; width: var(--px); height: var(--px); vertical-align: middle; background: url(assets/img/icons-hd.png) calc(var(--x) * -1 * var(--px)) calc(var(--y) * -1 * var(--px)) / calc(16 * var(--px)) auto no-repeat; }
+/* 3.25 成就圖示 */
+.ach-ic { flex: none; display: flex; align-items: center; margin-right: 6px; }
+.ach.claimed .ach-ic { opacity: .55; }

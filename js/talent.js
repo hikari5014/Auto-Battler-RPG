@@ -5,6 +5,7 @@
 // - 一條主線 4 格全部點滿 →「精通」獎勵自動生效。
 // - 主線最外格點滿後，打開「無極」天賦：沒有等級上限，可以一直強化下去。
 // 規則：只能點亮「旁邊已經點亮過」的格子；每點一點，所有一般天賦都會變貴 3%（無極天賦不算）。
+import { ix } from './icons-hd.js';
 
 const pct = v => Math.round(v * 1000) / 10 + '%';
 const sgn = v => (v < 0 ? '' : '+');
@@ -108,6 +109,8 @@ const RING_BASE = [50, 160, 420, 900];
 const CROSS_BASE = 300, KEY_COST = 2400, INF_BASE = 1500;
 const INFLATE = 0.03;
 
+// 3.25 主線天賦換成 Gemini 新圖示
+for (const b of BRANCHES) { b.nodes.forEach((n, i) => { n.icon = ix(`tal:${b.id}:${i}`, n.icon); }); b.inf.icon = ix(`tal:${b.id}:inf`, b.inf.icon); }
 export const TALENTS = [];
 export const LINKS = [];
 const byId = {};
