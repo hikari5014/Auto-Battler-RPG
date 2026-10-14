@@ -13,6 +13,7 @@ export const SHEETS = {
   it: { src: 'assets/img/items.png', tile: 32, cols: 12 },
   m3: { src: 'assets/img/mounts3d.png', tile: 64, cols: 8 },
   h3: { src: 'assets/img/heroes3d.png', tile: 64, cols: 20 },
+  mx: { src: 'assets/img/monsters-hd.png', tile: 96, cols: 8 }, // 3.24 Gemini 生成的怪物與魔王（48 隻），每隻一格
   e3: { src: 'assets/img/monsters3d.png', tile: 64, cols: 8 }, // 3.22 3D 怪物：KayKit Skeletons／Spooktober（CC0），每隻 0-3 走路、4-7 攻擊
   m4: { src: 'assets/img/mounts3d-2.png', tile: 64, cols: 8 }, // 3.22 新坐騎：Quaternius 動物（CC0）
   h3k: { src: 'assets/img/heroes3k.png', tile: 64, cols: 20 }, // 3.21 新版 3D 英雄：KayKit Adventurers（CC0）

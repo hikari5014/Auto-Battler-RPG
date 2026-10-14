@@ -1,0 +1,105 @@
+{
+ "sheets": [
+  {
+   "file": "P11.png",
+   "keys": [
+    "slime",
+    "bat",
+    "rat",
+    "bandit",
+    "goblin",
+    "boar",
+    "shroom",
+    "scorpion",
+    "snake"
+   ],
+   "flip": [
+    3
+   ]
+  },
+  {
+   "file": "P12.png",
+   "keys": [
+    "whirl",
+    "spider",
+    "shaman",
+    "ghost",
+    "vampire",
+    "lavacrab",
+    "fireling",
+    "imp",
+    "golem"
+   ],
+   "flip": [
+    2
+   ]
+  },
+  {
+   "file": "P13.png",
+   "keys": [
+    "eagle",
+    "griffin",
+    "frost",
+    "skyknight",
+    "yeti",
+    "snowwolf",
+    "polar",
+    "croc",
+    "treant"
+   ],
+   "grid": [
+    3,
+    3
+   ]
+  },
+  {
+   "file": "P14.png",
+   "keys": [
+    "bog",
+    "mosquito",
+    "automaton",
+    "ironknight",
+    "cannoneer",
+    "drone",
+    "demon",
+    "eye",
+    "shade"
+   ],
+   "flip": [
+    5
+   ]
+  },
+  {
+   "file": "P15.png",
+   "keys": [
+    "seraphim",
+    "starling",
+    "void"
+   ]
+  },
+  {
+   "file": "P16.png",
+   "keys": [
+    "cyclops",
+    "crabking",
+    "firegiant"
+   ]
+  },
+  {
+   "file": "P17.png",
+   "keys": [
+    "guardian",
+    "frostlord",
+    "hydra"
+   ]
+  },
+  {
+   "file": "P18.png",
+   "keys": [
+    "colossus",
+    "abysslord",
+    "stardragon"
+   ]
+  }
+ ]
+}

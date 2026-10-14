@@ -1,10 +1,18 @@
 // 版本號與更新日誌（唯一的來源）
 // 改版時：1) 改 VERSION  2) 在 CHANGELOG 最前面加一筆  3) sw.js 的 VERSION 改成一樣
 // （部署時會自動檢查兩邊是否一致，不一致就不會上線）
-export const VERSION = '3.23.0';
+export const VERSION = '3.24.0';
 
 // 新的在最上面
 export const CHANGELOG = [
+  {
+    version: '3.24.0', date: '2026-10-14',
+    notes: [
+      '10 章戰鬥背景全部換成新的大圖',
+      '48 種怪物與魔王換成新圖（更大、更清楚，統一面向英雄）',
+      '新的遊戲 Logo 與手機桌面圖示',
+    ],
+  },
   {
     version: '3.23.0', date: '2026-10-08',
     notes: [

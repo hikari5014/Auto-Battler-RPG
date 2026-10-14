@@ -1254,7 +1254,7 @@ function renderHome() {
           <button class="icon-btn" id="btn-mute" aria-label="音效開關">${iconTag(save.muted ? ICON.soundOff : ICON.soundOn, 22)}</button>
         </span>
       </div>
-      <h1 class="logo">彈珠勇者</h1>
+      <h1 class="logo"><img src="assets/img/logo.png" alt="彈珠勇者"></h1>
       <p class="sub">自動戰鬥 × 彈珠倍率 × 三選一技能</p>
       <div class="side left">
         ${side('btn-gear', ['ic', 426, '#ffd84a'], '背包', fresh ? 'dot' : '')}
@@ -3020,6 +3020,7 @@ const CREDITS = [
   ['彈窗面板', 'tiopalada「Mana Soul GUI」', 'CC0'],
   ['怪物、魔王、坐騎', 'Clint Bellanger「Tiny Creatures」', 'CC0'],
   ['3D 英雄（新版，KayKit 角色＋武器）', 'Kay Lousberg「KayKit Adventurers」「KayKit Character Animations」', 'CC0'],
+  ['章節背景、怪物、魔王、Logo、App 圖示', '遊戲作者用 Google Gemini 生成（原圖在 art-inbox）', '自製'],
   ['3D 怪物（骷髏、南瓜傑克、女巫）', 'Kay Lousberg「KayKit Skeletons」「KayKit Spooktober」', 'CC0'],
   ['3D 坐騎（斑馬、靈狐、羊駝、蠻牛）', 'Quaternius「Farm Animals」「Animals Pack」', 'CC0'],
   ['3D 英雄（舊版，6 種角色模型換色）', 'Quaternius「RPG Characters」', 'CC0'],

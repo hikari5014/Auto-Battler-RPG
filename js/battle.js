@@ -11,7 +11,7 @@ import { settings } from './settings.js';
 import { vibrate } from './feedback.js';
 import { gearBonus, applyHeirloom } from './gear.js';
 import { h3Frame, releaseTip, MOUNT_MOUTH, kkArt } from './hero3d.js';
-const KK_SIZE = 1.4, KK_SIT = 0.6, E3_SIZE = 1.45;
+const KK_SIZE = 1.4, KK_SIT = 0.6, E3_SIZE = 1.45, MX_SIZE = 1.15;
 import { talentBonus } from './talent.js';
 import { applyStar } from './heroes.js';
 
@@ -1173,7 +1173,7 @@ export class Battle {
     if (spr[0] === 'e3') {
       const f = e.lunge > 0.05 ? 4 + Math.min(3, Math.floor((1 - Math.min(1, e.lunge)) * 4)) : e.stun > 0 ? 0 : Math.floor(sc.t * 6 + e.phase * 3) % 4;
       spr = ['e3', spr[1] + f]; esz *= E3_SIZE;
-    }
+    } else if (spr[0] === 'mx') esz *= MX_SIZE;
     const { p, top } = this.drawActor(ctx, spr, x, z, esz, e.flash, e.phase, lift, rage);
     if (e === this.mark) { ctx.fillStyle = '#ffd84a'; ctx.font = `${Math.round(12 + p.s * 0.1)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('✚', p.x, top - 4); }
     // 護盾怪：藍色光罩

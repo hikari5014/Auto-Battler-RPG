@@ -1548,3 +1548,6 @@ button.chapter-name { font: inherit; color: inherit; background: none; border: 0
 /* 3.23 快速掃蕩按鈕（開始冒險右邊） */
 .sweep-btn { border-color: #b8902a; color: #ffd84a; }
 .sweep-btn b { display: inline-flex; align-items: center; gap: 1px; font-size: 12px; white-space: nowrap; }
+
+/* 3.24 Gemini 生成的 Logo 圖 */
+.logo img { display: block; margin: 0 auto; width: min(270px, 72vw); height: auto; image-rendering: auto; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)); }

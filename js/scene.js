@@ -21,6 +21,13 @@ function skyLayers(key) {
   const ls = SKY[key];
   return ls.every(im => im.complete && im.naturalWidth) ? ls : null;
 }
+// 3.24 新版章節背景（Gemini 生成的一整張大圖），每章一張；地平線大約在圖的 HD_HORIZON 高度
+const HD = {};
+const HD_HORIZON = [0.6, 0.6, 0.62, 0.6, 0.6, 0.58, 0.6, 0.66, 0.6, 0.62];
+function hdBg(i) {
+  if (!HD[i]) { HD[i] = new Image(); HD[i].src = `assets/bg/hd/ch${i + 1}.jpg`; }
+  return HD[i].complete && HD[i].naturalWidth ? HD[i] : null;
+}
 // 一層遠景：等比縮放到指定高度、底部對齊 baseY，橫向重複並依速度平移
 function drawLayer(ctx, im, W, baseY, h, off) {
   const w = im.naturalWidth * h / im.naturalHeight;
@@ -95,8 +102,17 @@ export class Scene {
     const { W, top, bottom, horizon } = this;
 
     // 天空與遠景（遠景跟著鏡頭輕微平移＝視差）
-    const layers = skyLayers(ch.sky);
-    if (layers) {
+    const ci = (chapter - 1) % CHAPTERS.length;
+    const hd = hdBg(ci);
+    const layers = hd ? null : skyLayers(ch.sky);
+    if (hd) {
+      // 寬度蓋滿（多留一點給左右晃動），圖的地平線對齊場景的地平線，上面多的天空切掉
+      ctx.imageSmoothingEnabled = true;
+      const k = HD_HORIZON[ci], ar = hd.naturalHeight / hd.naturalWidth;
+      const w = Math.max(W * 1.12, (horizon + 6 - top) / k / ar), h = w * ar; // 太矮的話放大到蓋滿上緣
+      ctx.drawImage(hd, (W - w) / 2 - this.cam.sway * 8, horizon + 6 - h * k, w, h);
+      ctx.imageSmoothingEnabled = false;
+    } else if (layers) {
       ctx.imageSmoothingEnabled = false;
       const h = horizon - top + 8;
       const scale = h / layers[0].naturalHeight;
@@ -108,7 +124,7 @@ export class Scene {
       const off = ((this.t * 6 + this.cam.sway * 40) % T + T) % T;
       drawTile(ctx, ch.bg[1], -off, horizon - T + 6, W + T, T, T, 'bg');
     }
-    if (ch.overlay) {
+    if (ch.overlay && !hd) {
       ctx.fillStyle = ch.overlay;
       ctx.fillRect(0, top, W, horizon - top + 6);
     }
